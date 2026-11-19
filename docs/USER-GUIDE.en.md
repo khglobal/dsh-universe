@@ -74,14 +74,26 @@ the run appears in that session's building as a person in the engine's colours (
 a cream cap; Codex: a dark hoodie with a teal visor), named "Claude Code" or "Codex". You see whether it is still
 working, finished or failed. DSH does not report these runs' tool calls or token use, so their card says so.
 
-**Neighbouring cities.** If Claude Code or Codex is installed on the same computer, a small hint asks whether to show
-its sessions as a city next to the DSH one. **Show its city** turns it on, **Not now** leaves it off; either way the
-choice is remembered, and **Nearby cities** (top right) has a switch for each. With one on, zoom out past the whole
-city (the `−` button or key, or the **All cities** button) to see the cities side by side, each with its sign; choose
-one to go in. Each city has the same buildings, rooms and data views; views with nothing to show (schedules) are left
+**Neighbouring cities.** If Claude Code or Codex is installed on the same computer, its sessions appear as a city
+next to the DSH one automatically, with nothing to click: every session in its store, including the ones you started
+outside DSH, and new sessions show up as you start them. The first time, a one-line notice says so (with a link to
+the settings). The DSH city stays what you see first; a small chip beside the view switch, such as
+"Claude Code · 3 running", shows each neighbour, and clicking it goes to that city. Zoom out past the whole city
+(the `−` button or key, or the **All cities** button) to see the cities side by side, each with its sign; choose one
+to go in. Each city has the same buildings, rooms and data views; views with nothing to show (schedules) are left
 out. A Claude Code session is titled with the name you gave it (`/rename`); other sessions by project folder and
-date. Nothing is read until you turn a city on, and nothing leaves your computer. In a cloud workspace there are no
-such tools, and nothing is shown.
+date. In a cloud workspace there are no such tools, and nothing is shown.
+
+**In the Today bar.** In the DSH city, the running, failed-call and token figures add the neighbours' sessions as
+"+n local" (for example "3 sessions running +2 local"); hover for the breakdown by source. DSH's own figure comes
+first and is what the button steps through. Runs a DSH session delegates to Claude Code or Codex are not saved in
+those tools' session stores, so they are never counted twice.
+
+**Turning it off.** Open **Nearby cities** (top right) and clear the switch for Claude Code or Codex. Reading stops,
+what was read is dropped, and the choice is remembered on this device; turn it back on the same way. Only metadata is
+read (see below), and nothing leaves your computer. A large store takes a few seconds to read the first time; the
+DSH city is ready at once and the neighbours fill in as they are read. What was read is kept on this device, so the
+next start reads only what changed.
 
 ## What it reads, and what it never reads
 
@@ -92,7 +104,9 @@ DSH Universe reads **metadata only**, on your own device:
   status, the plugins and skills you installed, scheduled-task names and times.
 
 It **never** reads your messages, the model's replies or thinking, tool arguments or results, file contents, error
-text or file paths. A subagent's title is its prompt, so subagents are shown by their preset name or as "Subagent n".
+text or file paths. Claude Code and Codex session metadata on this device is shown automatically when those tools are
+installed (the same kinds of fields: times, tool names, token counts, error flags, models, project folder names);
+turn it off under **Nearby cities**. A subagent's title is its prompt, so subagents are shown by their preset name or as "Subagent n".
 Nothing is uploaded and nothing is put into any prompt. The day's summary is kept in DSH's own storage on this
 device and deleted after 14 days.
 

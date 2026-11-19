@@ -4,8 +4,9 @@
 import { existsSync } from 'node:fs';
 import type { UCapabilities, UEvent, UPlatform, USnapshot } from '@dsh-universe/model';
 import type { ConsentRequest, UniverseAdapter } from '../adapter.ts';
-import { createLocalCity, type LocalCity, type StoreReader } from './city.ts';
+import { createLocalCity, type CityCheckpoint, type LocalCity, type StoreReader } from './city.ts';
 import { watchTree } from './files.ts';
+import { sanitize } from '../allow.ts';
 
 export interface LocalAdapterOptions<S> {
   platform: Omit<UPlatform, 'caps'>;
@@ -22,7 +23,12 @@ export interface LocalAdapterOptions<S> {
   /** Regular passes, besides the watcher. */
   everyMs?: number;
   onTitle?: (sessionId: string, title: string) => void;
+  /** What an earlier run read (see `checkpoint`): the store is not read again where nothing changed. */
+  restore?: AdapterCheckpoint;
 }
+
+/** A city's reading plus today's events read so far (the events only when the city's day is kept). */
+export interface AdapterCheckpoint { city: CityCheckpoint; events: UEvent[] }
 
 export interface LocalAdapter extends UniverseAdapter {
   /** Today's events so far (the adapter keeps them; a new day starts the list again). */
@@ -32,11 +38,14 @@ export interface LocalAdapter extends UniverseAdapter {
   caughtUp(): boolean;
   /** Bumps when the list starts again (a new day). */
   epoch(): number;
+  /** What was read so far, between passes (`oldOnly`: only older files, without today's events). */
+  checkpoint(oldOnly?: boolean): Promise<AdapterCheckpoint>;
 }
 
 export function createLocalAdapter<S>(o: LocalAdapterOptions<S>): LocalAdapter {
-  let city: LocalCity = createLocalCity(o.reader, { now: o.now, passMs: o.passMs, onTitle: o.onTitle });
-  let log: UEvent[] = [];
+  let city: LocalCity = createLocalCity(o.reader, { now: o.now, passMs: o.passMs, onTitle: o.onTitle, ...(o.restore ? { restore: o.restore.city } : {}) });
+  // Today's reading taken up from an earlier run comes with the events it gave.
+  let log: UEvent[] = city.restored() === 'day' ? o.restore!.events.map(sanitize).filter((e): e is UEvent => !!e) : [];
   let caught = false, epoch = 0, running: Promise<boolean> | undefined;
   const subs = new Set<(e: UEvent) => void>();
   let stopWatch: (() => void)[] = [];
@@ -91,6 +100,11 @@ export function createLocalAdapter<S>(o: LocalAdapterOptions<S>): LocalAdapter {
       await running?.catch(() => undefined);
       city = createLocalCity(o.reader, { now: o.now, passMs: o.passMs, onTitle: o.onTitle });
       log = []; caught = false; epoch++;
+    },
+    async checkpoint(oldOnly) {
+      // Between passes, so the files' offsets and the events agree.
+      while (running) await running.catch(() => undefined);
+      return { city: city.save(oldOnly), events: oldOnly ? [] : log.slice() };
     },
     events: () => log,
     history: () => city.history(),

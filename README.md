@@ -65,11 +65,15 @@ All screenshots and animations use a made-up sample day (`fixtures/dsh-sample.ts
 - Inside DSH: work a session delegates to Claude Code or Codex (DSH's official `dsh-subagent-claude-code` and
   `dsh-subagent-codex` plugins) shows up as an agent in that session's building, in the engine's own colours and named
   "Claude Code" or "Codex", with its status and whether it failed. Its task and its answer are never read.
-- Neighbouring cities, optional: when Claude Code or Codex is on the same device, a small hint offers to show its
-  sessions as a city next to the DSH one. Zoom out past the whole city to see the cities side by side, each with its
-  sign; go into one for the same buildings, rooms and data views (errors, token use, call volume, waits). Off by
-  default; one click on or off, remembered, and a switch under **Nearby cities**. Silent where neither is installed,
-  as in a cloud workspace.
+- Neighbouring cities, automatic: when Claude Code or Codex is on the same device, its sessions appear as a city next
+  to the DSH one, with no setup, including sessions started outside DSH; new sessions show up live. The DSH city stays
+  the default view: a small chip such as "Claude Code · 3 running" shows the neighbours, and one click goes there.
+  Zoom out past the whole city to see the cities side by side, each with its sign; go into one for the same
+  buildings, rooms and data views (errors, token use, call volume, waits). A switch for each under **Nearby cities**
+  turns one off, and that choice is remembered. Silent where neither is installed, as in a cloud workspace.
+- The Today bar's running, failed-call and token figures add those local sessions, labelled "+n local", with the
+  breakdown by source (DSH, Claude Code, Codex) on hover. Runs DSH delegates to Claude Code or Codex keep no session of
+  their own in those tools' stores, so nothing is counted twice.
 
 **Day and night**
 - Auto (follows the DSH theme), day or night. At night only places that are working or waiting are lit.
@@ -85,8 +89,8 @@ All screenshots and animations use a made-up sample day (`fixtures/dsh-sample.ts
 **Private by design**
 - Metadata only: never your messages, replies, tool arguments or results, or file contents.
 - Nothing leaves your device.
-- Claude Code and Codex cities read only what is listed under [What it reads](#what-it-reads), and only once you turn
-  them on.
+- Claude Code and Codex cities are shown automatically when those tools are on your device, and read only what is
+  listed under [What it reads](#what-it-reads). Turn either off under **Nearby cities**.
 
 ## Gallery
 
@@ -134,8 +138,8 @@ text or file paths. Subagents are shown by their preset name, not their prompt.
 and the delegating call's tool name and time. DSH reports no tool calls or token use for these runs, so none are
 shown. The task description and the run's answer are never read.
 
-**Claude Code and Codex cities** (only after you turn one on), from their session files on this device
-(`~/.claude/projects`, `~/.codex/sessions` and `~/.codex/archived_sessions`):
+**Claude Code and Codex cities** (shown automatically when the tool is on this device, until you turn its city off),
+from their session files on this device (`~/.claude/projects`, `~/.codex/sessions` and `~/.codex/archived_sessions`):
 
 - read: session ids, times, the project folder's name (the full path never leaves the plugin's host side, and only
   as a hash), model names, token counts, tool names and counts, whether a call failed (an error flag, an exit code),
@@ -146,10 +150,18 @@ shown. The task description and the run's answer are never read.
   contents, error text, generated titles or summaries, your prompt history, account ids or links.
 
 Large stores are read incrementally (only what was added since the last look, from today's first line, at most 14
-days back), in small steps that never hold up DSH.
+days back), in small steps that never hold up DSH: the DSH city is ready first and the neighbours fill in after. What
+was read (file hashes, read positions and the metadata above, never a path or any content) is kept in DSH's storage
+on this device, so the next start reads only what changed.
 
 ## Privacy
 
+- **Local Claude Code and Codex sessions are shown automatically.** If Claude Code or Codex is installed on this
+  device, their session metadata (the fields under [What it reads](#what-it-reads), never messages, prompts or tool
+  content) is shown as neighbouring cities and counted in the Today bar, with no click. To turn it off, open
+  **Nearby cities** (top right of the panel) and clear the switch for that tool: reading stops, what was read is
+  dropped, and the choice is remembered on this device. In a cloud workspace there are no such stores, so nothing is
+  shown.
 - Nothing is uploaded. The plugin makes no network requests of its own; the panel talks only to your own DSH.
 - Nothing is put into any prompt, and it adds no tools for the model.
 - The day's summary is kept in DSH's storage on this device for 14 days. Each device has its own city; nothing is

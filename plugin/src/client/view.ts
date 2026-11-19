@@ -21,7 +21,40 @@ export function headline(store: Store, T: number, t: Translate): string {
   return r && w ? t('h.rw', { r, w }) : r ? t('h.r', { r }) : w ? t('h.w', { w }) : t('h.none');
 }
 
-export interface TodayButton { cat: keyof Today['items']; text: string; amber: boolean; count: number }
+export interface TodayButton {
+  cat: keyof Today['items']; text: string; amber: boolean; count: number;
+  /** What the adjacent cities add to this figure (their own sessions, counted on top of DSH's). */
+  local?: number;
+  /** The figure by source, for the button's tooltip. */
+  title?: string;
+}
+
+/** An adjacent city's figures now (host `n.summary`). */
+export interface LocalFigures { id: string; running: number; errors: number; tokens: number }
+
+/**
+ * The DSH-wide figures with the adjacent cities added: sessions running, failed calls and tokens. DSH's own figure
+ * stays first and the addition is labelled as local, with the breakdown by source in the tooltip. Nothing is
+ * counted twice: a run DSH delegates to Claude Code or Codex keeps no session in their stores (and DSH counts it as a
+ * subagent, not a session, with no calls or tokens of its own), so the local sessions are only those started outside
+ * DSH.
+ */
+export function withLocal(buttons: TodayButton[], today: Today, local: readonly LocalFigures[], t: Translate, lang: string): TodayButton[] {
+  const KEY = { run: 'running', err: 'errors', tok: 'tokens' } as const;
+  return buttons.map((b) => {
+    const k = KEY[b.cat as keyof typeof KEY];
+    if (!k) return b;
+    const n = local.reduce((a, x) => a + x[k], 0);
+    if (!n) return b;
+    const fmt = (v: number) => (k === 'tokens' ? tokens(v, lang) : String(v));
+    const own = today[k];
+    const parts = [{ name: t('nb.city.dsh'), v: own }, ...local.filter((x) => x[k] > 0).map((x) => ({ name: t('nb.city.' + x.id), v: x[k] }))];
+    return {
+      ...b, text: b.text + ' ' + t('td.local', { n: fmt(n) }), count: b.count + n, local: n,
+      title: t('td.by', { total: fmt(own + n), list: parts.map((p) => t('td.part', { name: p.name, n: fmt(p.v) })).join(t('td.sep')) }),
+    };
+  });
+}
 
 export function todayButtons(today: Today, T: number, t: Translate, lang: string, caps?: Pick<UCapabilities, 'schedules'>): TodayButton[] {
   const nx = today.next;

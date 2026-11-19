@@ -15,7 +15,7 @@ import { CITY } from './view.ts';
 
 export type CityId = 'dsh' | NeighbourId;
 /** The sign colour of each city (a band on its card; the name is always written beside it). */
-const SIGN: Record<CityId, string> = { dsh: '#2F6BDE', 'claude-code': '#C8643C', codex: '#14A8A4' };
+export const SIGN: Record<CityId, string> = { dsh: '#2F6BDE', 'claude-code': '#C8643C', codex: '#14A8A4' };
 
 export function Region({ cities, active, t, lang, now, dark, onEnter, onClose }: {
   cities: { id: CityId; feed: Feed }[]; active: CityId; t: Translate; lang: string; now: number; dark: boolean;

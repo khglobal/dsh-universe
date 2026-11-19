@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { appendFileSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createLocalCity, isoTimeOf, listFiles, readNext, type StoreReader } from '../src/local/index.ts';
+import { createLocalAdapter, createLocalCity, isoTimeOf, listFiles, pack, readCheckpoint, readNext, unpack, type StoreReader } from '../src/local/index.ts';
 
 const midnight = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
 
@@ -82,3 +82,63 @@ test('local store: a line longer than a read window is stepped over, not kept', 
     assert.deepEqual(r2.lines, ['{"ok":1}']);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+test('local store: what was read is taken up after a restart; only what changed is read again', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'dshu-kit3-'));
+  try {
+    const d0 = midnight();
+    const old = new Date(d0 - 2 * 86_400_000);
+    mkdirSync(join(root, 'p'));
+    for (let i = 0; i < 50; i++) {
+      const f = join(root, 'p', `old${i}.jsonl`);
+      writeFileSync(f, JSON.stringify({ timestamp: old.toISOString(), type: 'user' }) + '\n');
+      utimesSync(f, old, old);
+    }
+    const live = join(root, 'p', 'today.jsonl');
+    writeFileSync(live, Array.from({ length: 300 }, (_, i) => JSON.stringify({ timestamp: new Date(d0 + 60_000 + i * 1000).toISOString(), type: 'assistant' })).join('\n') + '\n');
+    const first = counter(root);
+    // Tail marks of older files go into the 14-day totals.
+    first.reader.tail = (_s, _l, ctx) => { first.seen.tails++; ctx.mark(old.getTime(), 'o'); };
+    const a = createLocalAdapter({ platform: { id: 'x', title: 'X', adapterVersion: '0' }, caps: {} as never, root, watch: [], reader: first.reader, consent: { readsKey: 'k', changesConfig: false, undoKey: 'u' } });
+    await a.snapshot('');
+    assert.equal(first.seen.today, 300);
+    const cp = JSON.parse(JSON.stringify(await a.checkpoint()));
+    assert.ok(readCheckpoint(cp.city), 'the checkpoint reads back');
+    assert.ok(!JSON.stringify(cp).includes(root), 'no path is kept');
+    const history = a.history();
+
+    // Same day: nothing is read again, the events come back with it; an append is read from where it stopped.
+    const again = counter(root);
+    const b = createLocalAdapter({ platform: { id: 'x', title: 'X', adapterVersion: '0' }, caps: {} as never, root, watch: [], reader: again.reader, consent: { readsKey: 'k', changesConfig: false, undoKey: 'u' }, restore: cp });
+    await b.snapshot('');
+    assert.deepEqual(again.seen, { lines: 0, today: 0, heads: 0, tails: 0 });
+    assert.equal(b.events().length, 300);
+    assert.deepEqual(b.history(), history);
+    appendFileSync(live, JSON.stringify({ timestamp: new Date().toISOString(), type: 'user' }) + '\n');
+    await b.stop();
+    const c = createLocalAdapter({ platform: { id: 'x', title: 'X', adapterVersion: '0' }, caps: {} as never, root, watch: [], reader: again.reader, consent: { readsKey: 'k', changesConfig: false, undoKey: 'u' }, restore: cp });
+    await c.snapshot('');
+    assert.equal(again.seen.lines, 1, 'only the appended line');
+    assert.equal(c.events().length, 301);
+
+    // A later day: older files untouched since are taken with their marks; today's are read again.
+    const later = counter(root);
+    later.reader.tail = (_s, _l, ctx) => { later.seen.tails++; ctx.mark(old.getTime(), 'o'); };
+    const tomorrow = d0 + 86_400_000 + 3600_000;
+    const city = createLocalCity(later.reader, { now: () => tomorrow, restore: readCheckpoint(cp.city) });
+    assert.equal(city.restored(), 'old');
+    for (let i = 0; i < 50; i++) if ((await city.pass()).complete) break;
+    assert.equal(later.seen.heads, 1, 'only the file touched on the earlier day is opened');
+    assert.equal(later.seen.tails, 1);
+    assert.ok(city.history().some((d) => d.day === localDayOf(old.getTime()) && d.sessions === 1), 'the kept marks count');
+
+    // Malformed checkpoints are read again from scratch rather than trusted.
+    assert.equal(readCheckpoint({ v: 1, day: 'x', files: [{ k: 'a', o: 5, s: 1, m: 0, st: {} }], sessions: [], failed: [], keys: [] }), undefined);
+    assert.equal(readCheckpoint('nope'), undefined);
+    const st = { calls: new Map([['a', { t: 1 }]]), seen: new Set(['x']), n: 2 };
+    assert.deepEqual(unpack(JSON.parse(JSON.stringify(pack(st)))), st);
+    await c.stop();
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+const localDayOf = (t: number) => { const d = new Date(t), p = (x: number) => String(x).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };

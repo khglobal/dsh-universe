@@ -45,7 +45,9 @@ export interface CxFile {
   agentId: string;
   parent?: string;
   role?: string;
-  cwd?: string;
+  /** The project folder: its name and a hash of its path (the path itself is never kept). */
+  ws?: string;
+  folder?: string;
   model?: string;
   announced: boolean;
   turnOpen: boolean;
@@ -101,18 +103,19 @@ const parse = (l: string): Rec | undefined => { try { return rec(JSON.parse(l));
 function sessionMeta(st: CxFile, p: Rec) {
   const id = str(p.id);
   if (id && !st.announced) st.agentId = id;
-  if (!st.cwd && str(p.cwd)) st.cwd = str(p.cwd);
+  if (!st.ws && str(p.cwd)) folderOf(st, str(p.cwd)!);
   const spawn = rec(rec(rec(p.source).subagent).thread_spawn);
   const parent = str(spawn.parent_thread_id);
   if (parent) { st.parent = parent; const role = str(spawn.agent_role); if (role) st.role = role.slice(0, 80); }
 }
-const workspaceOf = (st: CxFile) => (st.cwd ? 'p:' + pathId(st.cwd) : 'p:unknown');
+const folderOf = (st: CxFile, cwd: string) => { st.ws = 'p:' + pathId(cwd); st.folder = folderName(cwd); };
+const workspaceOf = (st: CxFile) => st.ws ?? 'p:unknown';
 
 function announce(st: CxFile, t: number, ctx: LineCtx) {
   if (st.announced) return;
   st.announced = true;
   const ws = workspaceOf(st);
-  if (ctx.once(ws)) ctx.emit({ type: 'workspace', data: { id: ws, title: st.cwd ? folderName(st.cwd) : '', displayPath: st.cwd ? folderName(st.cwd) : '' } });
+  if (ctx.once(ws)) ctx.emit({ type: 'workspace', data: { id: ws, title: st.folder ?? '', displayPath: st.folder ?? '' } });
   ctx.emit({ type: 'agent', data: {
     id: st.agentId, sessionId: st.parent ?? st.agentId, workspaceId: ws, label: '', engine: 'codex',
     kind: st.parent ? 'subagent' : 'main', ...(st.parent ? { parentAgentId: st.parent } : {}), ...(st.role ? { role: st.role } : {}),
@@ -140,7 +143,7 @@ function onLine(st: CxFile, o: Rec, ctx: LineCtx) {
   const p = rec(o.payload);
   if (o.type === 'session_meta') { sessionMeta(st, p); }
   if (o.type === 'turn_context') {
-    if (!st.cwd && str(p.cwd)) st.cwd = str(p.cwd);
+    if (!st.ws && str(p.cwd)) folderOf(st, str(p.cwd)!);
     const m = str(p.model);
     if (m && m !== st.model) { st.model = m; if (st.announced) ctx.emit({ type: 'agent', data: { id: st.agentId, model: m } }); }
   }

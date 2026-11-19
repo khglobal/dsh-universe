@@ -52,7 +52,9 @@ export interface CcFile {
   sessionId: string;
   parent?: string;
   role?: string;
-  cwd?: string;
+  /** The project folder: its name and a hash of its path (the path itself is never kept). */
+  ws?: string;
+  folder?: string;
   model?: string;
   title?: string;
   announced: boolean;
@@ -88,7 +90,7 @@ export function claudeCodeReader(home: string): StoreReader<CcFile> {
       return st;
     },
     timeOf: isoTimeOf,
-    head(st, lines) { for (const l of lines) { if (st.cwd) break; meta(st, parse(l)); } },
+    head(st, lines) { for (const l of lines) { if (st.ws) break; meta(st, parse(l)); } },
     tail(st, lines, ctx) {
       let first: number | undefined, last: number | undefined, failed = false;
       for (const l of lines) {
@@ -121,16 +123,17 @@ const fresh = (agentId: string, sessionId: string): CcFile => ({ agentId, sessio
 const parse = (l: string): Rec | undefined => { try { return rec(JSON.parse(l)); } catch { return undefined; } };
 function meta(st: CcFile, o: Rec | undefined) {
   if (!o) return;
-  if (!st.cwd && str(o.cwd)) st.cwd = str(o.cwd);
+  if (!st.ws && str(o.cwd)) folderOf(st, str(o.cwd)!);
   if (o.type === 'custom-title') { const x = str(o.customTitle)?.trim(); if (x) st.title = x.slice(0, 200); }
 }
-const workspaceOf = (st: CcFile) => (st.cwd ? 'p:' + pathId(st.cwd) : 'p:unknown');
+const folderOf = (st: CcFile, cwd: string) => { st.ws = 'p:' + pathId(cwd); st.folder = folderName(cwd); };
+const workspaceOf = (st: CcFile) => st.ws ?? 'p:unknown';
 
 function announce(st: CcFile, t: number, ctx: LineCtx) {
   if (st.announced) return;
   st.announced = true;
   const ws = workspaceOf(st);
-  if (ctx.once(ws)) ctx.emit({ type: 'workspace', data: { id: ws, title: st.cwd ? folderName(st.cwd) : '', displayPath: st.cwd ? folderName(st.cwd) : '' } });
+  if (ctx.once(ws)) ctx.emit({ type: 'workspace', data: { id: ws, title: st.folder ?? '', displayPath: st.folder ?? '' } });
   ctx.emit({ type: 'agent', data: {
     id: st.agentId, sessionId: st.parent ?? st.sessionId, workspaceId: ws, label: st.parent ? '' : st.title ?? '', engine: 'claude-code',
     kind: st.parent ? 'subagent' : 'main', ...(st.parent ? { parentAgentId: st.parent } : {}), ...(st.role ? { role: st.role } : {}),

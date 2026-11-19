@@ -26,15 +26,16 @@ is scheduled next. Metadata only, read on your own device.
 - **Workspace-aware.** Each workspace is its own district; buildings keep their place.
 - **Works with Claude Code and Codex.** Work a session delegates to Claude Code or Codex (DSH's official subagent
   plugins) stands in that session's building in the engine's colours, named after it, with its status. Optional
-  neighbouring cities: when Claude Code or Codex is on the same device, a hint offers to show its sessions as a city
-  beside the DSH one; zoom out to see them side by side, each with its sign, and go in for the same buildings, rooms and
-  data views. Off by default, one click on or off, and a switch under **Nearby cities**.
+  neighbouring cities, automatic: when Claude Code or Codex is on the same device, its sessions (including those
+  started outside DSH) appear as a city beside the DSH one, live, with no setup. A small chip such as
+  "Claude Code · 3 running" goes there in one click; zoom out to see the cities side by side. The Today bar adds their
+  running sessions, failed calls and tokens as "+n local". Turn either off under **Nearby cities**.
 - **Day and night.** Auto, day or night; at night only places that are working or waiting are lit.
 - **Accessible.** Keyboard control, a screen-reader list view, reduced motion, light and dark themes, English and
   Chinese.
 - **Fast.** Built for 60 fps; it still draws with no GPU.
-- **Private by design.** Metadata only, never chat or tool content; nothing leaves your device. The Claude Code and
-  Codex cities read only once you turn them on.
+- **Private by design.** Metadata only, never chat or tool content; nothing leaves your device. Local Claude Code and
+  Codex session metadata is shown automatically; turn it off under **Nearby cities**.
 
 ![Inside a session building: the call tape, error beacon and job printer cards, changing floor, agents moving between desks](https://raw.githubusercontent.com/khglobal/dsh-universe/dev/docs/screenshots/indoor.gif)
 
@@ -72,7 +73,7 @@ text or file paths. Subagents are shown by their preset name, not their prompt.
 For runs delegated to Claude Code or Codex inside DSH: their start, end, engine and whether they failed; never their
 task or answer.
 
-The Claude Code and Codex cities, once you turn them on, read their session files on this device for session ids,
+The Claude Code and Codex cities, shown automatically when those tools are on this device, read their session files on this device for session ids,
 times, project folder names, models, token counts, tool names and counts, error flags, turns, retries and subagents,
 and a title only when you set one yourself. Never messages, prompts, replies, reasoning, tool input or output,
 commands, file contents, error text, generated summaries or your prompt history. Read incrementally, at most 14 days
@@ -80,6 +81,9 @@ back.
 
 ## Privacy
 
+- Local Claude Code and Codex session metadata (never messages, prompts or tool content) is shown automatically when
+  those tools are installed on this device. To turn it off, clear its switch under **Nearby cities**: reading stops,
+  what was read is dropped, and the choice is remembered.
 - Nothing is uploaded. The plugin makes no network requests of its own; the panel talks only to your own DSH.
 - Nothing is put into any prompt, and it adds no tools for the model.
 - The day's summary is kept in DSH's storage on this device for 14 days. Each device has its own city; nothing is

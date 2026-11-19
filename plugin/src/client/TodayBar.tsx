@@ -22,7 +22,7 @@ export function TodayBar({ buttons, t, onPress, oneRow, active, chrome }: {
       {buttons.map((b) => (
         <li key={b.cat} style={oneRow ? { flex: 'none' } : undefined}>
           <button type="button" style={oneRow || chrome ? todayBtn(b.amber, active === b.cat) : b.amber ? { ...S.btn, background: 'rgba(240,160,32,.16)', borderColor: C.wait, color: C.wait, fontWeight: 600 } : S.btn}
-            aria-pressed={oneRow ? active === b.cat : undefined} aria-disabled={b.count === 0} onClick={() => b.count > 0 && onPress(b.cat)}>
+            aria-pressed={oneRow ? active === b.cat : undefined} aria-disabled={b.count === 0} title={b.title} data-dshu-local={b.local || undefined} onClick={() => b.count > 0 && onPress(b.cat)}>
             {b.text}
           </button>
         </li>

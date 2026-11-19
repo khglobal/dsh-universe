@@ -19,7 +19,10 @@ export interface SnapshotValue {
 }
 export interface SinceValue { day: string; seq: number; events: SeqEvent[]; more: boolean; placement?: PlacementState; placementVersion: number; /** Adjacent cities: whether the first read of the store is still going. */ backfill?: SnapshotValue['backfill'] }
 
-/** The adjacent cities (Claude Code, Codex on this device), read only after the member turned one on. */
+/**
+ * The adjacent cities (Claude Code, Codex on this device): shown whenever their store is found, unless the member
+ * turned one off. Read only while the panel looks at them.
+ */
 export const NEIGHBOURS = ['claude-code', 'codex'] as const;
 export type NeighbourId = typeof NEIGHBOURS[number];
 export const isNeighbour = (v: unknown): v is NeighbourId => v === 'claude-code' || v === 'codex';
@@ -28,9 +31,16 @@ export interface NeighbourRoutes {
   detect(): { id: NeighbourId; present: boolean }[];
   snapshot(id: NeighbourId): SnapshotValue | Promise<SnapshotValue>;
   since(id: NeighbourId, seq: number, limit: number, placementVersion: number): SinceValue | Promise<SinceValue>;
+  /** Today's figures of each city asked for (this starts its reading; the panel asks only for cities turned on). */
+  summary(ids: readonly NeighbourId[]): NeighbourSummary[] | Promise<NeighbourSummary[]>;
   /** Turned off: stop reading and forget what was read. */
   stop(id: NeighbourId): void | Promise<void>;
 }
+/**
+ * An adjacent city's figures now, as its own Today bar counts them: sessions running, failed calls, tokens.
+ * `ready`: the first read of its store is done (until then the figures are what was read so far).
+ */
+export interface NeighbourSummary { id: NeighbourId; ready: boolean; running: number; errors: number; tokens: number }
 
 export interface RouteDeps {
   snapshot(): SnapshotValue | Promise<SnapshotValue>;
@@ -62,6 +72,11 @@ export async function dispatch(deps: RouteDeps, method: string, payload: unknown
       return ok(await deps.since(seq, Math.min(typeof limit === 'number' ? limit : LIMITS.sinceMax, LIMITS.sinceMax), typeof placementVersion === 'number' ? placementVersion : -1));
     }
     case 'n.detect': return deps.neighbours ? ok(deps.neighbours.detect()) : ok([]);
+    case 'n.summary': {
+      if (!deps.neighbours) return ok([]);
+      if (!isRec(payload) || !Array.isArray(payload.ids) || payload.ids.length > NEIGHBOURS.length || !payload.ids.every(isNeighbour)) return fail('invalid');
+      return ok(await deps.neighbours.summary([...new Set(payload.ids as NeighbourId[])]));
+    }
     case 'n.snapshot': case 'n.since': case 'n.stop': {
       const nb = deps.neighbours;
       if (!nb) return fail('unsupported');

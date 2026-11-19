@@ -1,5 +1,5 @@
 // Calls to this plugin's Host route through the official connection (`connection.rpc.call('/api', ROUTE, …)`).
-import type { SinceValue, SnapshotValue } from '@dsh-universe/adapter-dsh';
+import type { NeighbourSummary, SinceValue, SnapshotValue } from '@dsh-universe/adapter-dsh';
 
 import { ROUTE, type NeighbourId } from '@dsh-universe/adapter-dsh';
 
@@ -13,9 +13,10 @@ export interface Api {
 const isResult = (v: unknown): v is Result<never> =>
   !!v && typeof v === 'object' && ((v as { ok?: unknown }).ok === true || ((v as { ok?: unknown }).ok === false && typeof (v as { reason?: unknown }).reason === 'string'));
 
-/** The adjacent cities: which tools are on this device, and one Api per city (read only once turned on). */
+/** The adjacent cities: which tools are on this device, their figures, and one Api per city (only cities turned on). */
 export interface NeighbourApi {
   detect(): Promise<Result<{ id: NeighbourId; present: boolean }[]>>;
+  summary(ids: readonly NeighbourId[]): Promise<Result<NeighbourSummary[]>>;
   city(id: NeighbourId): Api;
   stop(id: NeighbourId): Promise<Result<boolean>>;
 }
@@ -34,6 +35,7 @@ export function createApi(rpc: (method: string, payload: unknown) => Promise<unk
     since: (seq, placementVersion) => call<SinceValue>('since', { seq, placementVersion: Math.max(0, placementVersion) }),
     neighbours: {
       detect: () => call('n.detect', {}),
+      summary: (ids) => call<NeighbourSummary[]>('n.summary', { ids }),
       city: (id) => ({
         snapshot: () => call<SnapshotValue>('n.snapshot', { id }),
         since: (seq, placementVersion) => call<SinceValue>('n.since', { id, seq, placementVersion: Math.max(0, placementVersion) }),

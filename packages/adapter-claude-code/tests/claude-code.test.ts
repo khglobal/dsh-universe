@@ -77,7 +77,8 @@ test('claude code: incremental, live and bounded', async () => {
     const off = a.subscribe((e) => got.push(e));
     const dir = join(home, '.claude', 'projects', readdirSync(join(home, '.claude', 'projects')).find((d) => d.endsWith('demo-app'))!);
     appendClaudeTurn(join(dir, 'c0ffee01-0000-4000-8000-000000000002.jsonl'), 'c0ffee01-0000-4000-8000-000000000002', now - 1000, 'Grep');
-    for (let i = 0; i < 60 && !got.some((e) => e.type === 'activity'); i++) await new Promise((r) => setTimeout(r, 100));
+    // The watcher, or at the latest the next regular pass (which lists the store again), reads it.
+    for (let i = 0; i < 150 && !got.some((e) => e.type === 'activity'); i++) await new Promise((r) => setTimeout(r, 100));
     off();
     const acts = got.filter((e) => e.type === 'activity');
     assert.equal(acts.length, 1, 'only the appended call is read, nothing earlier again');

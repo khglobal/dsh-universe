@@ -8,8 +8,9 @@ city panel, the list and the Today bar.
 It reads host metadata only (session state, tool names, usage, times), never session content, plan text or replies.
 
 Works with Claude Code and Codex: runs a DSH session delegates to them stand in its building, named after the engine.
-When Claude Code or Codex is on the same device, their sessions can be shown as neighbouring cities (off by default;
-metadata only, read from their session files on this device once turned on).
+When Claude Code or Codex is on the same device, their sessions are shown automatically as neighbouring cities and
+counted in the Today bar as "+n local" (metadata only, read from their session files on this device; each can be
+turned off under Nearby cities).
 
 ## Desktop and cloud
 

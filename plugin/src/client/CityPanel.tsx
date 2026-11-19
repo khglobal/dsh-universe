@@ -1,7 +1,7 @@
 // The city in the `main` slot: the pixel city on a canvas, name plates and a hover card as real
 // (focusable, readable) DOM over it, a toolbar with the layer buttons, a legend that starts closed, zoom buttons
 // and a timeline that can be minimised. Titles appear only here, in the DOM, never in the pixels.
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type ReactNode } from 'react';
 import { CALLS_PER_CAR, LAYERS, PLACE, buildingOf, type Drafts, type LayerId, type PlacementState, type Seen, type Store, type UCapabilities } from '@dsh-universe/model';
 import { CityView, artXY, shortTool } from '@dsh-universe/renderer';
 import { Timeline, type TimeMode } from './Timeline.tsx';
@@ -56,6 +56,8 @@ export interface CityProps {
   caps?: UCapabilities;
   /** Zooming out past the widest view shows the cities around (only when an adjacent city is turned on). */
   onZoomOutFar?(): void;
+  /** At the end of the toolbar, under the zoom column: the chips of the cities around. */
+  beside?: ReactNode;
   /** Data views with nothing to show on this platform (an adjacent city without schedules): not offered. */
   hideLayers?: readonly LayerId[];
 }
@@ -487,6 +489,7 @@ export function CityPanel(p: CityProps) {
         </button>
         <span id="dshu-dn-hint" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>{t('dn.hint')}</span>
         <span id="dshu-snd-hint" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>{t('snd.hint')}</span>
+        {p.beside && <div style={{ marginLeft: 'auto' }}>{p.beside}</div>}
         {p.prefs.legend && (
           // In a data view the legend is that layer's explanation; clear of the zoom column on a phone.
           <div style={{ ...px, flexBasis: '100%', display: 'flex', flexWrap: 'wrap', gap: '2px 14px', padding: '6px 12px', fontSize: 11.5, lineHeight: '17px', color: C.muted, maxWidth: 'min(680px, calc(100% - 56px))', boxSizing: 'border-box' }}>

@@ -8,13 +8,16 @@ import { PLUGIN_SLUG } from '@dsh-universe/adapter-dsh';
 export type Light = 'auto' | 'day' | 'night';
 export const LIGHTS: readonly Light[] = ['auto', 'day', 'night'];
 /**
- * `neighbours`: the adjacent cities (Claude Code, Codex on this device) the member turned on (true) or declined
- * (false); absent means not asked yet. Off by default.
+ * `neighbours`: the adjacent cities (Claude Code, Codex on this device) the member turned off (false) or on (true).
+ * On by default: absent means on, wherever the tool's store is found.
  */
 export type NeighbourChoice = Partial<Record<'claude-code' | 'codex', boolean>>;
-export interface Prefs { legend: boolean; dockMin: boolean; view: 'city' | 'list'; sound: boolean; toured: boolean; light: Light; neighbours: NeighbourChoice }
+/** `noticed`: the tools whose one-line "found" notice was shown on this device. */
+export interface Prefs { legend: boolean; dockMin: boolean; view: 'city' | 'list'; sound: boolean; toured: boolean; light: Light; neighbours: NeighbourChoice; noticed: ('claude-code' | 'codex')[] }
 export const PREFS_KEY = PLUGIN_SLUG + '.view';
-export const DEFAULT_PREFS: Prefs = { legend: false, dockMin: false, view: 'city', sound: false, toured: false, light: 'auto', neighbours: {} };
+export const DEFAULT_PREFS: Prefs = { legend: false, dockMin: false, view: 'city', sound: false, toured: false, light: 'auto', neighbours: {}, noticed: [] };
+/** Whether an adjacent city is shown: unless the member turned it off. */
+export const neighbourOn = (p: Pick<Prefs, 'neighbours'>, id: 'claude-code' | 'codex'): boolean => p.neighbours[id] !== false;
 
 export function readPrefs(storage: Pick<Storage, 'getItem'> | undefined = globalThis.localStorage): Prefs {
   try {
@@ -27,6 +30,7 @@ export function readPrefs(storage: Pick<Storage, 'getItem'> | undefined = global
       toured: raw.toured === true,
       light: raw.light === 'day' || raw.light === 'night' ? raw.light : 'auto',
       neighbours: readChoice(raw.neighbours),
+      noticed: Array.isArray(raw.noticed) ? (['claude-code', 'codex'] as const).filter((k) => (raw.noticed as unknown[]).includes(k)) : [],
     };
   } catch { return { ...DEFAULT_PREFS }; }
 }

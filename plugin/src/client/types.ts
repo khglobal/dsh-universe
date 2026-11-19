@@ -46,10 +46,12 @@ export interface Env {
   now(): number;
   /**
    * The adjacent cities (Claude Code, Codex on this device). `detect` says which stores exist (nothing is read);
-   * `feed` reads one city (only called once the member turned it on); `stop` turns it off on the host.
+   * `summary` gives today's figures of the cities shown (on unless the member turned one off); `feed` reads one
+   * city in full (when the member looks at it); `stop` turns it off on the host.
    */
   neighbours?: {
     detect(): Promise<readonly import('@dsh-universe/adapter-dsh').NeighbourId[]>;
+    summary(ids: readonly import('@dsh-universe/adapter-dsh').NeighbourId[]): Promise<readonly import('@dsh-universe/adapter-dsh').NeighbourSummary[]>;
     feed(id: import('@dsh-universe/adapter-dsh').NeighbourId): import('./feed.ts').Feed;
     stop(id: import('@dsh-universe/adapter-dsh').NeighbourId): void;
   };
