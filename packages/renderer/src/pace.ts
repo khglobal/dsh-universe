@@ -11,8 +11,8 @@ export const AMBIENT_FPS = 12;
 /**
  * Frames a second for the ambient life once nobody has touched the page for CALM_AFTER_MS (left open on a side).
  * Each frame's step stays what it is at 4 (a car moves at most a tenth of a second's way a frame: view.ts), so the
- * traffic only moves on more slowly; measured in 0.3.1 (scripts/cpu-check.mjs, busy day, running clock): 4 → 2 took
- * the city left alone from about 10.6% to (see the CHANGELOG) of a core.
+ * traffic only moves on more slowly. 0.3.1 (with the clock-only updates and the cached text layer in view.ts):
+ * the busy day left alone went from 12.5–14% to about 5% of a core (scripts/cpu-check.mjs --gpu, running clock).
  */
 export const CALM_FPS = 2;
 export const CALM_AFTER_MS = 10_000;
