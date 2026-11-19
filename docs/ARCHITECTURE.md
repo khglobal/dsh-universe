@@ -10,6 +10,7 @@ How the packages fit together, and where new work plugs in.
 | `renderer` | Scenes, camera, hit testing, text layer, frame loop. Draws only through an `ArtKit`. | `model` |
 | `art` | The proprietary art kit (palette, sprites, templates, street, people, cars). Separable. | `model`, `renderer` (types) |
 | `adapter-dsh` | Host aggregator, storage, placement keeper, routes, plugin identity (`identity.ts`). | `model`, `adapter-kit` |
+| `adapter-claude-code`, `adapter-codex` | The neighbouring cities: Claude Code and Codex session stores on this device, metadata only, built on `adapter-kit/local` (incremental byte-offset reading, a time budget, 14 days). | `model`, `adapter-kit` |
 | `plugin` | Host entry, client registration, React panel. | all |
 
 Without the art package the plugin still runs: `plugin/src/client/kit.ts` is the one line that picks the kit

@@ -2,7 +2,7 @@
 // counts, error flags, ids. Arguments, results, messages, error text, file paths and labels are never read into
 // the output (every event goes through adapter-kit `sanitize` as a second line of defence).
 // Event shapes: DSH 0.2.2-rc.2.
-import { categoryOf, themeFromTitle, type CategoryTable, type ThemeId, type UEvent, type UTurn } from '@dsh-universe/model';
+import { categoryOf, themeFromTitle, type CategoryTable, type Engine, type ThemeId, type UEvent, type UTurn } from '@dsh-universe/model';
 import { sanitize } from '@dsh-universe/adapter-kit';
 
 /** The parts of a DSH session the aggregator reads. */
@@ -44,14 +44,32 @@ const OUTCOME: Record<string, 'allowed' | 'rejected' | 'cancelled'> = {
  */
 const WAIT_TOOLS: Record<string, 'question' | 'plan'> = { ask_user_question: 'question', exit_plan_mode: 'plan' };
 const QUESTION_TOOL = 'ask_user_question';
+/**
+ * Delegation to an outside coding engine (official dsh-subagent-claude-code and dsh-subagent-codex 0.2.2-rc.2: the
+ * shared dsh-tool-subagent mounted as `subagent_claude_code` and `subagent_codex`). A run is one blocking tool call
+ * in the parent: the call starts it, `subagent/catalog { mode: 'external', childId }` names it, the result ends it.
+ * Those runs keep no session of their own (the Claude Agent SDK runs with `persistSession: false`, Codex threads
+ * are ephemeral) and report no tool calls or token use to DSH. The catalog's `label` is the task description and
+ * is never read.
+ */
+const ENGINE_TOOLS: Record<string, Engine> = { subagent_claude_code: 'claude-code', subagent_codex: 'codex' };
+/** The engine of a subagent provider name (`claude-code`, `codex` by default; a profile may rename them). */
+export function engineOfProvider(provider: unknown): Engine | undefined {
+  if (typeof provider !== 'string') return undefined;
+  if (/claude/i.test(provider)) return 'claude-code';
+  if (/codex/i.test(provider)) return 'codex';
+  return undefined;
+}
 
 export interface Aggregator {
   /** A session appeared (created, or found by backfill). */
   session(session: SessionLike): UEvent[];
   /** One session event. */
   event(session: SessionLike, ev: SessionEventLike): UEvent[];
-  /** Host `subagent/start` (`SubagentRunInfo`): the child's parent. */
+  /** Host `subagent/start` (`SubagentRunInfo`): the child's parent; for an outside engine also its start. */
   subagent(info: unknown): UEvent[];
+  /** Host `subagent/end` (`SubagentRunEndInfo`): only the stop reason is read, never `lastAssistantMessage`. */
+  subagentEnd(info: unknown): UEvent[];
   /** The session was disposed. */
   disposed(session: SessionLike): UEvent[];
 }
@@ -59,6 +77,10 @@ export interface Aggregator {
 export function createAggregator(deps: AggregatorDeps): Aggregator {
   const known = new Set<string>();
   const calls = new Map<string, { t: number; name: string }>();
+  // Engine runs: per parent, the engine calls still open (oldest first), and call → child once the catalog names it.
+  const openEngine = new Map<string, { id: string; engine: Engine; child?: string }[]>();
+  const childOfCall = new Map<string, string>();
+  const ended = new Set<string>();
   const out = (list: unknown[]): UEvent[] => list.map(sanitize).filter((e): e is UEvent => e !== undefined);
 
   function session(ses: SessionLike): UEvent[] {
@@ -96,6 +118,21 @@ export function createAggregator(deps: AggregatorDeps): Aggregator {
         r.push({ type: 'activity', data: { id, t, agentId, category, tool: name, ...(connectorId ? { connectorId } : {}) } });
         const wk = WAIT_TOOLS[name];
         if (wk) r.push({ type: 'approval', data: { id: 'q:' + id, agentId, kind: wk, askedAt: t } });
+        const engine = ENGINE_TOOLS[name];
+        if (engine) { const l = openEngine.get(agentId) ?? []; if (!l.some((x) => x.id === id)) l.push({ id, engine }); openEngine.set(agentId, l); }
+        break;
+      }
+      case 'subagent/catalog': {
+        // Only an outside run (mode `external`): its id and creation time. Its label (the task) is never read.
+        if (d.mode !== 'external') break;
+        const child = s(d.childId);
+        if (!child) break;
+        const open = (openEngine.get(agentId) ?? []).find((x) => !x.child);
+        if (open) { open.child = child; childOfCall.set(agentId + '\0' + open.id, child); }
+        r.push({ type: 'agent', data: {
+          id: child, sessionId: child, parentAgentId: agentId, kind: 'subagent', label: '', workspaceId: deps.workspaceOf(agentId, s(rec(ses.header).cwd)),
+          state: 'running', startedAt: n(d.childCreatedAt) ?? t, ...(open ? { engine: open.engine } : {}),
+        } });
         break;
       }
       case 'tool/result':
@@ -114,6 +151,13 @@ export function createAggregator(deps: AggregatorDeps): Aggregator {
         r.push({ type: 'activity', data: { id, t: c?.t ?? t, agentId, category, tool: name, ok: !failed, ...(c ? { durationMs: Math.max(0, t - c.t) } : {}), ...(connectorId ? { connectorId } : {}) } });
         const wk = WAIT_TOOLS[name];
         if (wk) r.push({ type: 'approval', data: { id: 'q:' + id, agentId, kind: wk, askedAt: c?.t ?? t, decidedAt: t } });
+        if (ENGINE_TOOLS[name]) {
+          const l = (openEngine.get(agentId) ?? []).filter((x) => x.id !== id);
+          if (l.length) openEngine.set(agentId, l); else openEngine.delete(agentId);
+          const child = childOfCall.get(agentId + '\0' + id);
+          childOfCall.delete(agentId + '\0' + id);
+          if (child && !ended.has(child)) { ended.add(child); r.push({ type: 'agent', data: { id: child, endedAt: t, state: failed ? 'failed' : 'done' } }); }
+        }
         break;
       }
       case 'assistant/message': {
@@ -186,7 +230,22 @@ export function createAggregator(deps: AggregatorDeps): Aggregator {
       const i = rec(info);
       const child = s(i.id), parent = s(i.parentSessionId);
       if (!child || !parent) return [];
-      return out([{ type: 'agent', data: { id: child, parentAgentId: parent, kind: 'subagent' } }]);
+      const engine = i.local === false ? engineOfProvider(i.provider) : undefined;
+      // A local child has its own session (its start and workspace come from there); an outside run has none.
+      if (i.local !== false) return out([{ type: 'agent', data: { id: child, parentAgentId: parent, kind: 'subagent' } }]);
+      return out([{ type: 'agent', data: {
+        id: child, sessionId: child, parentAgentId: parent, kind: 'subagent', label: '', workspaceId: deps.workspaceOf(parent),
+        state: 'running', startedAt: deps.now(), ...(engine ? { engine } : {}),
+      } }]);
+    },
+    subagentEnd(info) {
+      const i = rec(info);
+      const child = s(i.id);
+      if (!child || i.local !== false || ended.has(child)) return [];
+      ended.add(child);
+      // `stopReason` only; `lastAssistantMessage` (the run's answer) is content and never read.
+      const reason = s(i.stopReason);
+      return out([{ type: 'agent', data: { id: child, endedAt: deps.now(), state: reason === 'error' ? 'failed' : 'done' } }]);
     },
     disposed: () => [],
   };
@@ -196,4 +255,4 @@ export function createAggregator(deps: AggregatorDeps): Aggregator {
  * The approval update from `approval/decided` carries a placeholder `askedAt`; the store merges by id, so the
  * asked time from `approval/asked` stays. Exposed for the tests.
  */
-export const _internal = { TURN_REASON, OUTCOME, QUESTION_TOOL, WAIT_TOOLS };
+export const _internal = { TURN_REASON, OUTCOME, QUESTION_TOOL, WAIT_TOOLS, ENGINE_TOOLS };

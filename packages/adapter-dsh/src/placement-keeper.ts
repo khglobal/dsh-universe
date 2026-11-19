@@ -20,7 +20,9 @@ export interface PlacementKeeper {
   flush(): Promise<void>;
 }
 
-export function createPlacementKeeper(o: { table: KvLike; onError?: (e: unknown) => void }): PlacementKeeper {
+/** `key`: where the placement is kept (an adjacent city keeps its own under its own key). */
+export function createPlacementKeeper(o: { table: KvLike; onError?: (e: unknown) => void; key?: string }): PlacementKeeper {
+  const KEY = o.key ?? PLACEMENT_KEY;
   const template = cityTemplate();
   let state = emptyPlacement();
   let version = 0;
@@ -28,7 +30,7 @@ export function createPlacementKeeper(o: { table: KvLike; onError?: (e: unknown)
   const pending = new Map<string, { workspaceId: string; startedAt: number; root: boolean }>();
   return {
     async load() {
-      try { state = readPlacement(await o.table.get(PLACEMENT_KEY)); } catch (e) { o.onError?.(e); }
+      try { state = readPlacement(await o.table.get(KEY)); } catch (e) { o.onError?.(e); }
     },
     observe(events) {
       for (const e of events) {
@@ -77,7 +79,7 @@ export function createPlacementKeeper(o: { table: KvLike; onError?: (e: unknown)
     async flush() {
       if (!dirty) return;
       dirty = false;
-      try { await o.table.put(PLACEMENT_KEY, state); } catch (e) { dirty = true; o.onError?.(e); }
+      try { await o.table.put(KEY, state); } catch (e) { dirty = true; o.onError?.(e); }
     },
   };
 }

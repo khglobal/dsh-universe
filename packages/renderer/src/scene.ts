@@ -468,5 +468,6 @@ function personOf(s: AgentTrack, st: StateAt, o: SceneInput, time: number, placa
   return {
     seed: seedOf(s.agent.id), state: st, subagent: !!s.agent.parentAgentId, ring: o.follow === s.agent.id || o.hover === s.agent.id,
     phase: placard ? time + (seedOf(s.agent.id) % 7) : 0, walking: false, placard, tier,
+    ...(s.agent.engine ? { engine: s.agent.engine } : {}),
   };
 }

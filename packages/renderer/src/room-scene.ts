@@ -3,7 +3,7 @@
 // art kit draws. Only metadata and aggregates: counts, ages, states, tool names. No titles, no content.
 import {
   FLOOR_KINDS, FLOOR_OF, PLACE, floorsOf, idxAt, recentCalls, roomsOfSession, rootOf, seedOf, stateAt,
-  type Floor, type FloorKind, type PlacementState, type RoomChoice, type RoomInfo, type StateAt, type Store, type UCapabilities,
+  type Engine, type Floor, type FloorKind, type PlacementState, type RoomChoice, type RoomInfo, type StateAt, type Store, type UCapabilities,
 } from '@dsh-universe/model';
 import type { BuildingShape, RoomPlace, RoomRecent, RoomSpec, RoomTier } from './artkit.ts';
 import { towerOf } from './scene.ts';
@@ -42,6 +42,8 @@ export interface InteriorAgent {
   tool?: string;
   /** That call's category (its pose). */
   category?: string;
+  /** An outside coding engine's agent (its look). */
+  engine?: Engine;
 }
 
 export interface InteriorFloor extends Floor {
@@ -135,7 +137,7 @@ export function interiorOf(o: InteriorInput): Interior {
     const people: InteriorAgent[] = ids.map((id) => {
       const s = store.agent(id)!;
       const st = stateAt(s, T), k = idxAt(s, T);
-      return { id, sessionId: s.agent.sessionId, seed: seedOf(id), state: st, subagent: !!s.agent.parentAgentId, tool: st === 'running' && k ? s.ev[k - 1].tool : undefined, category: st === 'running' && k ? s.ev[k - 1].category : undefined };
+      return { id, sessionId: s.agent.sessionId, seed: seedOf(id), state: st, subagent: !!s.agent.parentAgentId, tool: st === 'running' && k ? s.ev[k - 1].tool : undefined, category: st === 'running' && k ? s.ev[k - 1].category : undefined, ...(s.agent.engine ? { engine: s.agent.engine } : {}) };
     }).sort((a, b) => a.id.localeCompare(b.id));
     let recent = f.recent ?? [];
     // Public places: the calls made there in the last minute (they also set the room going).

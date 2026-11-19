@@ -9,7 +9,7 @@ import { dayTotals } from './history.ts';
 import type { KvLike } from './kv.ts';
 import { createPlacementKeeper } from './placement-keeper.ts';
 import { dshCapabilities, dshPlatform } from './platform.ts';
-import { createHandler, type SinceValue, type SnapshotValue } from './routes.ts';
+import { createHandler, type NeighbourRoutes, type SinceValue, type SnapshotValue } from './routes.ts';
 import { createSources, type SourceServices } from './sources.ts';
 import { createDayStore, dayOf } from './storage.ts';
 
@@ -30,6 +30,8 @@ export interface HostDeps {
   noBackfill?: boolean;
   /** How long the backfill waits for the workspace registry (DSH registers it after this plugin starts). */
   registryWaitMs?: number;
+  /** The adjacent cities' routes (Claude Code, Codex on this device). */
+  neighbours?: NeighbourRoutes;
 }
 
 export interface DshHost {
@@ -121,6 +123,7 @@ export async function startDshHost(deps: HostDeps): Promise<DshHost> {
   });
   on('session/event', (s, ev) => ingest(aggregator.event(s as SessionLike, ev as SessionEventLike)));
   on('subagent/start', (info) => ingest(aggregator.subagent(info)));
+  on('subagent/end', (info) => ingest(aggregator.subagentEnd(info)));
   on('schedule/changed', () => { void refresh(); });
   on('mcp-manager/status', () => { void refresh(); });
   on('plugin-manager/changed', () => { void refresh(); });
@@ -182,7 +185,7 @@ export async function startDshHost(deps: HostDeps): Promise<DshHost> {
   }
 
   return {
-    handler: createHandler({ snapshot, since }),
+    handler: createHandler({ snapshot, since, ...(deps.neighbours ? { neighbours: deps.neighbours } : {}) }),
     snapshot, since, ready, refresh,
     async dispose() {
       stopped = true;

@@ -17,11 +17,25 @@ export interface SnapshotValue {
   /** 'memory': the host's storage could not be opened; today is kept in memory only (lost on restart). */
   storage?: 'persistent' | 'memory';
 }
-export interface SinceValue { day: string; seq: number; events: SeqEvent[]; more: boolean; placement?: PlacementState; placementVersion: number }
+export interface SinceValue { day: string; seq: number; events: SeqEvent[]; more: boolean; placement?: PlacementState; placementVersion: number; /** Adjacent cities: whether the first read of the store is still going. */ backfill?: SnapshotValue['backfill'] }
+
+/** The adjacent cities (Claude Code, Codex on this device), read only after the member turned one on. */
+export const NEIGHBOURS = ['claude-code', 'codex'] as const;
+export type NeighbourId = typeof NEIGHBOURS[number];
+export const isNeighbour = (v: unknown): v is NeighbourId => v === 'claude-code' || v === 'codex';
+export interface NeighbourRoutes {
+  /** Which tools have a session store on this device (folder presence only; nothing is read). */
+  detect(): { id: NeighbourId; present: boolean }[];
+  snapshot(id: NeighbourId): SnapshotValue | Promise<SnapshotValue>;
+  since(id: NeighbourId, seq: number, limit: number, placementVersion: number): SinceValue | Promise<SinceValue>;
+  /** Turned off: stop reading and forget what was read. */
+  stop(id: NeighbourId): void | Promise<void>;
+}
 
 export interface RouteDeps {
   snapshot(): SnapshotValue | Promise<SnapshotValue>;
   since(seq: number, limit: number, placementVersion: number): SinceValue | Promise<SinceValue>;
+  neighbours?: NeighbourRoutes;
 }
 
 type Rec = Record<string, unknown>;
@@ -46,6 +60,22 @@ export async function dispatch(deps: RouteDeps, method: string, payload: unknown
       if (limit !== undefined && (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1)) return fail('invalid');
       if (placementVersion !== undefined && (typeof placementVersion !== 'number' || !Number.isInteger(placementVersion) || placementVersion < 0)) return fail('invalid');
       return ok(await deps.since(seq, Math.min(typeof limit === 'number' ? limit : LIMITS.sinceMax, LIMITS.sinceMax), typeof placementVersion === 'number' ? placementVersion : -1));
+    }
+    case 'n.detect': return deps.neighbours ? ok(deps.neighbours.detect()) : ok([]);
+    case 'n.snapshot': case 'n.since': case 'n.stop': {
+      const nb = deps.neighbours;
+      if (!nb) return fail('unsupported');
+      if (!isRec(payload) || !isNeighbour(payload.id)) return fail('invalid');
+      const id = payload.id;
+      if (method === 'n.stop') { await nb.stop(id); return ok(true); }
+      if (method === 'n.snapshot') {
+        const v = await nb.snapshot(id);
+        return ok(v.events.length > LIMITS.snapshotMax ? { ...v, events: v.events.slice(-LIMITS.snapshotMax), truncated: true } : v);
+      }
+      const { seq, limit, placementVersion } = payload;
+      if (typeof seq !== 'number' || !Number.isInteger(seq) || seq < 0) return fail('invalid');
+      if (limit !== undefined && (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1)) return fail('invalid');
+      return ok(await nb.since(id, seq, Math.min(typeof limit === 'number' ? limit : LIMITS.sinceMax, LIMITS.sinceMax), typeof placementVersion === 'number' && Number.isInteger(placementVersion) ? placementVersion : -1));
     }
     default:
       return fail('unsupported');

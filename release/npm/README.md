@@ -24,11 +24,17 @@ is scheduled next. Metadata only, read on your own device.
   board, error beacon and job printers.
 - **Timeline.** Look back at any minute of today, replay the day, and see totals for the last 14 days.
 - **Workspace-aware.** Each workspace is its own district; buildings keep their place.
+- **Works with Claude Code and Codex.** Work a session delegates to Claude Code or Codex (DSH's official subagent
+  plugins) stands in that session's building in the engine's colours, named after it, with its status. Optional
+  neighbouring cities: when Claude Code or Codex is on the same device, a hint offers to show its sessions as a city
+  beside the DSH one; zoom out to see them side by side, each with its sign, and go in for the same buildings, rooms and
+  data views. Off by default, one click on or off, and a switch under **Nearby cities**.
 - **Day and night.** Auto, day or night; at night only places that are working or waiting are lit.
 - **Accessible.** Keyboard control, a screen-reader list view, reduced motion, light and dark themes, English and
   Chinese.
 - **Fast.** Built for 60 fps; it still draws with no GPU.
-- **Private by design.** Metadata only, never chat or tool content; nothing leaves your device.
+- **Private by design.** Metadata only, never chat or tool content; nothing leaves your device. The Claude Code and
+  Codex cities read only once you turn them on.
 
 ![Inside a building](screenshots/inside.png)
 
@@ -62,6 +68,15 @@ Metadata only, on your own device:
 
 It **never** reads your messages, the model's replies or thinking, tool arguments or results, file contents, error
 text or file paths. Subagents are shown by their preset name, not their prompt.
+
+For runs delegated to Claude Code or Codex inside DSH: their start, end, engine and whether they failed; never their
+task or answer.
+
+The Claude Code and Codex cities, once you turn them on, read their session files on this device for session ids,
+times, project folder names, models, token counts, tool names and counts, error flags, turns, retries and subagents,
+and a title only when you set one yourself. Never messages, prompts, replies, reasoning, tool input or output,
+commands, file contents, error text, generated summaries or your prompt history. Read incrementally, at most 14 days
+back.
 
 ## Privacy
 

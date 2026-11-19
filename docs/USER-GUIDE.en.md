@@ -67,6 +67,22 @@ city** or `Esc` to leave.
 The AI facilities can be entered too: Skills & Plugins shows what you installed, the Agent Academy your skills and
 experts, the Scheduler the day's scheduled tasks.
 
+## Claude Code and Codex
+
+**Inside DSH.** When a session hands work to Claude Code or Codex (with DSH's Claude Code or Codex subagent plugins),
+the run appears in that session's building as a person in the engine's colours (Claude Code: a terracotta jacket and
+a cream cap; Codex: a dark hoodie with a teal visor), named "Claude Code" or "Codex". You see whether it is still
+working, finished or failed. DSH does not report these runs' tool calls or token use, so their card says so.
+
+**Neighbouring cities.** If Claude Code or Codex is installed on the same computer, a small hint asks whether to show
+its sessions as a city next to the DSH one. **Show its city** turns it on, **Not now** leaves it off; either way the
+choice is remembered, and **Nearby cities** (top right) has a switch for each. With one on, zoom out past the whole
+city (the `−` button or key, or the **All cities** button) to see the cities side by side, each with its sign; choose
+one to go in. Each city has the same buildings, rooms and data views; views with nothing to show (schedules) are left
+out. A Claude Code session is titled with the name you gave it (`/rename`); other sessions by project folder and
+date. Nothing is read until you turn a city on, and nothing leaves your computer. In a cloud workspace there are no
+such tools, and nothing is shown.
+
 ## What it reads, and what it never reads
 
 DSH Universe reads **metadata only**, on your own device:

@@ -5,7 +5,8 @@ import { createSeen } from '@dsh-universe/model';
 import { PLUGIN_ID, PLUGIN_SLUG } from '@dsh-universe/adapter-dsh';
 import { NS, PANEL, en, zh } from '../locales/index.ts';
 import { createApi } from './api.ts';
-import { createFeed } from './feed.ts';
+import { createFeed, type Feed } from './feed.ts';
+import type { NeighbourId } from '@dsh-universe/adapter-dsh';
 import { translator } from './format.ts';
 import { Tile, type TileProps } from './Tile.tsx';
 import type { ClientCtx, ConnectionService, Env, Observable, SessionDraftsService, SessionsService, UiWorkspaceService } from './types.ts';
@@ -47,6 +48,8 @@ export function createEnv(ctx: ClientCtx): Env {
     return c?.rpc ? c.rpc.call('/api', method, payload) : Promise.reject(new Error('no connection'));
   });
   const feed = createFeed(api);
+  // One feed per adjacent city, made when the member first looks at it, dropped when it is turned off.
+  const nfeeds = new Map<NeighbourId, Feed>();
   const seen = createSeen({
     read: () => globalThis.localStorage?.getItem(SEEN_STORAGE_KEY),
     write: (v) => globalThis.localStorage?.setItem(SEEN_STORAGE_KEY, v),
@@ -62,6 +65,11 @@ export function createEnv(ctx: ClientCtx): Env {
     // The official layout service selects a `main` panel by its key (as the workbench opens its own home).
     openPanel: () => { try { opt<{ selectPanel?(id: string | null): void }>('layout')?.selectPanel?.(PANEL); } catch { /* not ready */ } },
     now: Date.now,
+    neighbours: {
+      detect: async () => { const r = await api.neighbours.detect(); return r.ok ? r.value.filter((x) => x.present).map((x) => x.id) : []; },
+      feed: (id) => { let f = nfeeds.get(id); if (!f) nfeeds.set(id, f = createFeed(api.neighbours.city(id), { appendOnly: true, intervalMs: 3000 })); return f; },
+      stop: (id) => { nfeeds.get(id)?.dispose(); nfeeds.delete(id); void api.neighbours.stop(id); },
+    },
   };
 }
 

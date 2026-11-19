@@ -1,6 +1,7 @@
 // Host half: the DSH adapter (aggregator, backfill, sources, day storage, placement) and the route the client reads.
 import { PLUGIN_ID, ROUTE_PATH, STORAGE_DOMAIN, memoryKv, startDshHost, type KvLike } from '@dsh-universe/adapter-dsh';
 import type { HostCtx, StorageDomainLike } from './host-types.ts';
+import { createNeighbours } from './neighbours.ts';
 
 export const name = PLUGIN_ID;
 export const inject: readonly string[] = ['connection', 'storageDomain'];
@@ -26,11 +27,14 @@ export async function apply(ctx: HostCtx): Promise<void> {
     }
   } catch { log('storage: in memory only'); }
 
+  // Claude Code and Codex on this device: nothing is read until the member turns their city on in the panel.
+  const neighbours = createNeighbours({ places, log });
   const host = await startDshHost({
     on: (n, fn) => (ctx.on ? ctx.on(n, fn) : () => {}),
     service: optional,
-    events, places, log, storage,
+    events, places, log, storage, neighbours,
   });
+  ctx.effect(() => () => { void neighbours.dispose(); });
   // Registered after the storage domain, so it is disposed before the domain closes.
   ctx.effect(() => () => { void host.dispose(); });
   const fetch = ctx.connection?.fetch;

@@ -15,9 +15,33 @@ export const look = (seed: number): Look => ({
   hs: (seed >> 1) % 3, pants: PANTS[(seed >> 3) % 4], acc: seed % 5, accC: BOLD[(seed * 3) % 8],
 });
 const MEMBER: Look = { shirt: '#E8705A', sleeve: '#FFFFFF', skin: '#F2C9A5', hair: '#141A30', hs: 0, pants: '#27304F', acc: 3, accC: '#FFFFFF' };
+/**
+ * Outside coding engines keep their own face (skin and hair from the seed) but wear that engine's outfit, so a Claude
+ * Code or Codex agent reads as one at a glance, in the street and at a desk: Claude Code a terracotta jacket with a
+ * cream cap and a white spark on the chest; Codex a near-black hoodie with a teal visor and a teal chest stripe.
+ */
+const ENGINE_LOOK: Record<NonNullable<PersonSpec['engine']>, Pick<Look, 'shirt' | 'sleeve' | 'pants' | 'accC'>> = {
+  'claude-code': { shirt: '#C8643C', sleeve: '#B5573A', pants: '#5A4636', accC: '#F4F1E8' },
+  codex: { shirt: '#27304F', sleeve: '#141A30', pants: '#39415A', accC: '#14A8A4' },
+};
+function lookOf(spec: PersonSpec): Look {
+  if (spec.member) return MEMBER;
+  const base = look(spec.seed >>> 0);
+  return spec.engine ? { ...base, ...ENGINE_LOOK[spec.engine], acc: 0 } : base;
+}
+/** The engine's mark: a cap or visor on the head and a badge on the chest. */
+function engineMark(px: PixelPen, X: number, by: number, engine: NonNullable<PersonSpec['engine']>, o: Look): void {
+  if (engine === 'claude-code') {
+    px(X - 4, by - 8, 8, 2, o.accC); px(X + 2, by - 6, 3, 1, o.accC);   // cap with its peak
+    px(X - 1, by + 1, 1, 3, '#FFFFFF'); px(X - 2, by + 2, 3, 1, '#FFFFFF');   // spark
+  } else {
+    px(X - 4, by - 7, 8, 1, o.accC); px(X - 4, by - 6, 1, 2, o.accC); px(X + 3, by - 6, 1, 2, o.accC);   // visor band
+    px(X - 3, by + 2, 6, 1, o.accC);   // chest stripe
+  }
+}
 
 export function drawPerson(px: PixelPen, X: number, Y: number, spec: PersonSpec): void {
-  const o = spec.member ? MEMBER : look(spec.seed >>> 0);
+  const o = lookOf(spec);
   const stateCol = spec.state === 'future' ? SC.idle : SC[spec.state];
   const ph = spec.phase;
   const f = spec.walking ? (Math.floor(ph * 6) & 1) : 0, b = (spec.placard || spec.working) && ph ? (Math.floor(ph * 3) & 1) : 0, sm = spec.subagent ? 1 : 0;
@@ -38,6 +62,7 @@ export function drawPerson(px: PixelPen, X: number, Y: number, spec: PersonSpec)
   else if (o.acc === 2) { px(X - 6, by, 2, 5, D0); px(X - 6, by + 1, 1, 3, o.accC); }
   else if (o.acc === 3) px(X, by + 1, 1, 3, '#FFFFFF');
   else if (o.acc === 4) { px(X - 4, by - 5, 1, 2, D0); px(X + 3, by - 5, 1, 2, D0); px(X - 3, by - 8, 6, 1, D0); }
+  if (spec.engine && !spec.member) engineMark(px, X, by, spec.engine, o);
   if (spec.placard && spec.placardSmall) smallPlacard(px, X, by - 8, spec.placard);
   else if (spec.placard) placard(px, X, Y - b, spec.placard, spec.tier, ph, spec.placardLift ?? 0);
 }

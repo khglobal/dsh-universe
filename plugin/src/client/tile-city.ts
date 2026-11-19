@@ -1,6 +1,6 @@
 // The workbench tile's pure parts (tested without React): which layout a size gets, and the still mini city.
 import { rallyAt, type PlacementState, type Store } from '@dsh-universe/model';
-import { Traffic, artXY, buildScene, paintCity, scaleOf, type ArtKit, type Canvas2D } from '@dsh-universe/renderer';
+import { Traffic, ZOOM_LEVELS, artXY, buildScene, paintCity, scaleOf, wholeCity, type ArtKit, type Camera, type Canvas2D } from '@dsh-universe/renderer';
 
 export type TileLayout = 'wide' | 'square' | 'strip';
 /** 4×2: the city beside the numbers; 2×2: the city over two numbers; 4×1: a strip of city beside three numbers. */
@@ -24,7 +24,11 @@ export function tileCamY(waiting: number, h: number, dpr: number): number {
   return Math.min(base, Math.floor(balloonTop() - (BALLOON_INSET * dpr - (h * dpr) / 2) / sc));
 }
 
-export function paintTileCity(canvas: HTMLCanvasElement, kit: ArtKit, o: { store: Store; placement: PlacementState; T: number; dark: boolean; w: number; h: number; dpr: number }): void {
+/**
+ * A still picture of a city. The tile frames the square at half size; `whole` (a city card in the cities-around view)
+ * frames the whole city at the widest level that fits.
+ */
+export function paintTileCity(canvas: HTMLCanvasElement, kit: ArtKit, o: { store: Store; placement: PlacementState; T: number; dark: boolean; w: number; h: number; dpr: number; whole?: boolean }): void {
   const W = Math.round(o.w * o.dpr), H = Math.round(o.h * o.dpr);
   if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
   const g = canvas.getContext('2d') as Canvas2D | null;
@@ -38,13 +42,13 @@ export function paintTileCity(canvas: HTMLCanvasElement, kit: ArtKit, o: { store
   traffic.step(scene.cars, scene.growth, 0, false);
   // The square a little below the middle, so the hall and the blocks behind it fill the picture.
   const n = rallyAt(o.store, o.T).length;
-  const cam = { x: 0, y: tileCamY(n, o.h, o.dpr), zi: TILE_ZOOM_INDEX };
+  const cam: Camera = o.whole ? wholeCity({ w: o.w, h: o.h, dpr: o.dpr }, scene.growth) : { x: 0, y: tileCamY(n, o.h, o.dpr), zi: TILE_ZOOM_INDEX };
   const sc = scaleOf(cam, { w: o.w, h: o.h, dpr: o.dpr });
   const bw = Math.ceil(W / sc) + 2 + (Math.ceil(W / sc) & 1), bh = Math.ceil(H / sc) + 2 + (Math.ceil(H / sc) & 1);
   const art = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(bw, bh) : Object.assign(document.createElement('canvas'), { width: bw, height: bh });
   const a = (art as HTMLCanvasElement).getContext('2d') as Canvas2D | null;
   if (!a) return;
-  paintCity(a, kit, scene, traffic, { time: 0, zoom: 0.5, bw, bh, camX: cam.x, camY: cam.y });
+  paintCity(a, kit, scene, traffic, { time: 0, zoom: o.whole ? ZOOM_LEVELS[cam.zi] : 0.5, bw, bh, camX: cam.x, camY: cam.y });
   g.setTransform(1, 0, 0, 1, 0, 0);
   // Whole device pixels per art pixel stay crisp; below one (a low-density screen) the picture is averaged down.
   g.imageSmoothingEnabled = sc < 1;

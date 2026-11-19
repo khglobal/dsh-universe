@@ -1,0 +1,13 @@
+{
+  "name": "@dsh-universe/adapter-codex",
+  "version": "0.1.0",
+  "private": true,
+  "license": "SEE LICENSE IN ../../LICENSE",
+  "description": "Reads the local Codex session store on this device for metadata only and turns it into the common model.",
+  "type": "module",
+  "exports": { ".": { "types": "./src/index.ts", "default": "./src/index.ts" } },
+  "dependencies": {
+    "@dsh-universe/model": "*",
+    "@dsh-universe/adapter-kit": "*"
+  }
+}

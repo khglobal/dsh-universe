@@ -8,7 +8,7 @@ put('search', 'glob', 'grep', 'session_search', 'session_event_search', 'session
 put('edit', 'write', 'edit', 'apply_patch', 'str_replace_editor', 'office_render', 'office_convert', 'office_recalculate');
 put('exec', 'bash', 'pwsh', 'job_output', 'job_list', 'job_kill', 'run_code', 'create_worktree');
 put('web', 'web_search', 'web_fetch');
-put('delegate', 'subagent', 'list_subagent_models', 'send_message', 'interrupt_agent', 'list_agents', 'wait_agent', 'workflow',
+put('delegate', 'subagent', 'subagent_claude_code', 'subagent_codex', 'list_subagent_models', 'send_message', 'interrupt_agent', 'list_agents', 'wait_agent', 'workflow',
   'team_task_create', 'team_task_list', 'team_task_get', 'team_task_update');
 put('skill', 'skill');
 put('plan', 'exit_plan_mode', 'todo_write', 'get_goal', 'create_goal', 'update_goal', 'ralph', 'schedule_create', 'schedule_list', 'schedule_view', 'schedule_edit');

@@ -54,6 +54,10 @@ export interface CityProps {
   onFollow?(agentId: string): void;
   /** What the platform provides (passed on to place views). */
   caps?: UCapabilities;
+  /** Zooming out past the widest view shows the cities around (only when an adjacent city is turned on). */
+  onZoomOutFar?(): void;
+  /** Data views with nothing to show on this platform (an adjacent city without schedules): not offered. */
+  hideLayers?: readonly LayerId[];
 }
 
 const LAYER_KEY: Record<LayerId, string> = { all: 'ly.all', scheduled: 'ly.scheduled', running: 'ly.running', review: 'ly.review', errors: 'ly.errors', tokens: 'ly.tokens', calls: 'ly.calls' };
@@ -229,13 +233,14 @@ export function CityPanel(p: CityProps) {
   if (view?.scene && view.last) {
     const z = view.zoomValue(), W = view.vp.w, H = view.vp.h, whole = view.isWhole();
     const toolbarTop = H - (p.prefs.dockMin ? 52 : 112) - toolbarH - 4;
-    const blocked = (x: number, y: number) => y > toolbarTop || (x > W - 60 && y > toolbarTop - 170);
+    const zoomH = p.onZoomOutFar ? 214 : 176;
+    const blocked = (x: number, y: number) => y > toolbarTop || (x > W - 60 && y > toolbarTop - zoomH + 6);
     const taken: [number, number, number, number][] = [];
     const hits = (bx: readonly number[]) => taken.some((t2) => bx[0] < t2[2] && bx[2] > t2[0] && bx[1] < t2[3] && bx[3] > t2[1]);
     const textW = (s2: string) => [...s2].reduce((a2, ch) => a2 + (/[\u2e80-\uffff]/.test(ch) ? 12.5 : 6.8), 0);
     const sizeOf = (title: string, sub: string) => [Math.min(PLATE_W, 20 + Math.max(textW(title), textW(sub))), 36] as const;
     const inside = (bx: readonly number[]) => bx[0] >= 8 && bx[2] <= W - 8 && bx[1] >= 8 && bx[3] <= toolbarTop;
-    taken.push([W - 64, toolbarTop - 176, W, toolbarTop]);   // the zoom group
+    taken.push([W - 64, toolbarTop - zoomH, W, toolbarTop]);   // the zoom group
     // The square must stay clear: keep out of the balloon and the hall's sign.
     {
       const k = z < 1 ? 2 : 1, q = artXY(14.5, 18.6), a2 = view.screenOf(q[0] - 9 * k, q[1] - 64 - 23 * k), b2 = view.screenOf(q[0] + 9 * k, q[1] - 64 - 3 * k);
@@ -338,11 +343,18 @@ export function CityPanel(p: CityProps) {
     // A click on a person follows it (the camera glides after it while it walks); anywhere else stops following.
     v.setFollow(h?.id.startsWith('agent:') ? h.id.slice(6) : undefined);
   };
+  /** One step out; past the widest view, the cities around (when there are any). */
+  const zoomOut = (x?: number, y?: number) => {
+    const v = viewRef.current;
+    if (!v) return;
+    if (p.onZoomOutFar && !v.canZoomOut()) { p.onZoomOutFar(); return; }
+    v.zoom(-1, x, y);
+  };
   const onWheel = (e: React.WheelEvent) => {
     wheel.current += e.deltaY;
     if (Math.abs(wheel.current) < 50) return;
     const [x, y] = local(e);
-    viewRef.current?.zoom(wheel.current < 0 ? 1 : -1, x, y);
+    if (wheel.current < 0) viewRef.current?.zoom(1, x, y); else zoomOut(x, y);
     wheel.current = 0;
   };
   const onKey = (e: React.KeyboardEvent) => {
@@ -350,7 +362,7 @@ export function CityPanel(p: CityProps) {
     if (!v || e.target !== e.currentTarget) return;
     const k = e.key;
     if (k === 'ArrowLeft') v.panBy(60, 0); else if (k === 'ArrowRight') v.panBy(-60, 0); else if (k === 'ArrowUp') v.panBy(0, 60); else if (k === 'ArrowDown') v.panBy(0, -60);
-    else if (k === '+' || k === '=') v.zoom(1); else if (k === '-') v.zoom(-1); else if (k === '0') v.home();
+    else if (k === '+' || k === '=') v.zoom(1); else if (k === '-') zoomOut(); else if (k === '0') v.home();
     else if (k === 'Enter' || k === ' ') {   // the thing in the middle of the view opens its card
       const h = v.hitAt(v.vp.w / 2, v.vp.h / 2);
       const sid = h ? toSession(h.id) : undefined;
@@ -457,7 +469,7 @@ export function CityPanel(p: CityProps) {
         <p aria-live="polite" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>{layerText}</p>
         <div ref={layersRef} role="group" aria-label={t('ly.label')} data-dshu-layers="" style={{ ...px, display: 'flex', alignItems: 'center', gap: 2, padding: 3, flexWrap: 'nowrap', overflowX: 'auto', maxWidth: '100%', scrollbarWidth: 'none', ...layersFade }}>
           <span style={{ fontSize: 12, color: C.muted, padding: '0 6px', flex: 'none' }}>{t('ly.label')}</span>
-          {LAYERS.map((l) => <button key={l} type="button" aria-pressed={layer === l} style={{ ...btn, flex: 'none', whiteSpace: 'nowrap', ...(layer === l ? pressed : {}) }} onClick={() => setLayer(l)}>{t(LAYER_KEY[l])}</button>)}
+          {LAYERS.filter((l) => !p.hideLayers?.includes(l)).map((l) => <button key={l} type="button" aria-pressed={layer === l} style={{ ...btn, flex: 'none', whiteSpace: 'nowrap', ...(layer === l ? pressed : {}) }} onClick={() => setLayer(l)}>{t(LAYER_KEY[l])}</button>)}
         </div>
         <button type="button" aria-expanded={p.prefs.legend} aria-pressed={p.prefs.legend} style={{ ...btn, ...px, ...(p.prefs.legend ? pressed : {}) }} onClick={() => p.setPrefs({ ...p.prefs, legend: !p.prefs.legend })}>{t('lg.title')}</button>
         <button type="button" aria-pressed={p.prefs.sound} aria-describedby="dshu-snd-hint" title={t('snd.hint')} style={{ ...btn, ...px, ...(p.prefs.sound ? pressed : {}) }}
@@ -491,8 +503,9 @@ export function CityPanel(p: CityProps) {
         )}
       </div>
       <div role="group" aria-label={t('zm.label')} data-dshu-ctl="" style={{ ...px, position: 'absolute', right: 12, bottom: (p.prefs.dockMin ? 52 : 112) + toolbarH + 8, display: 'flex', flexDirection: 'column', padding: 2, gap: 2 }}>
-        {([['zm.in', () => viewRef.current?.zoom(1), 'M8 3v10M3 8h10'], ['zm.out', () => viewRef.current?.zoom(-1), 'M3 8h10'],
-          ['zm.home', () => viewRef.current?.home(), 'M2.5 8.5 8 3l5.5 5.5M4.5 7v6.5h7V7'], ['zm.whole', () => viewRef.current?.whole(), 'M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10']] as const).map(([k, fn, d]) => (
+        {([['zm.in', () => viewRef.current?.zoom(1), 'M8 3v10M3 8h10'], ['zm.out', () => zoomOut(), 'M3 8h10'],
+          ['zm.home', () => viewRef.current?.home(), 'M2.5 8.5 8 3l5.5 5.5M4.5 7v6.5h7V7'], ['zm.whole', () => viewRef.current?.whole(), 'M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10'],
+          ...(p.onZoomOutFar ? [['nb.region', () => p.onZoomOutFar!(), 'M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z']] as const : [])] as const).map(([k, fn, d]) => (
           <button key={k} type="button" aria-label={t(k)} title={t(k)} onClick={fn}
             style={{ ...btn, width: 36, height: 36, minHeight: 36, padding: 0, display: 'grid', placeItems: 'center' }}>
             <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter"><path d={d} /></svg>

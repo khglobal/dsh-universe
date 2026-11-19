@@ -7,9 +7,14 @@ import { PLUGIN_SLUG } from '@dsh-universe/adapter-dsh';
 /** `light`: day or night in the city and its rooms; `auto` follows the host's theme (dark is night). */
 export type Light = 'auto' | 'day' | 'night';
 export const LIGHTS: readonly Light[] = ['auto', 'day', 'night'];
-export interface Prefs { legend: boolean; dockMin: boolean; view: 'city' | 'list'; sound: boolean; toured: boolean; light: Light }
+/**
+ * `neighbours`: the adjacent cities (Claude Code, Codex on this device) the member turned on (true) or declined
+ * (false); absent means not asked yet. Off by default.
+ */
+export type NeighbourChoice = Partial<Record<'claude-code' | 'codex', boolean>>;
+export interface Prefs { legend: boolean; dockMin: boolean; view: 'city' | 'list'; sound: boolean; toured: boolean; light: Light; neighbours: NeighbourChoice }
 export const PREFS_KEY = PLUGIN_SLUG + '.view';
-export const DEFAULT_PREFS: Prefs = { legend: false, dockMin: false, view: 'city', sound: false, toured: false, light: 'auto' };
+export const DEFAULT_PREFS: Prefs = { legend: false, dockMin: false, view: 'city', sound: false, toured: false, light: 'auto', neighbours: {} };
 
 export function readPrefs(storage: Pick<Storage, 'getItem'> | undefined = globalThis.localStorage): Prefs {
   try {
@@ -21,8 +26,15 @@ export function readPrefs(storage: Pick<Storage, 'getItem'> | undefined = global
       sound: raw.sound === true,
       toured: raw.toured === true,
       light: raw.light === 'day' || raw.light === 'night' ? raw.light : 'auto',
+      neighbours: readChoice(raw.neighbours),
     };
   } catch { return { ...DEFAULT_PREFS }; }
+}
+function readChoice(v: unknown): NeighbourChoice {
+  const r = v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
+  const out: NeighbourChoice = {};
+  for (const k of ['claude-code', 'codex'] as const) if (typeof r[k] === 'boolean') out[k] = r[k] as boolean;
+  return out;
 }
 export function writePrefs(p: Prefs, storage: Pick<Storage, 'setItem'> | undefined = globalThis.localStorage): void {
   try { storage?.setItem(PREFS_KEY, JSON.stringify(p)); } catch { /* kept for this run only */ }

@@ -62,6 +62,8 @@ export function titleOf(s: AgentTrack, store: Store, titles: Record<string, stri
   // A subagent's session title is its prompt (DSH titles it from the task text): content, never shown. Its preset or
   // type name if it has one, else "Subagent n" in start order under its parent.
   if (s.agent.parentAgentId) {
+    // A run delegated to an outside engine (Claude Code, Codex) is named after the engine; its task never is.
+    if (s.agent.engine && store.agent(s.agent.parentAgentId)?.agent.engine !== s.agent.engine) return t('eng.' + s.agent.engine);
     if (s.agent.role) return s.agent.role;
     const sibs = store.agents().filter((x) => x.agent.parentAgentId === s.agent.parentAgentId).sort((a, b) => a.agent.startedAt - b.agent.startedAt || a.agent.id.localeCompare(b.agent.id));
     return t('row.subN', { n: sibs.findIndex((x) => x.agent.id === s.agent.id) + 1 });
@@ -69,6 +71,11 @@ export function titleOf(s: AgentTrack, store: Store, titles: Record<string, stri
   const own = titles[s.agent.sessionId] || s.agent.label;
   if (own) return own;
   const ws = store.workspaces().find((w) => w.id === s.agent.workspaceId);
+  // A session of a Claude Code or Codex city without a title its member set: the project folder and the day.
+  if (s.agent.engine) {
+    const d = new Date(s.agent.startedAt), p2 = (x: number) => String(x).padStart(2, '0');
+    return t('row.neutral', { folder: ws ? workspaceName(ws.displayPath || ws.title, t('ws.default')) : t('ws.default'), date: `${p2(d.getMonth() + 1)}-${p2(d.getDate())}` });
+  }
   return t('row.untitled', { folder: ws ? workspaceName(ws.displayPath || ws.title, t('ws.default')) : '', id: s.agent.sessionId.slice(0, 4) });
 }
 
@@ -103,7 +110,9 @@ export function rowOf(s: AgentTrack, store: Store, T: number, t: Translate, lang
   const endT = s.agent.endedAt ?? (st === 'running' || st === 'waiting' ? T : lastActivity(s, T));
   return {
     id: s.agent.id, sessionId: s.agent.sessionId, title: titleOf(s, store, titles, t), sub: !!s.agent.parentAgentId,
-    state: st, stateText: t('st.' + st), context: ctx, detail, tokens: t('row.tok', { n: tokens(cumAt(s, T), lang) }),
+    state: st, stateText: t('st.' + st), context: ctx, detail,
+    // A delegated engine run reports no token use to DSH: said so, rather than a zero.
+    tokens: s.agent.engine && s.agent.parentAgentId && !s.usage.length ? t('row.tokNa') : t('row.tok', { n: tokens(cumAt(s, T), lang) }),
     duration: duration(Math.max(0, endT - s.agent.startedAt), t), review, waiting: st === 'waiting',
   };
 }

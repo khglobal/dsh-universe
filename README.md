@@ -58,6 +58,16 @@ All screenshots use a made-up sample day (`fixtures/dsh-sample.ts`). No real ses
 **Workspace-aware**
 - Each workspace is its own district with a sign; buildings keep their place from day to day.
 
+**Works with Claude Code and Codex**
+- Inside DSH: work a session delegates to Claude Code or Codex (DSH's official `dsh-subagent-claude-code` and
+  `dsh-subagent-codex` plugins) shows up as an agent in that session's building, in the engine's own colours and named
+  "Claude Code" or "Codex", with its status and whether it failed. Its task and its answer are never read.
+- Neighbouring cities, optional: when Claude Code or Codex is on the same device, a small hint offers to show its
+  sessions as a city next to the DSH one. Zoom out past the whole city to see the cities side by side, each with its
+  sign; go into one for the same buildings, rooms and data views (errors, token use, call volume, waits). Off by
+  default; one click on or off, remembered, and a switch under **Nearby cities**. Silent where neither is installed,
+  as in a cloud workspace.
+
 **Day and night**
 - Auto (follows the DSH theme), day or night. At night only places that are working or waiting are lit.
 
@@ -72,6 +82,8 @@ All screenshots use a made-up sample day (`fixtures/dsh-sample.ts`). No real ses
 **Private by design**
 - Metadata only: never your messages, replies, tool arguments or results, or file contents.
 - Nothing leaves your device.
+- Claude Code and Codex cities read only what is listed under [What it reads](#what-it-reads), and only once you turn
+  them on.
 
 ## Gallery
 
@@ -114,6 +126,24 @@ Metadata only, on your own device:
 
 It **never** reads your messages, the model's replies or thinking, tool arguments or results, file contents, error
 text or file paths. Subagents are shown by their preset name, not their prompt.
+
+**Runs delegated to Claude Code or Codex inside DSH:** that a run started and ended, its engine, whether it failed,
+and the delegating call's tool name and time. DSH reports no tool calls or token use for these runs, so none are
+shown. The task description and the run's answer are never read.
+
+**Claude Code and Codex cities** (only after you turn one on), from their session files on this device
+(`~/.claude/projects`, `~/.codex/sessions` and `~/.codex/archived_sessions`):
+
+- read: session ids, times, the project folder's name (the full path never leaves the plugin's host side, and only
+  as a hash), model names, token counts, tool names and counts, whether a call failed (an error flag, an exit code),
+  turns starting and ending, retried requests, subagents and their preset names;
+- a session's title only when you set one yourself (Claude Code's `/rename`); otherwise sessions are named by project
+  folder and date;
+- **never**: messages, prompts, the model's replies or reasoning, tool input or output, commands, patches, file
+  contents, error text, generated titles or summaries, your prompt history, account ids or links.
+
+Large stores are read incrementally (only what was added since the last look, from today's first line, at most 14
+days back), in small steps that never hold up DSH.
 
 ## Privacy
 

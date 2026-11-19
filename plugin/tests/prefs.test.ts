@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import { DEFAULT_PREFS, PREFS_KEY, isNight, nextLight, readPrefs, writePrefs } from '../src/client/prefs.ts';
 
 test('prefs: the legend starts closed, the timeline open, the city shown, the sound off; storage failures fall back', () => {
-  assert.deepEqual(DEFAULT_PREFS, { legend: false, dockMin: false, view: 'city', sound: false, toured: false, light: 'auto' });
+  assert.deepEqual(DEFAULT_PREFS, { legend: false, dockMin: false, view: 'city', sound: false, toured: false, light: 'auto', neighbours: {} });
   assert.deepEqual(readPrefs(undefined), DEFAULT_PREFS);
   assert.deepEqual(readPrefs({ getItem: () => { throw new Error('denied'); } }), DEFAULT_PREFS);
   assert.deepEqual(readPrefs({ getItem: () => '{not json' }), DEFAULT_PREFS);
   const mem = new Map<string, string>();
-  writePrefs({ legend: true, dockMin: true, view: 'list', sound: true, toured: true, light: 'night' }, { setItem: (k, v) => { mem.set(k, v); } });
-  assert.deepEqual(readPrefs({ getItem: (k) => mem.get(k) ?? null }), { legend: true, dockMin: true, view: 'list', sound: true, toured: true, light: 'night' });
+  writePrefs({ legend: true, dockMin: true, view: 'list', sound: true, toured: true, light: 'night', neighbours: { 'claude-code': true, codex: false } }, { setItem: (k, v) => { mem.set(k, v); } });
+  assert.deepEqual(readPrefs({ getItem: (k) => mem.get(k) ?? null }), { legend: true, dockMin: true, view: 'list', sound: true, toured: true, light: 'night', neighbours: { 'claude-code': true, codex: false } });
   assert.ok(PREFS_KEY.startsWith('khglobal-dsh-universe'));
   assert.doesNotThrow(() => writePrefs(DEFAULT_PREFS, { setItem: () => { throw new Error('full'); } }));
 });

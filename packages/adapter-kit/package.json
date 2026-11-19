@@ -5,6 +5,17 @@
   "license": "SEE LICENSE IN ../../LICENSE",
   "description": "Adapter interface, privacy conformance checks and fixture format.",
   "type": "module",
-  "exports": { ".": { "types": "./src/index.ts", "default": "./src/index.ts" } },
-  "dependencies": { "@dsh-universe/model": "*" }
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./local": {
+      "types": "./src/local/index.ts",
+      "default": "./src/local/index.ts"
+    }
+  },
+  "dependencies": {
+    "@dsh-universe/model": "*"
+  }
 }

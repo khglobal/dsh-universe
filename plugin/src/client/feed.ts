@@ -27,7 +27,11 @@ export interface Feed {
   dispose(): void;
 }
 
-export function createFeed(api: Api, o: { intervalMs?: number } = {}): Feed {
+/**
+ * `appendOnly`: the host only ever appends (an adjacent city): while its first read is still going, the feed keeps
+ * asking for what came after instead of reloading the whole day.
+ */
+export function createFeed(api: Api, o: { intervalMs?: number; appendOnly?: boolean } = {}): Feed {
   let st: FeedState = { phase: 'loading', store: createStore(), day: '', seq: 0, placementVersion: -1, history: [], backfill: 'pending', full: false, memoryOnly: false, version: 0 };
   const subs = new Set<() => void>();
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -47,15 +51,16 @@ export function createFeed(api: Api, o: { intervalMs?: number } = {}): Feed {
     if (busy || disposed) return;
     busy = true;
     try {
-      if (st.phase !== 'ready' || st.backfill === 'pending') { await load(); return; }
+      if (st.phase !== 'ready' || (st.backfill === 'pending' && !o.appendOnly)) { await load(); return; }
       const r = await api.since(st.seq, st.placementVersion);
       if (disposed) return;
       if (!r.ok) { emit({ phase: 'error' }); return; }
       const v = r.value;
       if (v.day !== st.day) { await load(); return; }
-      if (!v.events.length && !v.placement) return;
+      const bf = v.backfill && v.backfill !== st.backfill ? { backfill: v.backfill } : {};
+      if (!v.events.length && !v.placement && !bf.backfill) return;
       for (const x of v.events) st.store.apply(x.e);
-      emit({ seq: v.seq, ...(v.placement ? { placement: v.placement, placementVersion: v.placementVersion } : {}) });
+      emit({ seq: v.seq, ...bf, ...(v.placement ? { placement: v.placement, placementVersion: v.placementVersion } : {}) });
       if (v.more) { busy = false; return poll(); }
     } finally { busy = false; }
   }

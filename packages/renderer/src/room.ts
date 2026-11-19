@@ -306,6 +306,7 @@ export class RoomView {
         seed: s.seed, state: s.state, subagent: s.subagent, ring, phase: rm ? 0 : time + (s.seed % 97) / 97,
         walking: w.moving && !rm, working: s.state === 'running' && !w.moving && !rm, placard: 0, tier: 0,
         pose: s.state === 'running' && !w.moving && s.category ? POSE_OF[s.category] : undefined,
+        ...(s.engine ? { engine: s.engine } : {}),
       };
       this.kit.person(px, q[0], q[1], spec2);
       hits.push({ id: s.id, r: [X0 + (q[0] - 7) * zi, Y0 + (q[1] - 19) * zi, X0 + (q[0] + 7) * zi, Y0 + (q[1] + 3) * zi], d: q[1] });

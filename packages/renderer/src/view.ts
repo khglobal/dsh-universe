@@ -167,6 +167,8 @@ export class CityView {
   }
   home(): void { this.moveTo(homeCamera(this.vp)); }
   whole(): void { this.moveTo(wholeCity(this.vp, this.scene?.growth ?? 0)); }
+  /** Whether the camera can go further out (false at the widest level: the panel may then show the cities around). */
+  canZoomOut(): boolean { return this.cam.zi > minZoom(this.vp); }
   zoom(d: number, sx?: number, sy?: number): void { this.goal = undefined; this.cam = zoomStep(this.cam, d, this.vp, sx, sy); this.invalidate(); }
   panBy(dx: number, dy: number): void { this.goal = undefined; this.follow = undefined; this.cam = pan(this.cam, dx, dy, this.vp); this.invalidate(); }
   /** Centre the camera on a place or agent (art pixels from the last paint). */

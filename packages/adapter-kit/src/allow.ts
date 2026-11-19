@@ -1,6 +1,6 @@
 // The allow-list: an adapter's output may hold only the model's fields. `sanitize` copies exactly those (and drops
 // anything else, however it got there); `conformanceProblems` is the check every adapter's tests run.
-import type { UEvent, UEventType } from '@dsh-universe/model';
+import { isEngine, type UEvent, type UEventType } from '@dsh-universe/model';
 
 type Spec = Readonly<Record<string, 'string' | 'number' | 'boolean' | 'strings' | 'runs' | 'plugins'>>;
 
@@ -8,7 +8,7 @@ export const MODEL_FIELDS: Readonly<Record<UEventType, Spec>> = {
   workspace: { id: 'string', title: 'string', displayPath: 'string', tags: 'strings' },
   agent: {
     id: 'string', sessionId: 'string', parentAgentId: 'string', workspaceId: 'string', label: 'string', kind: 'string',
-    role: 'string', model: 'string', state: 'string', startedAt: 'number', endedAt: 'number', scheduleId: 'string',
+    role: 'string', model: 'string', state: 'string', startedAt: 'number', endedAt: 'number', scheduleId: 'string', engine: 'string',
   },
   activity: { id: 'string', t: 'number', agentId: 'string', category: 'string', tool: 'string', connectorId: 'string', durationMs: 'number', ok: 'boolean', tokens: 'number' },
   turn: { t: 'number', agentId: 'string', phase: 'string', reason: 'string' },
@@ -52,7 +52,10 @@ export function sanitize(e: unknown): UEvent | undefined {
   if (!e || typeof e !== 'object') return undefined;
   const { type, data } = e as { type?: unknown; data?: unknown };
   if (typeof type !== 'string' || !(type in MODEL_FIELDS) || !data || typeof data !== 'object') return undefined;
-  return { type, data: pick(MODEL_FIELDS[type as UEventType], data as Record<string, unknown>) } as UEvent;
+  const out = pick(MODEL_FIELDS[type as UEventType], data as Record<string, unknown>);
+  // An engine is one of the known names or nothing.
+  if (type === 'agent' && out.engine !== undefined && !isEngine(out.engine)) delete out.engine;
+  return { type, data: out } as UEvent;
 }
 
 /**

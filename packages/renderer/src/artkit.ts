@@ -4,7 +4,7 @@
 //
 // Every sprite the kit returns is already snapped to its palette and outlined; the renderer only places it.
 // Positions are ground tiles (x, y); the art-pixel position of a tile is `artXY` (geometry.ts).
-import type { RoomInfo, Segment, Stage, StateAt } from '@dsh-universe/model';
+import type { Engine, RoomInfo, Segment, Stage, StateAt } from '@dsh-universe/model';
 
 export type Canvas2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
@@ -123,6 +123,8 @@ export interface PersonSpec {
   placardSmall?: boolean;
   /** Art pixels the full placard is held higher (every other one in the square's first row, so neighbours do not overlap). */
   placardLift?: number;
+  /** An outside coding engine's agent (Claude Code, Codex): drawn in that engine's colours. */
+  engine?: Engine;
 }
 
 export interface CarSpec { model: number; colour: number; dx: number; dy: number }

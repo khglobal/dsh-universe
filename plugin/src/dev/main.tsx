@@ -44,6 +44,17 @@ const full = stress ? stressDay(midnight.getTime(), stress, q.get('lang') === 'e
     full.events.push({ type: 'turn', data: { t: t + 9 * 60_000, agentId: id, phase: 'end', reason: i % 11 === 0 ? 'error' : 'completed' } });
   }
 }
+// `?engines=1`: three of the sample's sessions delegate work to Claude Code and Codex (dsh-subagent-claude-code and
+// dsh-subagent-codex): the runs stand in their parent's building in the engine's colours, named after the engine.
+if (q.get('engines') === '1') {
+  const roots = full.events.filter((e): e is Extract<typeof e, { type: 'agent' }> => e.type === 'agent' && !e.data.parentAgentId && e.data.startedAt < full.now - 30 * 60_000).slice(0, 3);
+  roots.forEach((r, i) => {
+    const id = 'dev-engine-' + i, engine = i === 1 ? 'codex' as const : 'claude-code' as const;
+    full.events.push({ type: 'agent', data: { id, sessionId: id, parentAgentId: r.data.id, workspaceId: r.data.workspaceId, label: '', kind: 'subagent', engine, state: 'running', startedAt: full.now - (12 + i * 5) * 60_000 } });
+    full.events.push({ type: 'activity', data: { id: id + ':call', t: full.now - (12 + i * 5) * 60_000, agentId: r.data.id, category: 'delegate', tool: engine === 'codex' ? 'subagent_codex' : 'subagent_claude_code' } });
+    if (i === 2) full.events.push({ type: 'agent', data: { id, endedAt: full.now - 3 * 60_000, state: 'failed' } as never });
+  });
+}
 const fx = q.get('empty') === '1'
   ? { ...full, events: full.events.filter((e) => e.type === 'workspace' || e.type === 'connector' || e.type === 'inventory' || e.type === 'schedule'), placement: undefined }
   : full;

@@ -10,6 +10,8 @@
     "packages/renderer",
     "packages/adapter-kit",
     "packages/adapter-dsh",
+    "packages/adapter-claude-code",
+    "packages/adapter-codex",
     "plugin"
   ],
   "engines": {

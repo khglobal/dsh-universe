@@ -96,7 +96,7 @@ export function Tile({ env, size, theme, reducedMotion }: { env: Env } & TilePro
  * The square and the blocks round it, at half size (one art pixel per two CSS pixels), still. Painted when the data
  * or the minute changes and the tile is visible; never in a frame loop.
  */
-function TileCity({ store, placement, T, version, dark }: { store: Store; placement: PlacementState; T: number; version: number; dark: boolean }) {
+export function TileCity({ store, placement, T, version, dark, whole }: { store: Store; placement: PlacementState; T: number; version: number; dark: boolean; whole?: boolean }) {
   const wrap = useRef<HTMLSpanElement>(null);
   const cv = useRef<HTMLCanvasElement>(null);
   const [visible, setVisible] = useState(false);
@@ -119,18 +119,18 @@ function TileCity({ store, placement, T, version, dark }: { store: Store; placem
     const canvas = cv.current;
     if (!canvas || !dims || !visible) return;   // off screen: nothing is drawn (and nothing is asked of the GPU)
     const dpr = Math.max(1, Math.min(3, globalThis.devicePixelRatio || 1));
-    const key = [version, T, dark, dims.w, dims.h, dpr].join('|');
+    const key = [version, T, dark, dims.w, dims.h, dpr, whole].join('|');
     if (painted.current === key) return;
     painted.current = key;
-    paintTileCity(canvas, kitOnce(), { store, placement, T, dark, w: dims.w, h: dims.h, dpr });
-  }, [visible, dims, version, T, dark]);
+    paintTileCity(canvas, kitOnce(), { store, placement, T, dark, w: dims.w, h: dims.h, dpr, whole });
+  }, [visible, dims, version, T, dark, whole]);
 
   return (
     <span ref={wrap} aria-hidden="true" style={{
       position: 'relative', display: 'block', minWidth: 0, minHeight: 0, overflow: 'hidden',
       // The skin's plate radius and sunken bevel (90s web: square and bevelled; glass: round with a bright rim).
       borderRadius: 'max(0px, calc(var(--awb-r-plate, 14px) - 6px))', boxShadow: 'var(--awb-sh0, inset 0 0 0 1px rgb(127 127 127 / .25))',
-      background: dark ? '#0A0F24' : '#EEF3FA',
+      background: dark ? '#0A0F24' : '#EEF3FA', ...(whole ? { height: '100%' } : {}),
     }}>
       <canvas ref={cv} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block', imageRendering: 'pixelated' }} />
     </span>

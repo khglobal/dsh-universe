@@ -44,4 +44,13 @@ export interface Env {
   openPanel?(): void;
   /** The moment shown (live: the clock; mock data: the fixture's moment). */
   now(): number;
+  /**
+   * The adjacent cities (Claude Code, Codex on this device). `detect` says which stores exist (nothing is read);
+   * `feed` reads one city (only called once the member turned it on); `stop` turns it off on the host.
+   */
+  neighbours?: {
+    detect(): Promise<readonly import('@dsh-universe/adapter-dsh').NeighbourId[]>;
+    feed(id: import('@dsh-universe/adapter-dsh').NeighbourId): import('./feed.ts').Feed;
+    stop(id: import('@dsh-universe/adapter-dsh').NeighbourId): void;
+  };
 }
