@@ -83,6 +83,8 @@ try {
       return { ctx, page, wire, reads, clear };
     };
     const zoomOutFar = async (page) => {
+      const mask = page.locator('[role=presentation] [aria-hidden=true]');
+      for (let i = 0; i < 20 && await mask.count(); i++) { await page.keyboard.press('Escape'); await page.waitForTimeout(500); }
       const city = page.locator('[role=application]').first();
       await city.focus().catch(() => {});
       for (let i = 0; i < 7; i++) { await page.keyboard.press('-'); await page.waitForTimeout(150); }
@@ -93,7 +95,7 @@ try {
     for (const lang of ['en', 'zh']) {
       const W = L[lang];
       step(`${lang}: the hint`);
-      const { ctx, page, wire, reads } = await open(lang);
+      const { ctx, page, wire, reads, clear } = await open(lang);
       const hint = page.locator('[data-dshu-hint]');
       if (await hint.getAttribute('data-dshu-hint').catch(() => null) !== 'claude-code') problems.push(`${lang}: no Claude Code hint`);
       if (!(await page.evaluate(() => document.body.innerText)).includes(W.hint)) problems.push(`${lang}: hint text missing`);
@@ -101,10 +103,10 @@ try {
       if (reads.length) problems.push(`${lang}: the host was asked to read before any choice: ${reads[0]}`);
 
       step(`${lang}: "Not now" twice → off, silent`);
-      await hint.getByRole('button', { name: W.notNow }).click();
+      await clear(); await hint.getByRole('button', { name: W.notNow }).click();
       await page.waitForTimeout(300);
       if (await hint.getAttribute('data-dshu-hint').catch(() => null) !== 'codex') problems.push(`${lang}: no Codex hint after the first`);
-      await hint.getByRole('button', { name: W.notNow }).click();
+      await clear(); await hint.getByRole('button', { name: W.notNow }).click();
       await page.waitForTimeout(300);
       if (await page.locator('[data-dshu-hint]').count()) problems.push(`${lang}: the hint came back after "Not now"`);
       await zoomOutFar(page);
@@ -115,12 +117,12 @@ try {
       await shot(page, 'off', lang);
 
       step(`${lang}: turned on in "Nearby cities"`);
-      await page.getByRole('button', { name: W.settings }).click();
+      await clear(); await page.getByRole('button', { name: W.settings }).click();
       const boxes = page.locator('[data-dshu-nb-settings] input[type=checkbox]');
       if ((await boxes.count()) !== 2) problems.push(`${lang}: settings should list two tools`);
       for (let i = 0; i < await boxes.count(); i++) await boxes.nth(i).check();
       await shot(page, 'settings', lang);
-      await page.getByRole('button', { name: W.settings }).click();
+      await clear(); await page.getByRole('button', { name: W.settings }).click();
       await zoomOutFar(page);
       const region = page.locator('[data-dshu-region]');
       if (!(await region.count())) problems.push(`${lang}: zooming out past the widest view did not show the cities`);
@@ -133,7 +135,7 @@ try {
 
       for (const id of ['claude-code', 'codex']) {
         step(`${lang}: the ${id} city`);
-        await page.locator(`[data-dshu-city="${id}"]`).click();
+        await clear(); await page.locator(`[data-dshu-city="${id}"]`).click();
         await page.waitForTimeout(4000);
         if (await page.locator(`[data-dshu-sign="${id}"]`).count() !== 1) problems.push(`${lang}: ${id}: no city sign`);
         const layers = await page.locator('[data-dshu-layers] button').allInnerTexts();
@@ -143,7 +145,7 @@ try {
         await page.waitForTimeout(1500);
         await shot(page, id + '-errors', lang);
         await page.locator('[data-dshu-layers] button').first().click();
-        await page.getByRole('button', { name: W.list, exact: true }).first().click();
+        await clear(); await page.getByRole('button', { name: W.list, exact: true }).first().click();
         await page.waitForTimeout(1500);
         const ltext = await page.evaluate(() => document.body.innerText);
         if (id === 'claude-code' && !ltext.includes(CUSTOM_TITLE)) problems.push(`${lang}: the set title is not shown`);
@@ -173,7 +175,7 @@ try {
   } finally { await browser.close(); }
   for (const line of log.split('\n')) if (/universe|neighbour/iu.test(line) && /error|warn/iu.test(line)) problems.push(`host log: ${line}`);
 } catch (e) {
-  problems.push(`stopped: ${e instanceof Error ? e.message : e}`);
+  problems.push(`stopped: ${e instanceof Error ? e.message.split('\n')[0] : e}`);
 } finally {
   if (server && server.exitCode === null) { const gone = new Promise((r) => server.once('exit', r)); server.kill(); await Promise.race([gone, new Promise((r) => setTimeout(r, 10_000))]); }
   if (opt.keep) step(`kept ${T}`); else rmSync(T, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
