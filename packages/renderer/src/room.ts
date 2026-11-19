@@ -104,6 +104,13 @@ export class RoomView {
   roomPaints = 0;
   animated = false;
   geometry: RoomGeometry = { wide: true, x: 0, y: 0, zoom: 1, w: 0, h: 0, labels: [], props: [] };
+  /**
+   * How the last frame put the room's art buffer on the screen (device pixels): checks hold it to whole numbers, a
+   * whole scale and smoothing off.
+   */
+  blit = { sc: 0, x: 0, y: 0, w: 0, h: 0, smoothing: true };
+  /** Where the text layer drew plates this frame (device pixels): checks treat them as interface, not art. */
+  signRects: [number, number, number, number][] = [];
   /** Agents on screen (CSS pixel rectangles), front first. */
   hits: { id: string; r: [number, number, number, number] }[] = [];
 
@@ -349,6 +356,7 @@ export class RoomView {
       this.slide = undefined;
       c.drawImage(this.art as CanvasImageSource, Math.round(X0 * dpr), Math.round(Y0 * dpr), bw * S2, bh * S2);
     }
+    this.blit = { sc: S2, x: Math.round(X0 * dpr), y: Math.round(Y0 * dpr), w: bw * S2, h: bh * S2, smoothing: !!c.imageSmoothingEnabled };
     const labels: [number, number][] = [];
     let stackRect: RoomGeometry['stack'];
     const fl = inp.interior.floors;
@@ -368,7 +376,7 @@ export class RoomView {
       c.fillStyle = '#141A30'; c.fillRect(Math.round(lx * dpr), Math.round((ly - 6) * dpr), Math.round(3 * dpr), Math.round(12 * dpr));
     }
     const uu = Math.max(1, Math.round(S2 / 2));
-    drawTextLayer(c, unstack(c, plates, dpr, uu), [], dpr, uu);
+    this.signRects = drawTextLayer(c, unstack(c, plates, dpr, uu), [], dpr, uu);
     c.globalAlpha = 1;
     // The data props, for the panel's buttons over them.
     const props = (layout.props ?? []).map((p) => {

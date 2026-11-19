@@ -3,6 +3,12 @@
 //   --golden            six representative rooms (every plan type), light and dark, against fixtures/golden/room-*.png
 //                       (--update rewrites them). Sample day 2026-11-18 15:44:46, reduced motion: still pictures.
 //   --perf              frame times of every 12×12 room while three agents work in it (the room moves)
+//   --crisp             every room (all templates, each size) and the halls: each prop's pixel size matches the people's
+//                       (one art pixel, not the old 2-pixel grid) and it has detail; and in the real panel at dpr 1 and
+//                       2, several window sizes and after a ratio change, the room lands on whole device pixels with
+//                       smoothing off, the backing store at the screen's ratio and no blended edges
+//   --sheet <prefix>    contact sheets of every room template at 2 device pixels per art pixel (1:1 on a Retina
+//                       screen at zoom 1): <prefix>-large.png, -medium.png, -small.png
 //   --swiftshader       with --perf: no GPU at all (SwiftShader), at dpr 1 and 2; must stay under 33 ms at p95
 //   --shots <dir>       screenshots for review (--prefix, default dshu-p3-): rooms, night, narrow, the 50 rooms
 // The page is scripts/room/page.ts, built into .dev/ (ignored) and served on 127.0.0.1; nothing leaves the machine.
@@ -11,7 +17,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
-import { browser as anyBrowser } from './city-check.mjs';
+import { browser as anyBrowser, EDGE_BLEND_MAX, installEdgeBlend, prepare as preparePanel } from './city-check.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const dev = join(root, '.dev');
@@ -27,7 +33,7 @@ export const GOLDEN_SIZES = [['market', 'small'], ['helpdesk', 'medium'], ['lobb
 async function prepare() {
   mkdirSync(dev, { recursive: true });
   await build({ entryPoints: [join(root, 'scripts/room/page.ts')], bundle: true, outfile: join(dev, 'room.js'), format: 'esm', platform: 'browser', target: 'es2022', logLevel: 'warning' });
-  writeFileSync(join(dev, 'room.html'), '<!doctype html><meta charset="utf-8"><body style="margin:0;overflow:hidden"><canvas id="cv" style="display:block;image-rendering:pixelated"></canvas><script type="module" src="room.js"></script>');
+  writeFileSync(join(dev, 'room.html'), '<!doctype html><meta charset="utf-8"><link rel="icon" href="data:,"><body style="margin:0;overflow:hidden"><canvas id="cv" style="display:block;image-rendering:pixelated"></canvas><script type="module" src="room.js"></script>');
   const srv = createServer((q, res) => {
     const f = (q.url ?? '/').split('?')[0].slice(1) || 'room.html';
     const p = join(dev, f);
@@ -69,6 +75,91 @@ async function browser() {
   try { ({ chromium } = await import('playwright-core')); } catch { return null; }
   const args = ['--disable-gpu', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--disable-gpu-rasterization', '--disable-accelerated-2d-canvas'];
   try { return await chromium.launch({ ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}), args }); } catch { return null; }
+}
+
+/** Props smaller than this (art pixels) are not measured (a lamp's glow, a cable). */
+const MIN_PROP = 60;
+/** Shell items (floor, walls, ceiling) are not props. */
+const SHELL = new Set(['', 'floor', 'top', 'wall']);
+
+/**
+ * Each prop as the room cache laid it down, against the people drawn into it. Pixel size: art on a 2-pixel grid has
+ * every aligned 2×2 block one colour (`fine` 0); at one art pixel, like the people (~0.75), most blocks on its edges
+ * are mixed. A prop must be at least a third of the people's. Detail: colour changes per pixel at least 0.2 for each
+ * prop, and the room's median prop at least 0.7 of the people's.
+ */
+async function density(p) {
+  const problems = [];
+  const ids = await p.evaluate(() => globalThis.ROOM_IDS);
+  const cases = [...ids.flatMap((room) => ['small', 'medium', 'large'].map((tier) => [room + ' ' + tier, { room, tier }])),
+    ...[['b:s1', 'lobby'], ['b:s7', 'roof'], ['town', 'approval'], ['station', 'gate'], ['conn:erp', undefined]].map(([place, floor]) => [place + (floor ? ' ' + floor : ''), { place, ...(floor ? { floor } : {}) }])];
+  let props = 0, worstFine = 1, worstEdges = Infinity;
+  for (const [name, o] of cases) {
+    const r = await p.evaluate((o) => globalThis.density(o), o);
+    const peopleFine = Math.min(...r.people.map((x) => x.fine)), peopleEdges = median(r.people.map((x) => x.edges));
+    const list = r.props.filter((x) => x.n >= MIN_PROP && !SHELL.has(x.tag));
+    props += list.length;
+    for (const x of list) {
+      worstFine = Math.min(worstFine, x.fine / peopleFine); worstEdges = Math.min(worstEdges, x.edges);
+      if (x.fine < peopleFine / 3) problems.push(`${name}: prop ${x.tag} is drawn at a coarser pixel than the people (2×2 blocks mixed ${(x.fine * 100).toFixed(0)}%, people ${(peopleFine * 100).toFixed(0)}%)`);
+      if (x.edges < 0.2) problems.push(`${name}: prop ${x.tag} has too little detail (${x.edges.toFixed(2)} colour changes per pixel, at least 0.2)`);
+    }
+    const m = median(list.map((x) => x.edges));
+    if (list.length && m < 0.7 * peopleEdges) problems.push(`${name}: the props have less detail than the people (median ${m.toFixed(2)} colour changes per pixel, people ${peopleEdges.toFixed(2)})`);
+  }
+  console.log(`crisp: ${props} props in ${cases.length} rooms and halls; finest-pixel ratio to the people at least ${worstFine.toFixed(2)} (limit 0.33), detail at least ${worstEdges.toFixed(2)} (limit 0.2)`);
+  return problems;
+}
+const median = (a) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : 0; };
+
+/**
+ * The real inside view (the panel's InteriorView in dev mode) at dpr 1 and 2, three window sizes, and after the
+ * window moves to a screen of the other ratio: the backing store is the element times the ratio, the canvas is
+ * `image-rendering: pixelated`, the room is drawn at a whole scale from a whole device pixel with smoothing off, and
+ * almost no edge pixel of the room is an in-between colour (city-check.mjs EDGE_BLEND_MAX).
+ */
+async function screen(b) {
+  const problems = [];
+  const { srv, base } = await preparePanel();
+  let worst = 0, views = 0;
+  try {
+    for (const dpr of [1, 2]) for (const [w, h] of [[1440, 900], [1100, 700], [390, 760]]) for (const room of ['market', 'helpdesk', 'salesfloor']) {
+      const ctx = await b.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: dpr, reducedMotion: 'reduce' });
+      const page = await ctx.newPage();
+      await page.addInitScript(installEdgeBlend);
+      await page.goto(`${base}index.html?fixed=1&lang=en&room=${room}`);
+      await page.waitForFunction(() => !!globalThis.__dshuRoom?.geometry?.w, null, { timeout: 10_000 });
+      await page.waitForTimeout(300);
+      const check = async (what) => {
+        const r = await page.evaluate(([what, max]) => {
+          const v = globalThis.__dshuRoom, cv = v.canvas, rc = cv.getBoundingClientRect(), out = [];
+          v.paint();
+          const b = v.blit, want = [Math.round(rc.width * devicePixelRatio), Math.round(rc.height * devicePixelRatio)];
+          if (cv.width !== want[0] || cv.height !== want[1]) out.push(`${what}: backing ${cv.width}×${cv.height}, element × ratio ${want.join('×')}`);
+          if (!Number.isInteger(b.sc) || b.sc < 1 || ![b.x, b.y, b.w, b.h].every(Number.isInteger)) out.push(`${what}: blit ${JSON.stringify(b)}`);
+          if (Math.abs(v.geometry.zoom * devicePixelRatio - b.sc) > 1e-9) out.push(`${what}: zoom ${v.geometry.zoom} × ratio ${devicePixelRatio} is not the blit scale ${b.sc}`);
+          if (b.smoothing) out.push(`${what}: image smoothing on`);
+          if (getComputedStyle(cv).imageRendering !== 'pixelated') out.push(`${what}: image-rendering ${getComputedStyle(cv).imageRendering}`);
+          const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data, signs = v.signRects;
+          const e = globalThis.__edgeBlend(d, cv.width, cv.height, [b.x, b.y, b.x + b.w, b.y + b.h], (x, y) => signs.some((s) => x >= s[0] - 2 && x < s[2] + 2 && y >= s[1] - 2 && y < s[3] + 2));
+          if (e.share > max) out.push(`${what}: ${(e.share * 100).toFixed(2)}% of the room's edge pixels are blended (most ${max * 100}%)`);
+          return { out, share: e.share };
+        }, [what, EDGE_BLEND_MAX]);
+        worst = Math.max(worst, r.share); views++;
+        return r.out;
+      };
+      problems.push(...await check(`${room} ${w}×${h} dpr ${dpr}`));
+      const other = dpr === 2 ? 1 : 2;
+      const cdp = await ctx.newCDPSession(page);
+      await cdp.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: other, mobile: false });
+      await page.waitForFunction((o) => globalThis.devicePixelRatio === o, other);
+      await page.waitForTimeout(1300);
+      problems.push(...await check(`${room} ${w}×${h} dpr ${dpr} → ${other}`));
+      await ctx.close();
+    }
+  } finally { srv.close(); }
+  console.log(`crisp: ${views} room views; edge pixels blended at most ${(worst * 100).toFixed(3)}% (limit ${EDGE_BLEND_MAX * 100}%)`);
+  return problems;
 }
 
 async function main() {
@@ -121,6 +212,28 @@ async function main() {
       console.log(`perf (${gl}): ${ids.length} rooms × 3 sizes, 1280×760, dpr ${dpr}, three agents working (the room moves): p95 per room median ${q(0.5).toFixed(2)} ms, worst ${worst.id} ${worst.p95.toFixed(2)} ms (p50 ${worst.p50.toFixed(2)}, max ${worst.max.toFixed(2)}, ${worst.roomPaints} room bands in 360 frames)`);
       const limit = has('--swiftshader') ? 33 : 8;
       if (worst.p95 >= limit) { console.error(`perf: a room is over ${limit} ms at p95`); failed++; }
+      if (errors.length) { console.error(errors); failed++; }
+      await p.close();
+    }
+    if (has('--crisp')) {
+      const { p, errors } = await page(b, base);
+      const pr = await density(p);
+      await p.close();
+      const sc = await screen(b);
+      for (const x of [...pr, ...sc]) console.error('crisp:', x);
+      console.log(pr.length + sc.length ? `crisp: ${pr.length + sc.length} problem(s)` : 'crisp: props at the people\'s pixel size with detail, rooms on whole device pixels without blended edges');
+      failed += pr.length + sc.length;
+      if (errors.length) { console.error(errors); failed++; }
+    }
+    const sheet = arg('--sheet');
+    if (sheet) {
+      const { p, errors } = await page(b, base, 2020, 2360, 2);
+      const ids = await p.evaluate(() => globalThis.ROOM_IDS);
+      for (const tier of ['large', 'medium', 'small']) {
+        await p.evaluate(([ids, tier]) => globalThis.grid(ids, { act: true, scale: 2, tier }, 5), [ids, tier]);
+        writeFileSync(`${sheet}-${tier}.png`, await (await p.$('#cv')).screenshot());
+        console.log(`sheet: ${ids.length} rooms, ${tier}`);
+      }
       if (errors.length) { console.error(errors); failed++; }
       await p.close();
     }

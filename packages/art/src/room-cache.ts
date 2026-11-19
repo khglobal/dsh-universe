@@ -8,13 +8,15 @@ import { setItemHook } from './props/pen.ts';
 import { outline, quantize } from './quantize.ts';
 
 /**
- * Items drawn on the room's 2-pixel art grid: snapped to their own colours, reduced to 2×2
- * blocks and outlined at that size, so they match the people, plants and columns. Only items drawn for that
- * grid use it (chunky parts, no 1-pixel detail): the redrawn workstations (`unitc…`) and wall art (`wallc`, and `walld` for the video wall, which keeps its lines).
+ * Items drawn with chunky parts (the redrawn workstations `unitc…`, wall art `wallc`/`walld`, side rooms, corners,
+ * centrepieces and the halls' furniture): composed at the room's own resolution like every other item (one art pixel
+ * = one pixel of a person), and their edge pixels snapped to the item's own colours, so an anti-aliased seam never
+ * takes a third palette colour. They used to be reduced to 2×2 blocks (a 2-pixel grid), which halved their
+ * resolution against the people and left furniture unreadable; scripts/room-check.mjs `--crisp` guards against that.
  */
-const COARSE = /^(unitc\d*|wallc|walld|sidec|cornerc|centrec|(reception|pallet|seats|lounge|counter|queue|bench|desk|housing|tank|panel|hvac|bed)c[\d.]*)$/;
+const OWN_INKS = /^(unitc\d*|wallc|walld|sidec|cornerc|centrec|(reception|pallet|seats|lounge|counter|queue|bench|desk|housing|tank|panel|hvac|bed)c[\d.]*)$/;
 
-/** In place: every drawn pixel becomes the nearest of `inks` (so a coarse item's edges never take an in-between colour). */
+/** In place: every drawn pixel becomes the nearest of `inks` (so an item's edges never take an in-between colour). */
 export function snapTo(data: Uint8ClampedArray, inks: readonly string[]): void {
   if (!inks.length) return;
   const c = inks.map((h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]);
@@ -27,6 +29,9 @@ export function snapTo(data: Uint8ClampedArray, inks: readonly string[]): void {
 }
 import { AS, defaultSurface, type Sprite, type Surface, type SurfaceFactory } from './sprites.ts';
 import type { Canvas2D } from '@dsh-universe/renderer';
+
+/** An item as the room cache laid it down (see RoomCache.trace). */
+export interface TracedItem { tag: string; outlined: boolean; x: number; y: number; w: number; h: number; data: Uint8ClampedArray }
 
 interface Slot { surface: Surface; key: string; sprite: Sprite }
 
@@ -79,6 +84,12 @@ export class RoomCache {
   private readonly make: SurfaceFactory;
   private scratch: Surface | undefined;
   draws = 0;
+  /**
+   * When set (checks only): every item composed into the next rooms, as laid down (snapped and outlined, before it is
+   * drawn over the room), with its tag and place in the sprite. scripts/room-check.mjs `--crisp` measures the props'
+   * pixel size and detail from it.
+   */
+  trace: TracedItem[] | null = null;
   /** Props composed (each snapped and outlined on its own). */
   items = 0;
   constructor(make: SurfaceFactory = defaultSurface) { this.make = make; }
@@ -106,67 +117,28 @@ export class RoomCache {
     // Finish what has been painted since the last boundary: snap, outline, lay it down, clear the scratch.
     const flush = () => {
       if (b.x0 > b.x1) return;
-      if (coarse) { flushCoarse(); return; }
       const m = Math.ceil(b.lw * AS) + 2;
       const x0 = Math.max(0, Math.floor(b.x0) - m), y0 = Math.max(0, Math.floor(b.y0) - m);
       const x1 = Math.min(w, Math.ceil(b.x1) + m), y1 = Math.min(h, Math.ceil(b.y1) + m);
+      const inks = ownInks ? [...b.inks] : [];
       b.reset();
       if (x1 <= x0 || y1 <= y0) return;
       S.setTransform(1, 0, 0, 1, 0, 0);
       const im = S.getImageData(x0, y0, x1 - x0, y1 - y0);
       quantize(im.data);
+      snapTo(im.data, inks);
       if (outlined) outline(im.data, x1 - x0, y1 - y0, night);
+      this.trace?.push({ tag, outlined, x: x0, y: y0, w: x1 - x0, h: y1 - y0, data: new Uint8ClampedArray(im.data) });
       S.putImageData(im, x0, y0);
       D.drawImage(S.canvas as CanvasImageSource, x0, y0, x1 - x0, y1 - y0, x0, y0, x1 - x0, y1 - y0);
       S.clearRect(x0, y0, x1 - x0, y1 - y0);
       S.setTransform(AS, 0, 0, AS, ox, oy);
       this.items++;
     };
-    // A coarse item is drawn at full size like any other, then each 2×2 block takes its most
-    // common colour (antialiased seams, one pixel wide, lose the vote), the outline is drawn at that size and the
-    // result laid down at twice the size: the item sits on the same 2-pixel grid as the people, plants and columns.
-    const flushCoarse = () => {
-      const m = Math.ceil(b.lw * AS) + 4;
-      let x0 = Math.max(0, Math.floor(b.x0) - m), y0 = Math.max(0, Math.floor(b.y0) - m);
-      let x1 = Math.min(w, Math.ceil(b.x1) + m), y1 = Math.min(h, Math.ceil(b.y1) + m);
-      x0 -= x0 & 1; y0 -= y0 & 1; x1 -= x1 & 1; y1 -= y1 & 1;
-      const inks = [...b.inks];
-      b.reset();
-      if (x1 <= x0 || y1 <= y0) return;
-      const fw = x1 - x0, fh = y1 - y0, hw = fw >> 1, hh = fh >> 1;
-      S.setTransform(1, 0, 0, 1, 0, 0);
-      const im = S.getImageData(x0, y0, fw, fh);
-      quantize(im.data);
-      snapTo(im.data, inks);
-      const d = new Uint32Array(im.data.buffer, im.data.byteOffset, fw * fh), half = new Uint32Array(hw * hh);
-      // Wall art keeps its lines: there a block takes its commonest colour other than the item's background, so a
-      // one-pixel line becomes a two-pixel one instead of losing the vote.
-      let bg = 0;
-      if (detail) { const n = new Map<number, number>(); for (const v of d) if (v) n.set(v, (n.get(v) ?? 0) + 1); let bn = 0; for (const [v, c] of n) if (c > bn) { bn = c; bg = v; } }
-      for (let by = 0; by < hh; by++) for (let bx = 0; bx < hw; bx++) {
-        const i = by * 2 * fw + bx * 2, q = [d[i], d[i + 1], d[i + fw], d[i + fw + 1]];
-        if (detail && q.some((v) => v && v !== bg)) { const f = q.filter((v) => v && v !== bg); let best = f[0], bn = 0; for (const v of f) { const n = f.filter((u) => u === v).length; if (n > bn) { bn = n; best = v; } } half[by * hw + bx] = best; continue; }
-        let best = 0, bn = 0, tie = false;
-        for (const v of q) { if (!v) continue; let n = 0; for (const u of q) if (u === v) n++; if (n > bn) { bn = n; best = v; tie = false; } else if (n === bn && v !== best) tie = true; }
-        if (tie) {   // two colours two each (a one-pixel line across the block): the one the surroundings have more of
-          const around = (c: number) => { let n = 0; for (let yy = Math.max(0, by * 2 - 1); yy < Math.min(fh, by * 2 + 3); yy++) for (let xx = Math.max(0, bx * 2 - 1); xx < Math.min(fw, bx * 2 + 3); xx++) if (d[yy * fw + xx] === c) n++; return n; };
-          const other = q.find((v) => v && v !== best)!;
-          if (around(other) > around(best)) best = other;
-        }
-        half[by * hw + bx] = q.filter((v) => v).length >= 2 ? best : 0;
-      }
-      if (outlined) outline(new Uint8ClampedArray(half.buffer), hw, hh, night);
-      for (let by = 0; by < hh; by++) for (let bx = 0; bx < hw; bx++) { const v = half[by * hw + bx], i = by * 2 * fw + bx * 2; d[i] = d[i + 1] = d[i + fw] = d[i + fw + 1] = v; }
-      S.putImageData(im, x0, y0);
-      D.drawImage(S.canvas as CanvasImageSource, x0, y0, fw, fh, x0, y0, fw, fh);
-      S.clearRect(x0, y0, fw, fh);
-      S.setTransform(AS, 0, 0, AS, ox, oy);
-      this.items++;
-    };
     S.setTransform(AS, 0, 0, AS, ox, oy);
-    let coarse = false;
-    let detail = false;
-    setItemHook((t, ol) => { flush(); outlined = ol; coarse = COARSE.test(t); detail = t === 'walld'; });
+    let ownInks = false;
+    let tag = '';
+    setItemHook((t, ol) => { flush(); tag = t; outlined = ol; ownInks = OWN_INKS.test(t); });
     try { withPen(tracking(S, b), paint); flush(); } finally { setItemHook(null); S.setTransform(1, 0, 0, 1, 0, 0); }
     // A last pass over the finished room (an unavailable floor goes through the grey ramp).
     if (finish) { const im = D.getImageData(0, 0, w, h); finish(im.data); D.putImageData(im, 0, 0); }

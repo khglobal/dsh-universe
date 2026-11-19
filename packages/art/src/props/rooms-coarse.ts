@@ -1,6 +1,5 @@
-// Side rooms and corners drawn for the room's 2-pixel art grid: the same rooms in the same
-// places as props/sides.ts and props/corners.ts, with chunky parts (at least two half-scale pixels across, gaps of
-// one) in palette colours. What changes is data, as before: the cage's rack lights and the booth's lamps and record
+// Side rooms and corners with chunky parts (first made for a 2-pixel grid, now composed at the room's own resolution):
+// the same rooms in the same places as props/sides.ts and props/corners.ts, parts at least four pixels across in palette colours. What changes is data, as before: the cage's rack lights and the booth's lamps and record
 // light run only while an agent works on the floor (`act`); the break area's coffee steams then. All rights reserved.
 import { act, B, BOLD, Bw, cyl, disc, F, fl2, flat, fN, g, hs, line, nt, P4, pt, rcol, rec, scr, tm } from './pen.ts';
 import { bush } from './units.ts';
@@ -125,7 +124,7 @@ export const CORNER_C: Kit = {
   },
 };
 
-/** Centrepieces redrawn for the 2-pixel grid. */
+/** Centrepieces redrawn with chunky parts. */
 export const CENTER_C: Kit = {
   /** Briefing: a stage with a lectern and microphone, a flag, a screen with a bar per recent call while busy (red: failed), twelve audience chairs. */
   podium: () => {

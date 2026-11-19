@@ -35,3 +35,20 @@ jobs:
       # The browser checks need a Chromium; the runner may have none, so a skip is accepted here (and only here).
       - name: city goldens and layer leaks
         run: node scripts/city-check.mjs --golden --allow-skip
+  # Crispness in a real headless Chromium (installed here, so this never skips): the city and the rooms on whole device
+  # pixels with no blended edges at dpr 1 and 2, and every room's props at the people's pixel size with detail.
+  crisp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc }
+      - run: npm ci --no-audit --no-fund
+      - name: headless chromium
+        run: npx playwright-core install --with-deps chromium-headless-shell
+      - name: city crispness
+        run: node scripts/city-check.mjs --crisp
+      - name: room crispness and prop pixel size
+        run: node scripts/room-check.mjs --crisp

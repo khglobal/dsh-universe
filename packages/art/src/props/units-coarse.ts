@@ -1,5 +1,5 @@
-// Workstations drawn for the room's 2-pixel art grid. They are painted at half scale (see
-// room-cache `COARSE`), so every part here is a whole half-scale pixel or more: 0.125 tile across, 4 drawing units
+// Workstations drawn with chunky parts (first made for a 2-pixel grid; now composed at the room's own resolution, the
+// same pixel size as the people, see room-cache `OWN_INKS`): every part is 0.125 tile across or more, 4 drawing units
 // high, lines at least 4 wide. Chunky, readable parts in palette colours: monitor, keyboard, chair, mug, paper. What
 // changes is data, as before: screens are lit only while an agent works on the floor (`act`). All rights reserved.
 import { act, B, BOLD, cyl, disc, errNow, fl2, flat, fN, g, hs, line, nt, P4, pt, rec, rm, tm, W } from './pen.ts';
@@ -103,15 +103,14 @@ const cafe = (x: number, y: number, k: number): void => {
   if (k % 3 === 0) { B(x + 1.04, y + 0.04, x + 1.26, y + 0.26, 0, 7, '#C8643C'); disc(pt(x + 1.15, y + 0.15, 14), 8, '#2E9E48'); }
 };
 
-/** Kinds redrawn for the 2-pixel grid (the rest keep their fine drawing until done). */
+/** Kinds redrawn with chunky parts (the rest keep their earlier drawing). */
 const coarse = (f: (x: number, y: number, k: number) => void) => (x: number, y: number, k: number): void => {
   boxStyle.highlight = false;
   try { f(x, y, k); } finally { boxStyle.highlight = true; }
 };
 export const COARSE_UNIT: Partial<UnitKit> = { desk: coarse(desk), console: coarse(console_), bench: coarse(bench), draft: coarse(draft), carrel: coarse(carrel), cafe: coarse(cafe) };
 
-/** Back-wall art on the 2-pixel grid: `wallc` items are reduced by majority; the video wall (not redrawn, its
- * chart is lines) keeps its lines with the detail pass (`walld`). */
+/** Item tags of back-wall art: `wallc` for the redrawn kinds, `walld` for the video wall (both snapped to their own colours). */
 export const wallTag = (kind: string): string => (COARSE_WALL_ART[kind] ? 'wallc' : kind === 'video' ? 'walld' : 'wall');
 
 /** Status board (security, operations): six columns of service lamps, two rows of three; a red lamp on an error. */
@@ -276,14 +275,14 @@ const menu = (): void => {
   }
 };
 
-/** Redrawn wall art for the 2-pixel grid, by wall kind (all fourteen; the video wall keeps its own drawing). */
+/** Redrawn wall art, by wall kind (all fourteen; the video wall keeps its own drawing). */
 export const COARSE_WALL_ART: Record<string, () => void> = { status, board, tvwall, queue, boxes, books, charts, chem, mapw, mood, vaultw, stars, menu };
 
-/** Side rooms, corners and centrepieces that go through the coarse pass as drawn (their parts are big enough). */
+/** Side rooms, corners and centrepieces drawn without the box highlight, their edges snapped to their own colours. */
 export const COARSE_SIDE = new Set<string>(Object.keys(SIDE_C));
 export const COARSE_CORNER = new Set<string>(Object.keys(CORNER_C));
 export const COARSE_CENTER = new Set<string>([...Object.keys(CENTER_C), 'globe', 'anchor', 'soc', 'grid', 'press', 'printer3d', 'booths', 'kiosk', 'suite', 'washer', 'aisle', 'line', 'tanks', 'cube', 'sorter', 'rotary', 'cell', 'table']);
-/** Draws `f` for the 2-pixel grid when `on` (no one-pixel highlight on boxes). */
+/** Draws `f` without the one-pixel highlight on boxes when `on` (the chunky props' look). */
 export function onGrid(on: boolean, f: () => void): void {
   if (!on) { f(); return; }
   boxStyle.highlight = false;

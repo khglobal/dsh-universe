@@ -35,7 +35,7 @@ export function box(x0: number, y0: number, x1: number, y1: number, z0: number, 
   flat(x0, y0, x1, y1, z1, tone(top || c, 0.22));
   if (boxStyle.highlight && z1 - z0 > 7) line(iso(x0, y1, z1 - 1), iso(x1, y1, z1 - 1), '#FFFFFF', 2);
 }
-/** `highlight`: the one-pixel white edge along a box's top (off for things drawn on the 2-pixel grid). */
+/** `highlight`: the one-pixel white edge along a box's top (off for the chunky room props). */
 export const boxStyle = { highlight: true };
 export function hull(pts: Pt[]): Pt[] {
   pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);

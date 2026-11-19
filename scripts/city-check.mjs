@@ -1,6 +1,7 @@
 // Headless browser checks of the city (needs playwright-core and a Chromium; without one it fails unless --allow-skip):
 //   --golden            compare fixed-time screenshots with fixtures/golden/*.png (--update rewrites them); runs --crisp
-//   --crisp             whole-pixel scaling, smoothing off and the backing store at the screen's ratio, in a browser
+//   --crisp             whole-pixel scaling, smoothing off, the backing store at the screen's ratio and no blended
+//                       edges (EDGE_BLEND_MAX), in a browser; the rooms' counterpart is room-check.mjs --crisp
 //   --light             the day/night button: auto, day, night, kept per device, keyboard, rooms follow (in --golden)
 //   --perf              frame times and sprite memory at 100 buildings / 30 running / 10 events a second
 //   --shots <dir>       save the screenshots for review (centre, whole, night, empty; with --layers the six data views)
@@ -42,6 +43,35 @@ export async function prepare() {
   await new Promise((ok) => srv.listen(0, '127.0.0.1', ok));
   return { srv, base: `http://127.0.0.1:${srv.address().port}/` };
 }
+
+/**
+ * Installed in a page (addInitScript): `__edgeBlend(data, W, H, [x0, y0, x1, y1], skip)` reads RGBA device pixels and
+ * returns the share of edge pixels that are in-between colours: a pixel where the colour changes (left/right or
+ * up/down neighbours differ) that matches neither neighbour and lies between them on every channel. Pixel art scaled
+ * by a whole number has none (every edge pixel is one side or the other); a picture resampled with smoothing, scaled
+ * by a fraction or drawn with antialiasing has many. `skip(x, y)` leaves out the text layer.
+ */
+export function installEdgeBlend() {
+  globalThis.__edgeBlend = (d, W, H, rect, skip = () => false) => {
+    const [x0, y0, x1, y1] = rect.map(Math.round);
+    let edges = 0, blended = 0;
+    const between = (i, a, b) => { let off = 0; for (let k = 0; k < 3; k++) { const p = d[i + k], lo = Math.min(d[a + k], d[b + k]), hi = Math.max(d[a + k], d[b + k]); if (p < lo - 2 || p > hi + 2) return false; off += Math.min(Math.abs(p - d[a + k]), Math.abs(p - d[b + k])); } return off > 12 && Math.abs(p0(i) - p0(a)) + Math.abs(p0(i) - p0(b)) > 0; };
+    const p0 = (i) => d[i] + d[i + 1] * 256 + d[i + 2] * 65536;
+    const same = (i, j) => d[i] === d[j] && d[i + 1] === d[j + 1] && d[i + 2] === d[j + 2];
+    for (let y = Math.max(1, y0); y < Math.min(H - 1, y1); y++) for (let x = Math.max(1, x0); x < Math.min(W - 1, x1); x++) {
+      if (skip(x, y)) continue;
+      const i = (y * W + x) * 4;
+      for (const [a, b] of [[i - 4, i + 4], [i - W * 4, i + W * 4]]) {
+        if (same(a, b) || (same(i, a) && same(i, b))) continue;
+        edges++;
+        if (!same(i, a) && !same(i, b) && between(i, a, b)) blended++;
+      }
+    }
+    return { edges, blended, share: edges ? blended / edges : 0 };
+  };
+}
+/** The most in-between edge pixels a crisp view may have (overlay glyphs and icons, a few tenths of a percent). */
+export const EDGE_BLEND_MAX = 0.01;
 
 /** The fixed views: the sample day of 2026-11-18 at 15:44:46, reduced motion (a still picture). */
 export const VIEWS = [
@@ -88,13 +118,15 @@ async function shoot(b, base, v, opts = {}) {
  */
 async function crisp(b, base) {
   const problems = [];
+  let worst = 0;
   for (const dpr of [1, 1.5, 2, 2.2]) {
     const ctx = await b.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: dpr, reducedMotion: 'reduce' });
     const page = await ctx.newPage();
     await page.addInitScript(() => { try { localStorage.setItem('khglobal-dsh-universe.view', JSON.stringify({ toured: true })); } catch { /* storage off */ } });
+    await page.addInitScript(installEdgeBlend);
     await page.goto(base + 'index.html?panel=1&fixed=1');
     await page.waitForFunction(() => !!globalThis.__dshuCity?.scene);
-    const check = async (what) => page.evaluate((what) => {
+    const check = async (what) => { const r = await page.evaluate(([what, max]) => {
       const v = globalThis.__dshuCity, cv = v.canvas, r = cv.getBoundingClientRect(), out = [];
       v.paint();
       const b = v.blit, want = [Math.round(r.width * devicePixelRatio), Math.round(r.height * devicePixelRatio)];
@@ -112,18 +144,22 @@ async function crisp(b, base) {
       }
       // Overlay text (clock faces, small markers) is a few hundred pixels; a resampled or smoothed city is ~30 %.
       if (bad / n > 0.005) out.push(`${what}: ${(bad / n * 100).toFixed(2)}% of the city off the art-pixel grid`);
-      return out;
-    }, what);
+      const e = globalThis.__edgeBlend(d, W, H, [0, 0, W, H], (x, y) => signs.some((s) => x >= s[0] - 2 && x < s[2] + 2 && y >= s[1] - 2 && y < s[3] + 2));
+      if (e.share > max) out.push(`${what}: ${(e.share * 100).toFixed(2)}% of the city's edge pixels are blended (most ${max * 100}%)`);
+      return { out, share: e.share };
+    }, [what, EDGE_BLEND_MAX]); worst = Math.max(worst, r.share); return r.out; };
     for (const zi of [3, 4]) { await page.evaluate((zi) => { const v = globalThis.__dshuCity; v.cam = { x: 0, y: 232, zi }; }, zi); problems.push(...await check(`dpr ${dpr} zoom ${[0.25, 0.5, 1, 2, 3, 4][zi]}`)); }
     // The window moves to a screen of another ratio: same CSS size, so only the ratio watch can refit.
     const other = dpr === 2 ? 1 : 2;
     const cdp = await ctx.newCDPSession(page);
     await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: other, mobile: false });
     await page.waitForFunction((o) => globalThis.devicePixelRatio === o, other);
-    await page.waitForTimeout(300);
+    // Some headless browsers send no resize or resolution event: the once-a-second look refits it.
+    await page.waitForTimeout(1300);
     problems.push(...await check(`dpr ${dpr} → ${other}`));
     await ctx.close();
   }
+  console.log(`crisp: city edge pixels blended at most ${(worst * 100).toFixed(3)}% (limit ${EDGE_BLEND_MAX * 100}%)`);
   return problems;
 }
 
