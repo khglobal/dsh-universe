@@ -76,6 +76,7 @@ test('host across midnight (fake clock): running and waiting sessions, workspace
   const since = host.since(before.seq, 1000, before.placementVersion);
   const snap = host.snapshot();
   assert.notEqual(snap.day, day0, 'a new day');
+  assert.equal(snap.utcOffset, -new Date(now).getTimezoneOffset(), 'the host tells its UTC offset (its day and clock)');
   assert.equal(since.day, snap.day);
   const evs = snap.events.map((x) => x.e);
   const types = new Set(evs.map((e) => e.type));
@@ -145,4 +146,27 @@ test('host: a damaged record in today\'s storage does not stop the start', async
   const host = await startDshHost({ on: fakeCtx().on, service: () => undefined, events: kv, places: memoryKv(), now, noBackfill: true, flushMs: 0, refreshMs: 1e9 });
   assert.equal(host.snapshot().events.length, 1);
   await host.dispose();
+});
+
+test('after midnight: the carried-over session keeps its building, but today counts only what came after midnight (#26)', async () => {
+  const { dayStart, todayAt, floorsOf } = await import('@dsh-universe/model');
+  const evs: UEvent[] = [
+    { type: 'agent', data: { id: 'r', sessionId: 'r', workspaceId: 'w1', label: '', kind: 'main', state: 'running', startedAt: local(22) } },
+    { type: 'turn', data: { t: local(22), agentId: 'r', phase: 'start' } },
+    { type: 'activity', data: { t: local(22, 5), agentId: 'r', category: 'exec', tool: 'bash', ok: false } },
+    { type: 'usage', data: { t: local(22, 5), agentId: 'r', model: 'm1', input: 1_000_000, output: 900_000 } },
+  ];
+  const midnight = local(0, 0, 19);
+  const st = createStore();
+  st.applyAll(carryOver(evs, midnight + 8_000));
+  const T = midnight + 8_000, from = dayStart(T, -new Date(T).getTimezoneOffset());
+  assert.equal(from, midnight);
+  const d = todayAt(st, T, 'c', undefined, undefined, from);
+  assert.equal(d.errors, 0);
+  assert.equal(d.tokens, 0);
+  assert.equal(d.running, 1);
+  // What is drawn is unchanged: the building's floors still hold yesterday's calls and tokens.
+  const fl = floorsOf(st, 'b:r', T, { approvals: true, schedules: true, subagents: true, jobs: true, deliverables: true, skills: true, memory: true, tokens: true, cost: false, latency: true, sessionTitles: true, actions: { openSession: true, draftFollowUp: true } });
+  assert.equal(fl.find((f) => f.id === 'machine')?.n, 1);
+  assert.equal(fl.find((f) => f.id === 'roof')?.n, 1_900_000);
 });

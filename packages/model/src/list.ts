@@ -24,14 +24,26 @@ export function familyOrder(rows: readonly AgentTrack[]): AgentTrack[] {
   return out;
 }
 
-export function listGroups(store: Store, T: number, city: string, seen?: Seen, drafts?: Drafts): ListGroup[] {
+/** When an agent last stopped by T (it ended, or its latest turn ended). */
+function stoppedAt(s: AgentTrack, T: number): number {
+  if (s.agent.endedAt !== undefined && s.agent.endedAt <= T) return s.agent.endedAt;
+  let t = s.agent.startedAt;
+  for (const x of s.turns) if (x.t <= T && x.phase === 'end') t = Math.max(t, x.t);
+  return t;
+}
+
+/**
+ * `from`: the start of the host's day (see `todayAt`): a subagent of a carried-over session that finished or failed
+ * before it is not listed as finished (or failed) today. Without it, nothing is left out.
+ */
+export function listGroups(store: Store, T: number, city: string, seen?: Seen, drafts?: Drafts, from = -Infinity): ListGroup[] {
   const need = rally(store, T);
   const inSquare = new Set(need.map((s) => s.agent.id));
   const vis = store.agents().filter((s) => stateAt(s, T) !== 'future' && !inSquare.has(s.agent.id));
   // A session whose subagents still work is in Running (with them), like the today bar counts it.
   const busy = runningRoots(store, T);
   const groupOf = (s: AgentTrack) => (busy.has(s.agent.id) ? 'running' : stateAt(s, T));
-  const by = (st: string) => familyOrder(vis.filter((s) => groupOf(s) === st));
+  const by = (st: string) => familyOrder(vis.filter((s) => groupOf(s) === st && ((st !== 'done' && st !== 'failed') || stoppedAt(s, T) >= from)));
   const review = vis.filter((s) => toReview(s, T, city, seen, drafts));
   const reviewIds = new Set(review.map((s) => s.agent.id));
   return [

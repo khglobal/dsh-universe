@@ -23,7 +23,7 @@ import { createCodexAdapter } from '@dsh-universe/adapter-codex';
 import { createWorkBuddyAdapter } from '@dsh-universe/adapter-workbuddy';
 import { localDay, readCheckpoint, type AdapterCheckpoint, type LocalAdapter } from '@dsh-universe/adapter-kit/local';
 import {
-  CITY_SOURCES, LEGACY_CITY, SOURCES, createPlacementKeeper,
+  CITY_SOURCES, LEGACY_CITY, SOURCES, createPlacementKeeper, utcOffsetAt,
   type KvLike, type NeighbourId, type NeighbourRoutes, type NeighbourSummary, type PlacementKeeper, type SinceValue, type SnapshotValue, type SourceId,
 } from '@dsh-universe/adapter-dsh';
 
@@ -283,7 +283,7 @@ export function createNeighbours(o: { places: KvLike; home?: string; appDir?: st
       sync(c);
       touch(c);
       return {
-        platform: { id, title: TITLES[id], adapterVersion: '0.2.0', caps: capsOf(c) }, day: dayOf(c), seq: c.log.length, events: c.log.map((e, i) => ({ seq: i + 1, e })), truncated: false, full: false,
+        platform: { id, title: TITLES[id], adapterVersion: '0.2.0', caps: capsOf(c) }, day: dayOf(c), utcOffset: utcOffsetAt(now()), seq: c.log.length, events: c.log.map((e, i) => ({ seq: i + 1, e })), truncated: false, full: false,
         placement: c.keeper.state(), placementVersion: c.keeper.version(), history: history(c), backfill: state(c), storage: 'persistent',
       };
     },

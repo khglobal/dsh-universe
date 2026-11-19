@@ -48,6 +48,8 @@ export interface CityProps {
   drafts?: Drafts;
   /** The timeline: now, whether T is live, looked back to or replayed, and how to change it. */
   live: number;
+  /** The host's UTC offset in minutes (the timeline shows the host's day and clock); undefined: the viewer's. */
+  utcOffset?: number;
   mode: TimeMode;
   onScrub(T: number | null): void;
   onReplay(): void;
@@ -563,7 +565,7 @@ export function CityPanel(p: CityProps) {
           <V.Component placeId={inside} store={store} placement={placement} T={T} titles={titles} t={t} lang={lang} close={leave} onOpen={p.onOpen} caps={p.caps} light={p.prefs.light} />
         </div> : null;
       })()}
-      <Timeline t={t} lang={lang} T={T} live={p.live} mode={p.mode} store={store} version={p.version} min={p.prefs.dockMin}
+      <Timeline t={t} lang={lang} T={T} live={p.live} utcOffset={p.utcOffset} mode={p.mode} store={store} version={p.version} min={p.prefs.dockMin}
         onToggle={() => p.setPrefs({ ...p.prefs, dockMin: !p.prefs.dockMin })} onScrub={p.onScrub} onReplay={p.onReplay}
         onBand={(id, T) => { p.onScrub(T); p.onFollow?.(id); }} />
     </div>

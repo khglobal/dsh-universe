@@ -16,6 +16,8 @@ export interface FeedState {
   /** The host keeps today in memory only (its storage could not be opened). */
   memoryOnly: boolean;
   full: boolean;
+  /** The host's UTC offset in minutes east of UTC (its day and clock); undefined: an older host (the viewer's). */
+  utcOffset?: number;
   /** Bumps on every change. */
   version: number;
 }
@@ -45,7 +47,7 @@ export function createFeed(api: Api, o: { intervalMs?: number; appendOnly?: bool
     const v = r.value;
     const store = createStore();
     store.applyAll(v.events.map((x) => x.e));
-    emit({ phase: 'ready', store, platform: v.platform, day: v.day, seq: v.seq, placement: v.placement, placementVersion: v.placementVersion, history: v.history, backfill: v.backfill, full: v.full, memoryOnly: v.storage === 'memory' });
+    emit({ phase: 'ready', store, platform: v.platform, day: v.day, seq: v.seq, placement: v.placement, placementVersion: v.placementVersion, history: v.history, backfill: v.backfill, full: v.full, memoryOnly: v.storage === 'memory', utcOffset: typeof v.utcOffset === 'number' && Number.isFinite(v.utcOffset) ? v.utcOffset : undefined });
   }
   async function poll() {
     if (busy || disposed) return;

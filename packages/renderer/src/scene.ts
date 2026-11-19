@@ -5,7 +5,7 @@
 import {
   workspaceName,
   FAILED_IN_SQUARE_MS, FLOOR_OF, GROWTH, PLACE, buildingId, chooseTemplate, cityTemplate, cumAt, failedAt, footprintOf, growthAt,
-  hueOf, idxAt, lotOf, placardOf, rallyAt, rootOf, seedOf, segmentsOf, stageOf, stateAt, themeIdOf, themeOf, waitAt, whereabouts,
+  hueOf, idxAt, lotOf, placardOf, rallyAt, rootOf, seedOf, segmentsOf, sessionStateAt, stageOf, stateAt, themeIdOf, themeOf, waitAt, whereabouts,
   type AgentTrack, type CityTemplate, type Drafts, type Seen, type FloorKind, type PlacementState, type StateAt, type Store,
 } from '@dsh-universe/model';
 import { along, gatesOf, route } from './walk.ts';
@@ -143,7 +143,8 @@ export function towerAt(
   // A session of an earlier day: its size and the state it ended in come from the placement record.
   const kept = root ? undefined : placement.sizes?.[sessionId];
   const ended: StateAt = kept ? (kept.state === 'running' || kept.state === 'waiting' ? 'idle' : kept.state) : 'done';
-  const state: StateAt = root ? stateAt(root, T) : ended;
+  // A main turn that ended while a subagent still works: running, as the today bar counts it (model runningRoots).
+  const state: StateAt = root ? sessionStateAt(root, fam, T) : ended;
   const calls: Partial<Record<FloorKind, number>> = {};
   let n = 0, tokens = 0;
   for (const s of fam) {

@@ -49,3 +49,23 @@ test('connector floors are its tools with their call counts', () => {
   assert.deepEqual(floorsOf(st, 'conn:erp', at(10), CAPS).map((f) => [f.id, f.n]), [['read_a', 2], ['read_b', 0]]);
   void CATEGORIES;
 });
+
+test('town: the card count (rallyAt) equals the sum of the town floors, stops on an error included (#20)', async () => {
+  const { rallyAt } = await import('../src/rally.ts');
+  const { turn, wait } = await import('./helpers.ts');
+  const st = createStore();
+  st.applyAll([
+    agent('w', at(9)), turn('w', at(9), 'start'), call('w', at(9, 1), 'read'), wait('w', 'q1', at(9, 5)),
+    agent('e', at(9)), turn('e', at(9), 'start'), call('e', at(9, 1), 'exec', 'exec', { ok: false }), turn('e', at(9, 10), 'end', 'error'),
+  ]);
+  const T = at(9, 20);
+  const card = rallyAt(st, T).length;
+  const fl = floorsOf(st, 'town', T, CAPS);
+  assert.equal(card, 2);
+  assert.equal(fl.reduce((a, f) => a + (f.na ? 0 : f.n), 0), card);
+  assert.equal(fl.find((f) => f.id === 'approval')?.n, 1);
+  const post = fl.find((f) => f.id === 'post')!;
+  assert.equal(post.n, 1);
+  assert.equal(post.na, undefined);
+  assert.deepEqual(post.agents, ['e']);
+});

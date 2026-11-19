@@ -1,7 +1,8 @@
 // The floors of every place and their numbers at T. A floor whose data the platform
 // cannot give is marked `na` and shows "not provided".
 import { FLOOR_KINDS, FLOOR_OF, PLACE, buildingOf, connectorPlace, modelPlace } from './places.ts';
-import { idxAt, cumAt, stateAt, waitAt, type AgentTrack, type Store } from './store.ts';
+import { idxAt, cumAt, stateAt, type AgentTrack, type Store } from './store.ts';
+import { rallyAt, type WaitKind } from './rally.ts';
 import type { StateAt, UCapabilities } from './types.ts';
 import { whereabouts } from './whereabouts.ts';
 
@@ -116,8 +117,11 @@ export function floorsOf(store: Store, placeId: string, T: number, caps: UCapabi
     const runs = store.schedules().flatMap((x) => x.runs).filter((r) => r.at <= T).length;
     fl = [F('platform', runs, { na: !caps.schedules }), F('gate', countCalls(store, T, (s, i) => s.ev[i].category === 'web'))];
   } else if (placeId === PLACE.town) {
-    const waiting = (kind: string) => all.filter((s) => stateAt(s, T) === 'waiting' && waitAt(s, T)?.kind === kind).length;
-    fl = [F('approval', waiting('approval'), { na: !caps.approvals }), F('question', waiting('question')), F('plan', waiting('plan')), F('post', 0, { na: true })];
+    // One figure for "needs you": the square's waits (rallyAt, the card's and the today bar's count), each on the desk
+    // of its kind; stops on an error on the post floor. The floors always add up to the card.
+    const waits = rallyAt(store, T);
+    const n = (kind: WaitKind) => waits.filter((w) => w.kind === kind).length;
+    fl = [F('approval', n('approval'), { na: !caps.approvals }), F('question', n('question')), F('plan', n('plan')), F('post', n('error'))];
   } else if (placeId === PLACE.fire) {
     // The repair log: model requests retried today by T (`recovered`: the retry's wait ended and it went again).
     let retries = 0, recovered = 0;
@@ -137,7 +141,8 @@ export function floorsOf(store: Store, placeId: string, T: number, caps: UCapabi
   for (const s of all) {
     const w = whereabouts(store, s, T);
     if (!w || w.place !== placeId || w.floor === 'done' || (w.floor === 'failed' && placeId !== PLACE.town)) continue;
-    (fl.find((f) => f.id === w.floor) ?? fl[0]).agents.push(s.agent.id);
+    const floor = placeId === PLACE.town && w.floor === 'failed' ? 'post' : w.floor;
+    (fl.find((f) => f.id === floor) ?? fl[0]).agents.push(s.agent.id);
   }
   return fl;
 }

@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { binReadout, daySpan, dayStart, scrubTo, stepScrub, waitBands, type Store } from '@dsh-universe/model';
 import { btn, px } from './chrome.ts';
-import { clock } from './format.ts';
+import { clock as viewerClock, foreignOffset, utcSuffix } from './format.ts';
 import { C } from './styles.ts';
 import type { Translate } from './types.ts';
 
@@ -14,6 +14,8 @@ export interface TimelineProps {
   t: Translate; lang: string;
   /** The moment shown, and now. */
   T: number; live: number; mode: TimeMode;
+  /** The host's UTC offset in minutes east of UTC: the day, hour labels and clock are the host's. Undefined: the viewer's. */
+  utcOffset?: number;
   store: Store; version: number;
   min: boolean; onToggle(): void;
   /** null: back to live. */
@@ -30,7 +32,13 @@ export function Timeline(p: TimelineProps) {
   const { t, lang, T, live, mode, store, min } = p;
   const ref = useRef<HTMLCanvasElement>(null);
   const track = useRef<HTMLDivElement>(null);
-  const [from, to] = daySpan(store, live);
+  const off = p.utcOffset;
+  // Times read as on the host (as in DSH and the Today bar's day); the zone is named when it is not the viewer's.
+  const clock = (ms: number, l: string) => viewerClock(ms, l, off);
+  const zone = foreignOffset(off, live);
+  const zoneText = zone === undefined ? '' : t('tl.tz', { o: utcSuffix(zone) });
+  const d0 = dayStart(live, off);
+  const [from, to] = daySpan(store, live, off);
   // A mouse over the bars shows a plate above the pointer: the ten minutes, their calls, failed calls.
   const [peek, setPeek] = useState<{ x: number; at: number } | undefined>();
 
@@ -66,7 +74,7 @@ export function Timeline(p: TimelineProps) {
     // Waits along the top, as a step chart that stays readable from one session to hundreds: per pixel column, the
     // amber height is how many were waiting for the member then (approvals, questions, plans), 2–8 px; the red line
     // above marks error stops still in the square. A single short wait still shows at least 3 px wide.
-    const bands = waitBands(store, live), cols = Math.max(1, Math.round(w - 20));
+    const bands = waitBands(store, live, off), cols = Math.max(1, Math.round(w - 20));
     const amber = new Uint16Array(cols + 1), red = new Uint8Array(cols + 1);
     for (const band of bands) {
       const a = Math.max(0, X(band.from) - 10), b = Math.min(cols, Math.max(a + 3, X(band.to) - 10));
@@ -99,15 +107,15 @@ export function Timeline(p: TimelineProps) {
     g.textBaseline = 'alphabetic';
     // Hour labels that never touch: every 2 h, every 4 h below 520 px, and only 08, 14, 20 below 420 px.
     const stepH = w < 420 ? 6 : w < 520 ? 4 : 2, first = stepH === 6 ? 8 : 0;
-    for (let hh = Math.ceil((from - dayStart(live)) / HOUR); dayStart(live) + hh * HOUR <= to; hh++) {
+    for (let hh = Math.ceil((from - d0) / HOUR); d0 + hh * HOUR <= to; hh++) {
       if ((hh - first) % stepH) continue;
-      const x = Math.round(Math.min(w - 22, Math.max(22, X(dayStart(live) + hh * HOUR))));
-      g.fillText(clock(dayStart(live) + hh * HOUR, lang), x, h - 6);
+      const x = Math.round(Math.min(w - 22, Math.max(22, X(d0 + hh * HOUR))));
+      g.fillText(clock(d0 + hh * HOUR, lang), x, h - 6);
     }
     // The moment shown.
     const x = X(T);
     g.fillStyle = `rgb(${rgb})`; g.fillRect(x - 1, 4, 2, base - 2); g.fillRect(x - 4, 2, 8, 6);
-  }, [p.version, T, live, min, from, to, lang]);
+  }, [p.version, T, live, min, from, to, lang, off]);
 
   const fromInput = (v: number) => p.onScrub(scrubTo(v, live, from));
   // A press on a wait band (the top 16 px of the dock) picks that wait: its moment, and the agent in the square.
@@ -116,7 +124,7 @@ export function Timeline(p: TimelineProps) {
     const r = e.currentTarget.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
     if (y > 16) return;
     const X = (ms: number) => 10 + (ms - from) / (to - from) * (r.width - 20);
-    const hit = waitBands(store, live).filter((b) => x >= X(b.from) - 3 && x <= Math.max(X(b.to), X(b.from) + 3) + 3)
+    const hit = waitBands(store, live, off).filter((b) => x >= X(b.from) - 3 && x <= Math.max(X(b.to), X(b.from) + 3) + 3)
       .sort((a, b) => (a.kind === 'error' ? 1 : 0) - (b.kind === 'error' ? 1 : 0) || b.from - a.from)[0];
     if (!hit) return;
     e.preventDefault();
@@ -131,7 +139,7 @@ export function Timeline(p: TimelineProps) {
   const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
     // w / W: the next / previous wait after (before) the moment shown, followed like a click on its band.
     if ((e.key === 'w' || e.key === 'W') && p.onBand) {
-      const bands = waitBands(store, live), fwd = e.key === 'w';
+      const bands = waitBands(store, live, off), fwd = e.key === 'w';
       const mid = (b: (typeof bands)[number]) => (b.open ? live : (b.from + b.to) / 2);
       const pick = fwd ? bands.find((b) => mid(b) > T + 1000) : [...bands].reverse().find((b) => mid(b) < T - 1000);
       e.preventDefault();
@@ -150,16 +158,16 @@ export function Timeline(p: TimelineProps) {
 
   return (
     <div role="group" aria-label={t('tl.label')} style={{ position: 'absolute', left: 12, right: 12, bottom: 10, display: 'flex', gap: 8, alignItems: 'stretch', zIndex: 4 }}>
-      <button type="button" onClick={() => p.onScrub(null)} aria-label={mode === 'live' ? t('tl.live') : t('tl.toLive')} title={mode === 'live' ? undefined : t('tl.toLive')}
+      <button type="button" onClick={() => p.onScrub(null)} aria-label={(mode === 'live' ? t('tl.live') : t('tl.toLive')) + (zoneText ? ' · ' + zoneText : '')} title={mode === 'live' ? zoneText || undefined : t('tl.toLive')}
         style={{ ...btn, ...px, padding: min ? '4px 12px' : '6px 12px', minWidth: min ? 0 : 92, display: 'flex', flexDirection: min ? 'row' : 'column', alignItems: min ? 'center' : 'flex-start', justifyContent: 'center', gap: min ? 10 : 2, textAlign: 'left' }}>
-        <b style={{ fontSize: min ? 14 : 18, lineHeight: min ? '22px' : '22px', fontVariantNumeric: 'tabular-nums' }}>{clock(T, lang)}</b>
+        <b style={{ fontSize: min ? 14 : 18, lineHeight: min ? '22px' : '22px', fontVariantNumeric: 'tabular-nums' }}>{clock(T, lang)}{zoneText && <span data-dshu-tl-zone="" style={{ fontSize: 11, fontWeight: 500, color: C.muted, marginLeft: 4 }}>{zoneText}</span>}</b>
         <span style={{ fontSize: 11.5, color: mode === 'live' ? C.muted : C.text, display: 'flex', alignItems: 'center', fontWeight: 500 }}>{liveDot}{state}</span>
       </button>
       {!min && (
         <div ref={track} style={{ ...px, flex: 1, minWidth: 0, height: 78, position: 'relative', overflow: 'hidden' }}>
           <canvas ref={ref} aria-hidden="true" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', color: C.text }} />
           <input type="range" min={from} max={to} step={60_000} value={Math.min(to, Math.max(from, T))}
-            aria-label={t('tl.scrub')} aria-valuetext={clock(T, lang) + (mode === 'live' ? ' · ' + t('tl.live') : '')}
+            aria-label={t('tl.scrub')} aria-valuetext={clock(T, lang) + (zoneText ? ' ' + zoneText : '') + (mode === 'live' ? ' · ' + t('tl.live') : '')}
             onChange={(e) => fromInput(Number(e.currentTarget.value))} onKeyDown={onKey} onPointerDown={onPointerDown}
             onPointerMove={onPeek} onPointerLeave={() => setPeek(undefined)}
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', margin: 0, opacity: 0, cursor: 'ew-resize' }} />

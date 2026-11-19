@@ -45,6 +45,8 @@ export interface DshHost {
   dispose(): Promise<void>;
 }
 
+/** The host's UTC offset at t, in minutes east of UTC (480 for UTC+8). */
+export const utcOffsetAt = (t: number) => -new Date(t).getTimezoneOffset();
 const localMidnight = (t: number) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
 
 export async function startDshHost(deps: HostDeps): Promise<DshHost> {
@@ -217,6 +219,7 @@ export async function startDshHost(deps: HostDeps): Promise<DshHost> {
       history: [...earlier.values()].filter((d) => d.day !== t.day).concat(dayTotals(t.day, t.events.map((x) => x.e))).sort((a, b) => a.day.localeCompare(b.day)).slice(-14),
       backfill: backfillState,
       storage: deps.storage ?? 'persistent',
+      utcOffset: utcOffsetAt(now()),
     };
   }
   function since(seq: number, limit: number, pv: number): SinceValue {

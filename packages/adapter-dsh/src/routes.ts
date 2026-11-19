@@ -16,6 +16,8 @@ export interface SnapshotValue {
   placement: PlacementState; placementVersion: number; history: UDay[]; backfill: 'pending' | 'done' | 'partial' | 'none';
   /** 'memory': the host's storage could not be opened; today is kept in memory only (lost on restart). */
   storage?: 'persistent' | 'memory';
+  /** The host's UTC offset now, in minutes east of UTC (480: UTC+8): the client draws the host's day and clock. */
+  utcOffset?: number;
 }
 export interface SinceValue { day: string; seq: number; events: SeqEvent[]; more: boolean; placement?: PlacementState; placementVersion: number; /** Adjacent cities: whether the first read of the store is still going. */ backfill?: SnapshotValue['backfill'] }
 

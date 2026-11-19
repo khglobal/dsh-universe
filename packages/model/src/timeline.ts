@@ -19,9 +19,10 @@ const HOUR = 3600_000;
 /**
  * The span the timeline draws: 06:00–22:00, widened to whatever happened earlier or later today, and always to now
  * (between midnight and 06:00 the axis starts at the hour before now, so now has its marker and ← goes back a minute).
+ * `offset`: the host's UTC offset in minutes (its day, not the viewer's); without it, the viewer's local day.
  */
-export function daySpan(store: Store, live: number): [number, number] {
-  const d0 = dayStart(live);
+export function daySpan(store: Store, live: number, offset?: number): [number, number] {
+  const d0 = dayStart(live, offset);
   let a = d0 + 6 * HOUR, b = d0 + 22 * HOUR;
   for (const s of store.agents()) if (s.agent.startedAt >= d0 && s.agent.startedAt < a) a = Math.max(d0, Math.floor(s.agent.startedAt / HOUR) * HOUR);
   if (live < a) a = Math.max(d0, Math.floor(live / HOUR) * HOUR - HOUR);
@@ -52,8 +53,8 @@ export function stepScrub(cur: number | null, live: number, key: string, from = 
 export interface Replay { /** Wall-clock start (ms). */ startedAt: number; from: number }
 
 /** Where the replay starts: a little before the first thing that happened today, or the start of the day. */
-export function replayFrom(store: Store, live: number): number {
-  const d0 = dayStart(live);
+export function replayFrom(store: Store, live: number, offset?: number): number {
+  const d0 = dayStart(live, offset);
   let first = Infinity;
   for (const s of store.agents()) if (s.agent.startedAt >= d0 && s.agent.startedAt < first) first = s.agent.startedAt;
   if (!Number.isFinite(first) || first >= live) return d0;
@@ -87,8 +88,8 @@ export interface WaitBand { agentId: string; sessionId: string; kind: WaitKind; 
  * Wait bands on the timeline: every approval, question and plan wait today (asked → decided, or → now when open),
  * and every stop on an error for the time it kept the agent in the square (≤ 90 minutes, or until the next turn).
  */
-export function waitBands(store: Store, live: number): WaitBand[] {
-  const d0 = dayStart(live);
+export function waitBands(store: Store, live: number, offset?: number): WaitBand[] {
+  const d0 = dayStart(live, offset);
   const out: WaitBand[] = [];
   for (const s of store.agents()) {
     for (const w of s.waits) {

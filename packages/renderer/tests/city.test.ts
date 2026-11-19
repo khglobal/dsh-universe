@@ -370,3 +370,20 @@ test('crisp: the screen\'s own pixel ratio, also below 1 and after a change; nev
   t.view.paint(0);
   assertCrisp(t, 'after the ratio changed');
 });
+
+test('scene: a session whose main turn ended while its subagent works is drawn running, as it is counted (#27)', async () => {
+  const { runningRoots } = await import('@dsh-universe/model');
+  const ev: UEvent[] = [
+    { type: 'workspace', data: { id: 'w1', title: 'Finance', displayPath: 'fin' } },
+    { type: 'agent', data: { id: 'a', sessionId: 'a', workspaceId: 'w1', label: 'x', kind: 'main', state: 'running', startedAt: at(9) } },
+    { type: 'turn', data: { t: at(9), agentId: 'a', phase: 'start' } },
+    { type: 'turn', data: { t: at(9, 5), agentId: 'a', phase: 'end', reason: 'completed' } },
+    { type: 'agent', data: { id: 'k', sessionId: 'a', parentAgentId: 'a', workspaceId: 'w1', label: 'y', kind: 'subagent', state: 'running', startedAt: at(9, 1) } },
+    { type: 'turn', data: { t: at(9, 1), agentId: 'k', phase: 'start' } },
+  ];
+  const inp = input(ev, at(9, 10));
+  assert.ok(runningRoots(inp.store, at(9, 10)).has('a'));
+  const b = buildScene(inp).places.find((p) => p.sessionId === 'a');
+  assert.equal(b?.state, 'running');
+  assert.equal(b?.building?.state, 'running');
+});

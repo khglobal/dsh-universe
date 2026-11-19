@@ -6,7 +6,7 @@
 // minute changes, and only while the tile is on screen (IntersectionObserver): off screen it costs no GPU work at all.
 // Its look follows the workbench skin through the skin's own tokens (3D, 90s web, glass), with plain fallbacks.
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { emptyPlacement, type PlacementState, type Store } from '@dsh-universe/model';
+import { dayStart, emptyPlacement, type PlacementState, type Store } from '@dsh-universe/model';
 import type { ArtKit } from '@dsh-universe/renderer';
 import { layoutOf, paintTileCity, tileFigures, TILE_LOCAL_MS, type TileLocal } from './tile-city.ts';
 import { clock, tokens as fmtTokens } from './format.ts';
@@ -73,7 +73,7 @@ export function Tile({ env, size, theme, reducedMotion }: { env: Env } & TilePro
   const ready = feed.phase === 'ready';
   // The minute is enough for a tile (waits are told in minutes); finer would repaint for nothing.
   const T = Math.floor(now / 60_000) * 60_000;
-  const d = useMemo(() => (ready ? todayAt(feed.store, now, CITY, env.seen, env.drafts?.getSnapshot()) : undefined), [ready, feed.version, Math.floor(now / 15_000)]);
+  const d = useMemo(() => (ready ? todayAt(feed.store, now, CITY, env.seen, env.drafts?.getSnapshot(), dayStart(now, feed.utcOffset)) : undefined), [ready, feed.version, Math.floor(now / 15_000)]);
   const lang = env.lang();
 
   const box: CSSProperties = {

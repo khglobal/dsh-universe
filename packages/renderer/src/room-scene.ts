@@ -112,7 +112,7 @@ export interface InteriorInput {
 }
 
 /** Fixed scenes drawn from their floor's data; every template room is live too. */
-const LIVE_SCENES = new Set(['skill', 'expert', 'turbine', 'control', 'platform', 'gate', 'memory', 'bay', 'retry', 'lobby', 'approval', 'question', 'plan', 'roof']);
+const LIVE_SCENES = new Set(['skill', 'expert', 'turbine', 'control', 'platform', 'gate', 'memory', 'bay', 'retry', 'lobby', 'approval', 'question', 'plan', 'post', 'roof']);
 
 const PLACE_SEED = (placeId: string) => seedOf(placeId);
 

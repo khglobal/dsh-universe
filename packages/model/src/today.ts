@@ -5,6 +5,7 @@ import { placeOfCall } from './metrics.ts';
 import { seenKey, type Drafts, type Seen } from './seen.ts';
 import { cumAt, errsAt, idxAt, stateAt, type AgentTrack, type Store } from './store.ts';
 import { rallyAt, type RallyEntry } from './rally.ts';
+import type { StateAt } from './types.ts';
 
 export const TODAY_ORDER = ['need', 'sched', 'run', 'review', 'err', 'tok'] as const;
 export type TodayCat = (typeof TODAY_ORDER)[number];
@@ -59,7 +60,23 @@ export function runningRoots(store: Store, T: number): Set<string> {
   return out;
 }
 
-export function todayAt(store: Store, T: number, city: string, seen?: Seen, drafts?: Drafts): Today {
+/**
+ * `from`: the start of the host's day (model `dayStart`). Sessions still at work at midnight are carried over whole,
+ * so their buildings look the same on both sides of midnight; what they did before `from` is drawn but not counted:
+ * failed calls, tokens, the places of failed calls and the models used count only from `from` on. Without it, every
+ * event in the store counts.
+ */
+/**
+ * The state a session's building shows at T: its root's, except that a root not waiting whose family still has
+ * someone running is running — the same definition as `runningRoots`, so a session counted as running looks running.
+ */
+export function sessionStateAt(root: AgentTrack, fam: readonly AgentTrack[], T: number): StateAt {
+  const st = stateAt(root, T);
+  if (st === 'running' || st === 'waiting' || st === 'future') return st;
+  return fam.some((s) => stateAt(s, T) === 'running') ? 'running' : st;
+}
+
+export function todayAt(store: Store, T: number, city: string, seen?: Seen, drafts?: Drafts, from = -Infinity): Today {
   const agents = store.agents();
   const need = rallyAt(store, T);
   const roots = agents.filter((s) => !s.agent.parentAgentId);
@@ -68,11 +85,12 @@ export function todayAt(store: Store, T: number, city: string, seen?: Seen, draf
   const review = roots.filter((s) => toReview(s, T, city, seen, drafts)).sort((a, b) => (a.agent.endedAt ?? 0) - (b.agent.endedAt ?? 0) || a.agent.id.localeCompare(b.agent.id));
   let errors = 0, tokens = 0;
   const errPlaces = new Map<string, number>();
+  const before = from - 1;
   for (const s of agents) {
-    errors += errsAt(s, T);
-    tokens += cumAt(s, T);
+    errors += errsAt(s, T) - (from > -Infinity ? errsAt(s, before) : 0);
+    tokens += cumAt(s, T) - (from > -Infinity ? cumAt(s, before) : 0);
     const k = idxAt(s, T);
-    for (let i = 0; i < k; i++) {
+    for (let i = from > -Infinity ? idxAt(s, before) : 0; i < k; i++) {
       const e = s.ev[i];
       if (e.ok !== false) continue;
       const p = placeOfCall(store, s, e);
@@ -90,7 +108,7 @@ export function todayAt(store: Store, T: number, city: string, seen?: Seen, draf
     .map((x) => ({ ...x, nextAt: nextOf(x) }))
     .filter((x) => Number.isFinite(x.nextAt))
     .sort((a, b) => a.nextAt - b.nextAt || a.id.localeCompare(b.id));
-  const models = [...new Set(agents.flatMap((s) => s.usage.filter((u) => u.t <= T).map((u) => u.model)))].sort();
+  const models = [...new Set(agents.flatMap((s) => s.usage.filter((u) => u.t <= T && u.t >= from).map((u) => u.model)))].sort();
   return {
     need: need.length,
     waits: need,

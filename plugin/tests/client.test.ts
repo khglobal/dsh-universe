@@ -207,3 +207,20 @@ test('a change of device pixel ratio refits the canvas (window moved between a R
   assert.equal(listener, undefined, 'stopped');
   assert.equal(resize, undefined);
 });
+
+test('timeline time zone: the host clock and a label when it is not the viewer zone (#21)', async () => {
+  const { clock, utcSuffix, foreignOffset } = await import('../src/client/format.ts');
+  const t = Date.UTC(2026, 10, 18, 17, 30);
+  assert.equal(clock(t, 'en-GB', 480), '01:30');
+  assert.equal(clock(t, 'en-GB', -480), '09:30');
+  assert.equal(clock(t, 'en-GB', 0), '17:30');
+  assert.equal(utcSuffix(480), '+8');
+  assert.equal(utcSuffix(-420), '-7');
+  assert.equal(utcSuffix(330), '+5:30');
+  assert.equal(utcSuffix(0), '');
+  assert.equal(foreignOffset(480, t, 480), undefined, 'same zone: no label');
+  assert.equal(foreignOffset(480, t, -480), 480);
+  assert.equal(foreignOffset(undefined, t, -480), undefined, 'an older host: the viewer zone, no label');
+  assert.equal(fill(en['tl.tz'], { o: utcSuffix(480) }), 'UTC+8');
+  assert.equal(fill(zh['tl.tz'], { o: utcSuffix(480) }), 'UTC+8');
+});

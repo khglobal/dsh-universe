@@ -162,9 +162,9 @@ function lastActivity(s: AgentTrack, T: number): number {
 
 export interface Section { id: ListGroupId; title: string; rows: Row[] }
 
-export function sections(store: Store, T: number, t: Translate, lang: string, titles: Record<string, string>, seen?: Seen, drafts?: Drafts): Section[] {
+export function sections(store: Store, T: number, t: Translate, lang: string, titles: Record<string, string>, seen?: Seen, drafts?: Drafts, from?: number): Section[] {
   const key: Record<ListGroupId, string> = { need: 'li.need', review: 'li.review', running: 'li.running', failed: 'li.failed', idle: 'li.idle', done: 'li.done' };
-  return listGroups(store, T, CITY, seen, drafts).map((g) => ({ id: g.id, title: t(key[g.id]), rows: g.rows.map((s) => rowOf(s, store, T, t, lang, titles, g.id === 'review', drafts)) }));
+  return listGroups(store, T, CITY, seen, drafts, from).map((g) => ({ id: g.id, title: t(key[g.id]), rows: g.rows.map((s) => rowOf(s, store, T, t, lang, titles, g.id === 'review', drafts)) }));
 }
 
 export interface PlaceRow { id: string; name: string; floors: string; inside: number }

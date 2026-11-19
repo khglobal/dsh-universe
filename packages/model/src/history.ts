@@ -13,10 +13,20 @@ export interface HistoryDay extends UDay {
 }
 
 const pad = (x: number) => String(x).padStart(2, '0');
-/** Local calendar day of a time ("2026-11-19"), the same key the host uses. */
-export const dayKey = (t: number) => { const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
-/** Local midnight at the start of T's day. */
-export const dayStart = (t: number) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+const MIN = 60_000, DAY_MS = 86_400_000;
+/**
+ * Calendar day of a time ("2026-11-19"), the same key the host uses: in the viewer's local time, or, with `offset`,
+ * in a fixed UTC offset (minutes east of UTC, e.g. 480 for UTC+8; the host's, so the day is the host's day).
+ */
+export const dayKey = (t: number, offset?: number) => {
+  if (offset !== undefined) { const d = new Date(t + offset * MIN); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; }
+  const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+/** Midnight at the start of T's day: local, or with `offset` (minutes east of UTC) the midnight of that offset. */
+export const dayStart = (t: number, offset?: number) => {
+  if (offset !== undefined) return Math.floor((t + offset * MIN) / DAY_MS) * DAY_MS - offset * MIN;
+  const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime();
+};
 
 /** Today's totals at T from the store: root sessions started by T, and those that had a turn end on an error by T. */
 export function todayTotals(store: Store, T: number): UDay {
