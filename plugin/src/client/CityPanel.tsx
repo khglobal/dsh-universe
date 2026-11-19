@@ -2,18 +2,19 @@
 // (focusable, readable) DOM over it, a toolbar with the layer buttons, a legend that starts closed, zoom buttons
 // and a timeline that can be minimised. Titles appear only here, in the DOM, never in the pixels.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type ReactNode } from 'react';
-import { CALLS_PER_CAR, LAYERS, PLACE, buildingOf, type Drafts, type LayerId, type PlacementState, type Seen, type Store, type UCapabilities } from '@dsh-universe/model';
+import { CALLS_PER_CAR, LAYERS, PLACE, buildingOf, cumAt, type Drafts, type LayerId, type PlacementState, type Seen, type Store, type UCapabilities } from '@dsh-universe/model';
 import { CityView, artXY, shortTool } from '@dsh-universe/renderer';
 import { Timeline, type TimeMode } from './Timeline.tsx';
-import { unlockSound } from './time.ts';
+import { reducedMotion, unlockSound } from './time.ts';
 import { CHROME_CSS, CHROME_ROOT, btn, pressed, px } from './chrome.ts';
 import { overlayFactories, placeViewFor } from './extensions.ts';
 import { makeKit } from './kit.ts';
-import { onRatioChange, useEdgeFade } from './hooks.ts';
+import { frameNotifier, onRatioChange, useEdgeFade } from './hooks.ts';
 import { hostDark, isNight, nextLight, type Prefs } from './prefs.ts';
 import { C, stateColor } from './styles.ts';
 import type { Translate } from './types.ts';
 import { CITY, layerSummary, placeName, rowOf } from './view.ts';
+import { tokens as fmtTokens } from './format.ts';
 
 /** How far the city moves at once during a replay. */
 export const REPLAY_CITY_STEP_MS = 15 * 60_000;
@@ -154,9 +155,29 @@ export function CityPanel(p: CityProps) {
   }, []);
   // While a place view covers the city, the city keeps its last frame and stops painting.
   useEffect(() => { const v = viewRef.current; if (!v) return; if (inside) v.stop(); else v.start(); }, [inside]);
+  // Looking back to before a session started: its card closes (it showed "Not started" with buttons: QA finding 13).
+  useEffect(() => {
+    if (!selected) return;
+    const sid = selected.startsWith('agent:') ? selected.slice(6) : selected.startsWith('b:') ? selected.slice(2) : undefined;
+    const s = sid ? store.agent(sid) : undefined;
+    if (s && s.agent.startedAt > T) setSelected(undefined);
+  }, [T, selected]);
+  // The tour's building card closes with the tour (it covered the toolbar or the legend afterwards: QA finding 9).
+  useEffect(() => { if (p.prefs.toured && away) { setSelected(undefined); setAway(false); } }, [p.prefs.toured]);
+  // Under a place view the city's own controls (the plates, the zoom group, the timeline) are covered: out of the Tab
+  // order and away from screen readers until the member comes back out (QA finding 8). Every render: plates come and go.
+  const insideRef = useRef<HTMLDivElement>(null), cityEl = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const w = wrap.current;
+    if (!w) return;
+    for (const k of [...w.children]) if (k !== insideRef.current && k.tagName !== 'STYLE') { if (inside) k.setAttribute('inert', ''); else k.removeAttribute('inert'); }
+  });
+  /** Back out of a place view: focus returns to the city (not to the page's body). */
+  const leave = () => { setInside(undefined); requestAnimationFrame(() => cityEl.current?.focus({ preventScroll: true })); };
   // The selected place keeps its ring while its card is open.
   useEffect(() => { if (!hover) viewRef.current?.setHover(selected); }, [selected, hover]);
   const kit = useMemo(makeKit, []);
+  const soundOff = reducedMotion();
   // The toolbar wraps on narrow screens (and grows with the legend): the zoom group and the plates keep above it.
   const toolbarRef = useRef<HTMLDivElement>(null);
   // The layer toolbar is one scrolling row: a fade where it is cut.
@@ -165,17 +186,21 @@ export function CityPanel(p: CityProps) {
   const [toolbarH, setToolbarH] = useState(40);
   useLayoutEffect(() => { const h = toolbarRef.current?.getBoundingClientRect().height; if (h && Math.abs(h - toolbarH) > 1) setToolbarH(Math.round(h)); });
   const drag = useRef<{ x: number; y: number; moved: number; id: number } | null>(null);
+  // A short window (a phone on its side, a small split): the zoom group lies down in a row above the toolbar instead of
+  // standing up past the top edge (QA finding 10).
+  const zoomBtns = p.onZoomOutFar ? 5 : 4, zoomColH = zoomBtns * 38 + 6, zoomRowW = zoomBtns * 38 + 6;
+  const zoomRow = !!viewRef.current && viewRef.current.vp.h - ((p.prefs.dockMin ? 52 : 112) + toolbarH + 8) - zoomColH < 64;
+  /** What the camera was last sent to (Enter opens it; a pan by hand or key forgets it): QA finding 15. */
+  const centred = useRef<string | undefined>(undefined);
   const wheel = useRef(0);
 
   useEffect(() => {
     const el = wrap.current, cv = canvas.current;
     if (!el || !cv) return;
     const mq = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)');
-    let last = 0;
-    const view = new CityView({
-      kit, canvas: cv, reducedMotion: () => !!mq?.matches,
-      onFrame: () => { const n = performance.now(); if (n - last > 120) { last = n; setFrame((f) => f + 1); } },
-    });
+    // The plates and cards over the city follow the camera and the data, not every painted frame.
+    const notify = frameNotifier(() => viewRef.current?.domKey() ?? '', () => setFrame((f) => f + 1));
+    const view = new CityView({ kit, canvas: cv, reducedMotion: () => !!mq?.matches, onFrame: () => notify.onFrame() });
     viewRef.current = view;
     const fit = () => { const r = el.getBoundingClientRect(); view.resize(Math.max(1, r.width), Math.max(1, r.height), globalThis.devicePixelRatio || 1); view.setDark(isNight(lightRef.current, hostDark(el))); };
     fit();
@@ -185,7 +210,7 @@ export function CityPanel(p: CityProps) {
     const offs = overlayFactories().map((f) => view.addOverlay(f({ t, lang })));
     view.start();
     (globalThis as { __dshuCity?: CityView }).__dshuCity = view;
-    return () => { for (const off of offs) off(); ro?.disconnect(); offRatio(); view.stop(); viewRef.current = null; };
+    return () => { for (const off of offs) off(); ro?.disconnect(); offRatio(); view.stop(); notify.dispose(); viewRef.current = null; };
   }, [kit]);
 
   useEffect(() => {
@@ -208,6 +233,7 @@ export function CityPanel(p: CityProps) {
     }
     setAway(false);
     const t0 = performance.now(), id0 = p.target.id;
+    centred.current = id0;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const painted = () => !!v.scene && Math.abs(v.scene.T - T) < 2500;   // the frame shows the moment asked for
     const go = () => { if ((!painted() || !v.centreOn(id0)) && performance.now() - t0 < 1500) timer = setTimeout(go, 100); };
@@ -235,14 +261,14 @@ export function CityPanel(p: CityProps) {
   if (view?.scene && view.last) {
     const z = view.zoomValue(), W = view.vp.w, H = view.vp.h, whole = view.isWhole();
     const toolbarTop = H - (p.prefs.dockMin ? 52 : 112) - toolbarH - 4;
-    const zoomH = p.onZoomOutFar ? 214 : 176;
+    const zoomH = zoomRow ? 44 : p.onZoomOutFar ? 214 : 176;
     const blocked = (x: number, y: number) => y > toolbarTop || (x > W - 60 && y > toolbarTop - zoomH + 6);
     const taken: [number, number, number, number][] = [];
     const hits = (bx: readonly number[]) => taken.some((t2) => bx[0] < t2[2] && bx[2] > t2[0] && bx[1] < t2[3] && bx[3] > t2[1]);
     const textW = (s2: string) => [...s2].reduce((a2, ch) => a2 + (/[\u2e80-\uffff]/.test(ch) ? 12.5 : 6.8), 0);
     const sizeOf = (title: string, sub: string) => [Math.min(PLATE_W, 20 + Math.max(textW(title), textW(sub))), 36] as const;
     const inside = (bx: readonly number[]) => bx[0] >= 8 && bx[2] <= W - 8 && bx[1] >= 8 && bx[3] <= toolbarTop;
-    taken.push([W - 64, toolbarTop - zoomH, W, toolbarTop]);   // the zoom group
+    taken.push([zoomRow ? W - 12 - zoomRowW : W - 64, toolbarTop - zoomH, W, toolbarTop]);   // the zoom group
     // The square must stay clear: keep out of the balloon and the hall's sign.
     {
       const k = z < 1 ? 2 : 1, q = artXY(14.5, 18.6), a2 = view.screenOf(q[0] - 9 * k, q[1] - 64 - 23 * k), b2 = view.screenOf(q[0] + 9 * k, q[1] - 64 - 3 * k);
@@ -322,7 +348,7 @@ export function CityPanel(p: CityProps) {
     const v = viewRef.current;
     if (!v) return;
     const d = drag.current;
-    if (d && d.id === e.pointerId) { const dx = e.clientX - d.x, dy = e.clientY - d.y; d.moved += Math.abs(dx) + Math.abs(dy); d.x = e.clientX; d.y = e.clientY; v.panBy(dx, dy); return; }
+    if (d && d.id === e.pointerId) { const dx = e.clientX - d.x, dy = e.clientY - d.y; d.moved += Math.abs(dx) + Math.abs(dy); d.x = e.clientX; d.y = e.clientY; v.panBy(dx, dy); centred.current = undefined; return; }
     if (e.pointerType === 'touch') return;
     const [x, y] = local(e);
     const h = v.hitAt(x, y);
@@ -363,9 +389,12 @@ export function CityPanel(p: CityProps) {
     const v = viewRef.current;
     if (!v || e.target !== e.currentTarget) return;
     const k = e.key;
+    if (k.startsWith('Arrow') || k === '0') centred.current = undefined;
     if (k === 'ArrowLeft') v.panBy(60, 0); else if (k === 'ArrowRight') v.panBy(-60, 0); else if (k === 'ArrowUp') v.panBy(0, 60); else if (k === 'ArrowDown') v.panBy(0, -60);
     else if (k === '+' || k === '=') v.zoom(1); else if (k === '-') zoomOut(); else if (k === '0') v.home();
-    else if (k === 'Enter' || k === ' ') {   // the thing in the middle of the view opens its card
+    else if (k === 'Enter' || k === ' ') {   // the thing the camera went to (a today button, a list row), else the thing in the middle, opens its card
+      const c = centred.current;
+      if (c && c !== TOUR_BUILDING) { const sid = toSession(c); openCard(sid ? 'b:' + sid : c, e.currentTarget as HTMLElement); e.preventDefault(); return; }
       const h = v.hitAt(v.vp.w / 2, v.vp.h / 2);
       const sid = h ? toSession(h.id) : undefined;
       if (h) openCard(sid ? 'b:' + sid : h.id, e.currentTarget as HTMLElement);
@@ -381,6 +410,8 @@ export function CityPanel(p: CityProps) {
   const onPanelKey = (e: React.KeyboardEvent) => {
     if (e.key !== 'Escape' || inside) return;
     if (selected) { e.preventDefault(); closeCard(); }
+    // The legend closes on Esc like the nearby cities' settings beside it (QA finding 20).
+    else if (p.prefs.legend) { e.preventDefault(); p.setPrefs({ ...p.prefs, legend: false }); legendBtn.current?.focus({ preventScroll: true }); }
     else if (hover) { setHover(undefined); viewRef.current?.setHover(undefined); }
   };
   /** Opens the card of a place from the keyboard (a name plate): focus moves into the card, and back on Esc. */
@@ -390,7 +421,12 @@ export function CityPanel(p: CityProps) {
     const id = selected ?? hover?.id;
     if (!id || !view) return undefined;
     const sid = toSession(id);
-    const r = sid ? rowFor(sid) : undefined;
+    let r = sid ? rowFor(sid) : undefined;
+    // A building's card counts the whole building's tokens (its subagents too), as its rooftop does (QA finding 16).
+    if (r && sid && !id.startsWith('agent:')) {
+      const fam = store.agents().filter((s) => s.agent.sessionId === sid || buildingOf(store, s) === 'b:' + sid);
+      if (fam.length > 1) r = { ...r, tokens: t('row.tok', { n: fmtTokens(fam.reduce((a, s) => a + cumAt(s, T), 0), lang) }) };
+    }
     const top = view.last?.tops.get(id) ?? (id.startsWith('agent:') ? view.last?.heads.get(id.slice(6)) : undefined);
     const at = top ? view.screenOf(top[0], top[1]) : [hover?.x ?? view.vp.w / 2, hover?.y ?? view.vp.h / 2];
     // Beside the thing, on whichever side has room; never under the toolbar and timeline at the bottom.
@@ -423,7 +459,7 @@ export function CityPanel(p: CityProps) {
   return (
     <div ref={wrap} className={CHROME_ROOT} onKeyDown={onPanelKey} style={{ position: 'relative', flex: 1, minHeight: 320, overflow: 'hidden', color: C.text, userSelect: 'none' }}>
       <style>{CHROME_CSS}</style>
-      <div tabIndex={0} role="application" aria-label={t('city.aria')} onKeyDown={onKey}
+      <div ref={cityEl} tabIndex={0} role="application" aria-label={t('city.aria')} onKeyDown={onKey}
         onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={() => { drag.current = null; }} onPointerLeave={() => { viewRef.current?.setHover(selected); setHover(undefined); }} onWheel={onWheel}
         onFocus={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = e.currentTarget.matches(':focus-visible') ? 'inset 0 0 0 3px #2F6BDE' : 'none'; }} onBlur={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = 'none'; }}
         style={{ position: 'absolute', inset: 0, touchAction: 'none', cursor: hover ? 'pointer' : 'grab', outline: 'none' }}>
@@ -475,8 +511,10 @@ export function CityPanel(p: CityProps) {
           {LAYERS.filter((l) => !p.hideLayers?.includes(l)).map((l) => <button key={l} type="button" aria-pressed={layer === l} style={{ ...btn, flex: 'none', whiteSpace: 'nowrap', ...(layer === l ? pressed : {}) }} onClick={() => setLayer(l)}>{t(LAYER_KEY[l])}</button>)}
         </div>
         <button ref={legendBtn} type="button" aria-expanded={p.prefs.legend} aria-pressed={p.prefs.legend} style={{ ...btn, ...px, ...(p.prefs.legend ? pressed : {}) }} onClick={() => p.setPrefs({ ...p.prefs, legend: !p.prefs.legend })}>{t('lg.title')}</button>
-        <button type="button" aria-pressed={p.prefs.sound} aria-describedby="dshu-snd-hint" title={t('snd.hint')} style={{ ...btn, ...px, ...(p.prefs.sound ? pressed : {}) }}
-          onClick={() => { if (!p.prefs.sound) unlockSound(); p.setPrefs({ ...p.prefs, sound: !p.prefs.sound }); }}>{t('snd.label')}</button>
+        {/* Under reduced motion the city is silent: the button says so instead of toggling to a sound that never plays. */}
+        <button type="button" aria-pressed={!soundOff && p.prefs.sound} aria-disabled={soundOff || undefined} aria-describedby="dshu-snd-hint" title={t(soundOff ? 'snd.rm' : 'snd.hint')}
+          style={{ ...btn, ...px, ...(!soundOff && p.prefs.sound ? pressed : {}), ...(soundOff ? { opacity: 0.55, cursor: 'not-allowed' } : {}) }}
+          onClick={() => { if (soundOff) return; if (!p.prefs.sound) unlockSound(); p.setPrefs({ ...p.prefs, sound: !p.prefs.sound }); }}>{t('snd.label')}</button>
         {/* Day or night: auto follows the host's theme, then day, then night; kept per device. */}
         <button type="button" data-dshu-light={p.prefs.light} aria-label={t('dn.aria', { now: t('dn.' + p.prefs.light), next: t('dn.' + nextLight(p.prefs.light)) })} aria-describedby="dshu-dn-hint" title={t('dn.hint')}
           style={{ ...btn, ...px, display: 'inline-flex', alignItems: 'center', gap: 6, ...(p.prefs.light !== 'auto' ? pressed : {}) }}
@@ -489,7 +527,7 @@ export function CityPanel(p: CityProps) {
           {t('dn.' + p.prefs.light)}
         </button>
         <span id="dshu-dn-hint" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>{t('dn.hint')}</span>
-        <span id="dshu-snd-hint" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>{t('snd.hint')}</span>
+        <span id="dshu-snd-hint" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>{t(soundOff ? 'snd.rm' : 'snd.hint')}</span>
         {p.beside && <div style={{ marginLeft: 'auto' }}>{p.beside}</div>}
         {p.prefs.legend && (
           // In a data view the legend is that layer's explanation; clear of the zoom column on a phone.
@@ -508,7 +546,7 @@ export function CityPanel(p: CityProps) {
           </div>
         )}
       </div>
-      <div role="group" aria-label={t('zm.label')} data-dshu-ctl="" style={{ ...px, position: 'absolute', right: 12, bottom: (p.prefs.dockMin ? 52 : 112) + toolbarH + 8, display: 'flex', flexDirection: 'column', padding: 2, gap: 2 }}>
+      <div role="group" aria-label={t('zm.label')} data-dshu-ctl="" style={{ ...px, position: 'absolute', right: 12, bottom: (p.prefs.dockMin ? 52 : 112) + toolbarH + 8, display: 'flex', flexDirection: zoomRow ? 'row' : 'column', padding: 2, gap: 2 }}>
         {([['zm.in', () => viewRef.current?.zoom(1), 'M8 3v10M3 8h10'], ['zm.out', () => zoomOut(), 'M3 8h10'],
           ['zm.home', () => viewRef.current?.home(), 'M2.5 8.5 8 3l5.5 5.5M4.5 7v6.5h7V7'], ['zm.whole', () => viewRef.current?.whole(), 'M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10'],
           ...(p.onZoomOutFar ? [['nb.region', () => p.onZoomOutFar!(), 'M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z']] as const : [])] as const).map(([k, fn, d]) => (
@@ -521,8 +559,8 @@ export function CityPanel(p: CityProps) {
       {inside && (() => {
         const V = placeViewFor(inside);
         // Transparent: the inside view paints its own backdrop and fades in over the city.
-        return V ? <div style={{ position: 'absolute', inset: 0, zIndex: 8 }}>
-          <V.Component placeId={inside} store={store} placement={placement} T={T} titles={titles} t={t} lang={lang} close={() => setInside(undefined)} onOpen={p.onOpen} caps={p.caps} light={p.prefs.light} />
+        return V ? <div ref={insideRef} style={{ position: 'absolute', inset: 0, zIndex: 8 }}>
+          <V.Component placeId={inside} store={store} placement={placement} T={T} titles={titles} t={t} lang={lang} close={leave} onOpen={p.onOpen} caps={p.caps} light={p.prefs.light} />
         </div> : null;
       })()}
       <Timeline t={t} lang={lang} T={T} live={p.live} mode={p.mode} store={store} version={p.version} min={p.prefs.dockMin}

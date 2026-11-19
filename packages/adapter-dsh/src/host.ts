@@ -12,6 +12,7 @@ import { dshCapabilities, dshPlatform } from './platform.ts';
 import { createHandler, type NeighbourRoutes, type SinceValue, type SnapshotValue } from './routes.ts';
 import { createSources, type SourceServices } from './sources.ts';
 import { createDayStore, dayOf } from './storage.ts';
+import { carryOver, STANDING } from './rollover.ts';
 
 export interface HostDeps {
   /** cordis `ctx.on`: returns a disposer. */
@@ -58,7 +59,31 @@ export async function startDshHost(deps: HostDeps): Promise<DshHost> {
     pluginInventory: svc('pluginInventory') as SourceServices['pluginInventory'],
     pluginManager: svc('pluginManager') as SourceServices['pluginManager'],
   }), log);
-  const store = createDayStore({ table: deps.events, now, flushMs: deps.flushMs, onError });
+  // 14-day totals of the stored earlier days (today's are counted live; a day that ends while DSH runs is added).
+  const earlier = new Map<string, ReturnType<typeof dayTotals>>();
+  // Every session's own (agent) events seen since start, and which sessions today's log has announced: a session
+  // that ended yesterday and goes on today is announced again before its first event of the day.
+  const agentEvents = new Map<string, UEvent[]>();
+  const todayAgents = new Set<string>();
+  const noteAgent = (e: UEvent) => {
+    if (e.type !== 'agent') return;
+    const list = agentEvents.get(e.data.id);
+    if (list) { if (list.length < 16) list.push(e); } else agentEvents.set(e.data.id, [e]);
+    todayAgents.add(e.data.id);
+  };
+  const store = createDayStore({
+    table: deps.events, now, flushMs: deps.flushMs, onError,
+    // Midnight with DSH open: yesterday goes into the 14-day totals, and the new day starts with the standing things
+    // and the sessions still at work or waiting (rollover.ts).
+    carry: (day, prev) => {
+      const evs = prev.map((x) => x.e);
+      earlier.set(day, dayTotals(day, evs));
+      const seed = carryOver(evs, now());
+      todayAgents.clear();
+      for (const e of seed) if (e.type === 'agent') todayAgents.add(e.data.id);
+      return seed;
+    },
+  });
   const placement = createPlacementKeeper({ table: deps.places, onError });
   const aggregator = createAggregator({
     categories: dshCategories(() => sources.mcpServers()), workspaceOf: (id, cwd) => sources.workspaceOf(id, cwd), now,
@@ -71,18 +96,33 @@ export async function startDshHost(deps: HostDeps): Promise<DshHost> {
   const lastSource = new Map<string, string>();
   const agentWs = new Map<string, string>();
   let stopped = false;
+  // Stored records are checked as they are read (storage.ts storedEvent); one that still trips is skipped, never the start.
   for (const { e } of store.today().events) {
-    if (e.type === 'agent' && e.data.workspaceId) agentWs.set(e.data.id, e.data.workspaceId);
-    if (e.type !== 'agent' && e.type !== 'activity' && e.type !== 'usage' && e.type !== 'turn' && e.type !== 'approval' && e.type !== 'job' && e.type !== 'deliverable' && e.type !== 'retry' && e.type !== 'planmode') {
-      lastSource.set(e.type + ':' + ((e.data as { id?: string }).id ?? ''), JSON.stringify(e.data));
-    }
+    try {
+      if (e.type === 'agent' && e.data.workspaceId) agentWs.set(e.data.id, e.data.workspaceId);
+      noteAgent(e);
+      if (STANDING.has(e.type)) lastSource.set(e.type + ':' + ((e.data as { id?: string }).id ?? ''), JSON.stringify(e.data));
+    } catch { log('storage: record skipped'); }
   }
-  placement.observe(store.today().events.map((x) => x.e));
+  try { placement.observe(store.today().events.map((x) => x.e)); } catch { log('placement: observe skipped'); }
 
   function ingest(events: readonly UEvent[]) {
     if (stopped || !events.length) return;
     const kept: UEvent[] = [];
+    store.day();   // a new day starts (and carries over) before anything is added to it
     for (const e of events) {
+      // A session announced on an earlier day: its own events come first again.
+      const aid = e.type === 'agent' ? undefined : (e.data as { agentId?: unknown }).agentId;
+      if (typeof aid === 'string' && !todayAgents.has(aid)) {
+        const chain: UEvent[] = [];
+        for (let id: string | undefined = aid, k = 0; id && !todayAgents.has(id) && k < 8; k++) {
+          const own = agentEvents.get(id);
+          if (!own) break;
+          chain.unshift(...own);
+          id = own.map((x) => (x.data as { parentAgentId?: string }).parentAgentId).find((p) => !!p);
+        }
+        for (const x of chain) { store.append(x); kept.push(x); todayAgents.add((x.data as { id: string }).id); }
+      }
       if (e.type === 'workspace' || e.type === 'schedule' || e.type === 'connector' || e.type === 'inventory') {
         const k = e.type + ':' + ((e.data as { id?: string }).id ?? '');
         const v = JSON.stringify(e.data);
@@ -90,6 +130,7 @@ export async function startDshHost(deps: HostDeps): Promise<DshHost> {
         lastSource.set(k, v);
       }
       if (e.type === 'agent' && e.data.workspaceId) agentWs.set(e.data.id, e.data.workspaceId);
+      noteAgent(e);
       store.append(e);
       kept.push(e);
     }
@@ -162,10 +203,9 @@ export async function startDshHost(deps: HostDeps): Promise<DshHost> {
     } catch { backfillState = 'partial'; log('backfill: stopped'); }
   })();
 
-  // 14-day totals of the stored earlier days, read once (today's are counted live).
-  const earlier = new Map<string, ReturnType<typeof dayTotals>>();
+  // The stored earlier days, read once at start.
   void (async () => {
-    for (const d of store.days()) if (d !== dayOf(now())) earlier.set(d, dayTotals(d, await store.readDay(d)));
+    for (const d of store.days()) if (d !== dayOf(now()) && !earlier.has(d)) earlier.set(d, dayTotals(d, await store.readDay(d)));
   })().catch(() => undefined);
 
   const platform = () => dshPlatform(dshCapabilities({ schedules: sources.has('schedule') }));
@@ -174,7 +214,7 @@ export async function startDshHost(deps: HostDeps): Promise<DshHost> {
     return {
       platform: platform(), day: t.day, seq: t.seq, events: t.events, truncated: false, full: t.full,
       placement: placement.state(), placementVersion: placement.version(),
-      history: [...earlier.values(), dayTotals(t.day, t.events.map((x) => x.e))].sort((a, b) => a.day.localeCompare(b.day)).slice(-14),
+      history: [...earlier.values()].filter((d) => d.day !== t.day).concat(dayTotals(t.day, t.events.map((x) => x.e))).sort((a, b) => a.day.localeCompare(b.day)).slice(-14),
       backfill: backfillState,
       storage: deps.storage ?? 'persistent',
     };

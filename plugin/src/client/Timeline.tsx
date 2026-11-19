@@ -3,7 +3,7 @@
 // past, dashed: to come); a scrubber to look back (keyboard: one minute per press; past now returns to live); replay
 // of the day; minimisable. Text on the canvas is drawn at screen resolution on whole pixels.
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
-import { binReadout, dayStart, scrubTo, stepScrub, waitBands, type Store } from '@dsh-universe/model';
+import { binReadout, daySpan, dayStart, scrubTo, stepScrub, waitBands, type Store } from '@dsh-universe/model';
 import { btn, px } from './chrome.ts';
 import { clock } from './format.ts';
 import { C } from './styles.ts';
@@ -24,15 +24,6 @@ export interface TimelineProps {
 }
 
 const HOUR = 3600_000;
-/** The span drawn: 06:00–22:00, widened to whatever happened earlier or later today. */
-export function daySpan(store: Store, live: number): [number, number] {
-  const d0 = dayStart(live);
-  let a = d0 + 6 * HOUR, b = d0 + 22 * HOUR;
-  for (const s of store.agents()) if (s.agent.startedAt >= d0 && s.agent.startedAt < a) a = Math.max(d0, Math.floor(s.agent.startedAt / HOUR) * HOUR);
-  if (live > b) b = Math.min(d0 + 24 * HOUR, Math.ceil(live / HOUR) * HOUR);
-  return [a, b];
-}
-
 const AMBER = '#F0A020', RED = '#E5564B', ACCENT = '#2F6BDE';
 
 export function Timeline(p: TimelineProps) {

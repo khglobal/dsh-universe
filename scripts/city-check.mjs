@@ -241,6 +241,12 @@ async function main() {
     if (has('--golden')) {
       const dir = join(root, 'fixtures/golden');
       mkdirSync(dir, { recursive: true });
+      // The browser the goldens were taken with (text and antialiasing differ between builds): a difference then says
+      // which build to use (the one playwright-core installs: `npx playwright-core install chromium-headless-shell`).
+      const made = existsSync(join(dir, 'BROWSER')) ? readFileSync(join(dir, 'BROWSER'), 'utf8').trim() : '';
+      const now = 'chromium ' + b.version() + ' ' + process.platform;
+      if (has('--update')) writeFileSync(join(dir, 'BROWSER'), now + '\n');
+      else if (made && made !== now) console.log(`golden: taken with ${made}; this is ${now} (a difference may be the browser's)`);
       for (const v of VIEWS) {
         const { png, errors, leaks } = await shoot(b, base, v);
         if (errors.length) { console.error(v.name, errors); failed++; }

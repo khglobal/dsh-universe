@@ -6,11 +6,14 @@ import { stateAt, type FloorKind, type UCapabilities } from '@dsh-universe/model
 import { RoomView, defaultFloor, interiorOf, tokenRate, type Interior, type InteriorFloor } from '@dsh-universe/renderer';
 import { btn, pressed, px } from './chrome.ts';
 import type { PlaceViewProps } from './extensions.ts';
-import { onRatioChange } from './hooks.ts';
+import { frameNotifier, onRatioChange } from './hooks.ts';
 import { makeKit } from './kit.ts';
 import { hostDark, isNight } from './prefs.ts';
 import { C, stateColor } from './styles.ts';
 import { placeName, rowOf } from './view.ts';
+
+/** The cards' outer widths (content 248 / 236 px, 12 px padding and the 2 px frame on each side): kept inside the view. */
+const PROP_CARD_OUTER = 248 + 24 + 4, AGENT_CARD_OUTER = 236 + 24 + 4;
 import { floorLabel, floorValue, propLines, roomSummary, type PropId } from './interior-text.ts';
 
 /** What the host provides when the panel does not say (everything; a missing source then shows zeros, not "—"). */
@@ -75,11 +78,9 @@ export function InteriorView(p: InteriorProps & { caps?: UCapabilities }) {
     const el = wrap.current, cv = canvas.current;
     if (!el || !cv) return;
     const mq = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)');
-    let last = 0;
-    const view = new RoomView({
-      kit, canvas: cv, reducedMotion: () => !!mq?.matches,
-      onFrame: () => { const n = performance.now(); if (n - last > 120) { last = n; setFrame((f) => f + 1); } },
-    });
+    // The agents' buttons and cards over the room follow where they stand, not every painted frame.
+    const notify = frameNotifier(() => viewRef.current?.domKey() ?? '', () => setFrame((f) => f + 1));
+    const view = new RoomView({ kit, canvas: cv, reducedMotion: () => !!mq?.matches, onFrame: () => notify.onFrame() });
     viewRef.current = view;
     const fit = () => { const r = el.getBoundingClientRect(); setVw(r.width); view.resize(Math.max(1, r.width), Math.max(1, r.height), globalThis.devicePixelRatio || 1); view.setDark(isNight(lightRef.current, hostDark(el))); };
     fit();
@@ -88,7 +89,7 @@ export function InteriorView(p: InteriorProps & { caps?: UCapabilities }) {
     const offRatio = onRatioChange(fit);
     view.start();
     (globalThis as { __dshuRoom?: RoomView }).__dshuRoom = view;
-    return () => { ro?.disconnect(); offRatio(); view.stop(); viewRef.current = null; };
+    return () => { ro?.disconnect(); offRatio(); view.stop(); notify.dispose(); viewRef.current = null; };
   }, [kit]);
 
   useEffect(() => {
@@ -159,7 +160,7 @@ export function InteriorView(p: InteriorProps & { caps?: UCapabilities }) {
     const r = rowOf(s, store, T, t, lang, titles, false);
     const h = view.hits.find((x) => x.id === id);
     const ax = h ? h.r[2] + 10 : (hover?.x ?? 0) + 14, ay = h ? h.r[1] : (hover?.y ?? 0);
-    return { id, r, tool: person.tool, sticky: !!picked, x: Math.round(Math.min((view.vp.w) - 250, Math.max(8, ax))), y: Math.round(Math.min(view.vp.h - 170, Math.max(56, ay))) };
+    return { id, r, tool: person.tool, sticky: !!picked, x: Math.round(Math.min(view.vp.w - AGENT_CARD_OUTER - 8, Math.max(8, ax))), y: Math.round(Math.min(view.vp.h - 170, Math.max(56, ay))) };
   })();
 
   const floorCard = (() => {
@@ -187,7 +188,7 @@ export function InteriorView(p: InteriorProps & { caps?: UCapabilities }) {
     const on = f.id === floor?.id;
     return (
       <button key={f.id} type="button" aria-pressed={on} aria-label={t('in.floorAria', { i: i + 1, n: floorLabel(f, t) + ' ' + floorValue(f, t, lang) })}
-        onClick={() => { setFloorId(f.id); setProp(undefined); }} onMouseEnter={(e) => setHoverFloor(f.id, e.currentTarget)} onMouseLeave={() => setHoverFloor(undefined)} onFocus={(e) => setHoverFloor(f.id, e.currentTarget)} onBlur={() => setHoverFloor(undefined)}
+        onClick={() => { setFloorId(f.id); setProp(undefined); setHoverFloor(undefined); }} onMouseEnter={(e) => setHoverFloor(f.id, e.currentTarget)} onMouseLeave={() => setHoverFloor(undefined)} onFocus={(e) => setHoverFloor(f.id, e.currentTarget)} onBlur={() => setHoverFloor(undefined)}
         style={{ ...btn, ...px, ...(on ? pressed : {}), boxShadow: 'none', display: 'flex', alignItems: 'center', gap: 6, minHeight: 24, padding: '0 8px', fontSize: 12, whiteSpace: 'nowrap', ...style }}>
         <i aria-hidden style={{ width: 8, height: 8, background: f.colour, outline: '1px solid #141A30', flex: 'none' }} />
         <b style={{ fontWeight: 600 }}>{floorLabel(f, t)}</b>
@@ -251,7 +252,7 @@ export function InteriorView(p: InteriorProps & { caps?: UCapabilities }) {
         if (!pr) return null;
         // Below the prop (wall props are high up, so the card never covers the props beside it), else above it.
         const vh = view?.vp.h ?? 600, below = pr.r[3] + 8 + 200 < vh;
-        const x = Math.round(Math.min((view?.vp.w ?? 800) - 260, Math.max(8, (pr.r[0] + pr.r[2]) / 2 - 124))), y = Math.round(below ? pr.r[3] + 8 : Math.max(56, pr.r[1] - 208));
+        const x = Math.round(Math.max(8, Math.min((view?.vp.w ?? 800) - PROP_CARD_OUTER - 8, (pr.r[0] + pr.r[2]) / 2 - 124))), y = Math.round(below ? pr.r[3] + 8 : Math.max(56, pr.r[1] - 208));
         return (
           <div role="dialog" aria-label={t('in.prop.' + prop)} style={{ ...px, position: 'absolute', left: x, top: y, width: 248, padding: '10px 12px', fontSize: 12, lineHeight: '18px', zIndex: 6 }}>
             <b style={{ display: 'block', fontSize: 13 }}>{t('in.prop.' + prop)}</b>

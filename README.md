@@ -103,6 +103,8 @@ All screenshots and animations use a made-up sample day (`fixtures/dsh-sample.ts
 
 **Fast**
 - Built for 60 fps frames and checked with 100 buildings; it still draws with no GPU (software rendering).
+- Light on the battery: it paints only what moves, slows down when you leave it alone, almost stops in a background
+  window and stops when hidden (a few percent of one core on a 300-session day).
 
 **Private by design**
 - Metadata only: never your messages, replies, tool arguments or results, or file contents.

@@ -12,12 +12,23 @@ export type DismissEvent = { type: 'pointerdown'; target: unknown } | { type: 'k
 /**
  * What an event does to an open popover: `null` leaves it open; otherwise it closes, and `focusTrigger` says whether
  * focus goes back to its button (Esc; not a click elsewhere, which moves focus where the member clicked).
- * A press on the button itself is left to the button's own toggle.
+ * `swallow`: the press that closed it goes no further (a click on the city under it would otherwise also enter a
+ * building). A press on the button itself is left to the button's own toggle.
  */
-export function dismissal(e: DismissEvent, panel: Holder | null, trigger: Holder | null): { focusTrigger: boolean } | null {
-  if (e.type === 'keydown') return e.key === 'Escape' ? { focusTrigger: true } : null;
+export function dismissal(e: DismissEvent, panel: Holder | null, trigger: Holder | null): { focusTrigger: boolean; swallow: boolean } | null {
+  if (e.type === 'keydown') return e.key === 'Escape' ? { focusTrigger: true, swallow: true } : null;
   if (panel?.contains(e.target) || trigger?.contains(e.target)) return null;
-  return { focusTrigger: false };
+  return { focusTrigger: false, swallow: true };
+}
+
+/** Swallows the rest of a press that closed a popover (its pointerup and click), once, for at most a second. */
+export function swallowPress(doc: Pick<Document, 'addEventListener' | 'removeEventListener'>): () => void {
+  const stop = (ev: Event) => { ev.stopPropagation(); ev.preventDefault(); if (ev.type === 'click') done(); };
+  const types = ['pointerup', 'mouseup', 'click'] as const;
+  const timer = setTimeout(() => done(), 1000);
+  function done() { clearTimeout(timer); for (const t of types) doc.removeEventListener(t, stop, true); }
+  for (const t of types) doc.addEventListener(t, stop, true);
+  return done;
 }
 
 /**
@@ -37,7 +48,8 @@ export function usePopover<P extends HTMLElement, B extends HTMLElement>(open: b
       const d = ev.type === 'keydown' ? { type: 'keydown' as const, key: (ev as KeyboardEvent).key } : { type: 'pointerdown' as const, target: ev.composedPath?.()[0] ?? ev.target };
       const r = dismissal(d, panel.current, trigger.current);
       if (!r) return;
-      if (d.type === 'keydown') { ev.preventDefault(); ev.stopPropagation(); }
+      if (r.swallow) { ev.preventDefault(); ev.stopPropagation(); }
+      if (d.type === 'pointerdown') swallowPress(doc);
       close(r.focusTrigger);
     };
     // The innermost target (composedPath), so a click inside a popover in a shadow root is still inside it.

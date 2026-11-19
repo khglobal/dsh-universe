@@ -148,6 +148,7 @@ export function levelsOf(store: Store, T: number, running: number, waiting: numb
  * The panel's ambience: plays while `on` and live, the mix given (city → loudness), with each city's activity.
  * Waits for the audio context the member's click makes; stops on reduced motion and while the page is hidden.
  */
+let suspendTimer: ReturnType<typeof setTimeout> | undefined;
 export function useAmbience(on: boolean, live: boolean, levels: Record<string, CityLevels>, mix: Record<string, number>): void {
   const amb = useRef<Ambience | null>(null);
   const cur = useRef({ levels, mix });
@@ -155,8 +156,11 @@ export function useAmbience(on: boolean, live: boolean, levels: Record<string, C
   const active = on && live && !reducedMotion();
   useEffect(() => {
     if (!active) return;
+    if (suspendTimer) { clearTimeout(suspendTimer); suspendTimer = undefined; }
     const apply = () => {
       const a = soundContext();
+      // Suspended when the sound last stopped: it resumes now (the member's earlier gesture still counts).
+      if (a && a.state === 'suspended') void a.resume?.().catch?.(() => undefined);
       if (!a || a.state !== 'running') return;
       amb.current ??= createAmbience(a as unknown as AudioLike);
       const hidden = globalThis.document?.visibilityState === 'hidden';
@@ -165,7 +169,12 @@ export function useAmbience(on: boolean, live: boolean, levels: Record<string, C
     };
     const id = setInterval(apply, 250);
     apply();
-    return () => { clearInterval(id); amb.current?.stop(); amb.current = null; };
+    return () => {
+      clearInterval(id); amb.current?.stop(); amb.current = null;
+      // Nothing plays any more: the audio context is suspended after the fade-out (it costs nothing then).
+      const a = soundContext();
+      suspendTimer = setTimeout(() => { if (a && a.state === 'running' && !amb.current) void a.suspend?.().catch?.(() => undefined); }, FADE_S * 2000 + 200);
+    };
   }, [active]);
   // A move between cities, or new figures: the mix follows at once (the crossfade is in the graph).
   useEffect(() => { amb.current?.set(levels, mix); }, [JSON.stringify(levels), JSON.stringify(mix)]);

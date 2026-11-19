@@ -12,6 +12,7 @@ import { POSE_OF, roomSpecOf, type Interior, type InteriorAgent, type InteriorFl
 import { route, type P } from './room-walk.ts';
 import { shortTool } from './scene.ts';
 import { drawTextLayer, SMALL_FONT, type PlacedSign } from './text.ts';
+import { AMBIENT_FPS, CALM_AFTER_MS, FrameLoop, documentPage, frameGap, type PageState } from './pace.ts';
 
 export interface RoomViewOptions {
   kit: ArtKit;
@@ -20,6 +21,11 @@ export interface RoomViewOptions {
   onFrame?(v: RoomView): void;
   raf?: (fn: (t: number) => void) => number;
   cancelRaf?: (id: number) => void;
+  /** A timer for long gaps between frames (default setTimeout with the browser's frames; none with injected ones). */
+  timeout?: ((fn: () => void, ms: number) => unknown) | null;
+  clearTimeout?: (id: unknown) => void;
+  /** Whether the page is hidden or its window blurred (default: the real document). */
+  page?: PageState;
   clock?: () => number;
   /** The art buffer (tests pass a fake; default an offscreen canvas). */
   artBuffer?: () => { canvas: { width: number; height: number }; ctx: Canvas2D };
@@ -93,9 +99,9 @@ export class RoomView {
   private panKey = '';
   /** The member is dragging: paint on the next frame even under reduced motion (it is their hand, not animation). */
   private urgent = false;
-  private raf = 0;
-  private running = false;
-  private lastPaint = -1e9;
+  private readonly loop: FrameLoop;
+  private readonly page: PageState;
+  private get running(): boolean { return this.loop.running; }
   private lastTick = 0;
   private readonly t0: number;
   private readonly times: number[] = [];
@@ -103,6 +109,10 @@ export class RoomView {
   /** Painted frames in which the room itself was (partly) repainted. */
   roomPaints = 0;
   animated = false;
+  /** Steps of the room's own animation a second (pace.ts): ROOM_HZ, once a second when left alone or in the background. */
+  private roomHz = ROOM_HZ;
+  /** A transition runs (entry fade, lift, cross-fade, the room painted band by band): full rate. */
+  private transition = false;
   geometry: RoomGeometry = { wide: true, x: 0, y: 0, zoom: 1, w: 0, h: 0, labels: [], props: [] };
   /**
    * How the last frame put the room's art buffer on the screen (device pixels): checks hold it to whole numbers, a
@@ -123,6 +133,8 @@ export class RoomView {
       this.art = c; this.actx = (c as HTMLCanvasElement).getContext('2d') as Canvas2D;
     }
     this.t0 = this.now();
+    this.page = o.page ?? documentPage();
+    this.loop = new FrameLoop({ tick: (t) => this.tick(t), raf: o.raf, cancelRaf: o.cancelRaf, timeout: o.timeout, clearTimeout: o.clearTimeout, clock: () => this.now(), page: this.page });
   }
 
   private now() { return this.o.clock ? this.o.clock() : performance.now(); }
@@ -167,20 +179,25 @@ export class RoomView {
   setFollow(id: string | undefined): void { if (id !== this.follow) { this.follow = id; this.invalidate(); } }
   invalidate(): void { this.dirty = true; this.kick(); }
 
-  start(): void { this.running = true; this.kick(); }
-  stop(): void { this.running = false; if (this.raf) (this.o.cancelRaf ?? cancelAnimationFrame)(this.raf); this.raf = 0; }
+  start(): void { this.loop.start(); this.kick(); }
+  stop(): void { this.loop.stop(); }
 
-  private kick(): void {
-    if (!this.running || this.raf) return;
-    this.raf = (this.o.raf ?? requestAnimationFrame)((t) => { this.raf = 0; this.tick(t); });
+  private kick(): void { this.loop.request(0); }
+
+  /** The least time to the next paint (ms), or undefined when nothing needs one (pace.ts). */
+  private gap(rm: boolean): number | undefined {
+    return frameGap({ urgent: this.dirty || (!rm && this.transition), ambient: !rm && this.animated, reducedMotion: rm, blurred: this.page.blurred(), calm: this.page.idleFor() >= CALM_AFTER_MS, hand: this.urgent });
   }
 
   private tick(ts: number): void {
     if (!this.running) return;
     const rm = this.o.reducedMotion();
-    const due = this.dirty || (!rm && this.animated);
-    if (due && (!rm || this.urgent || ts - this.lastPaint >= 500)) { this.paint(ts); this.lastPaint = ts; this.dirty = false; this.urgent = false; }
-    if ((!rm && this.animated) || (rm && this.dirty)) this.kick();
+    const gap = this.gap(rm);
+    if (gap === undefined) return;
+    this.roomHz = gap >= 1000 / AMBIENT_FPS + 1 ? 1 : ROOM_HZ;
+    if (this.loop.due(ts, gap)) { this.paint(ts); this.loop.lastPaint = ts; this.dirty = false; this.urgent = false; }
+    const next = this.gap(rm);
+    if (next !== undefined) this.loop.request(next);
   }
 
   /** The floor shown now. */
@@ -219,7 +236,10 @@ export class RoomView {
       this.walkers.clear(); this.snapWalkers = true;
     }
     this.shownTier = { key: tierKey, tier };
-    const spec = roomSpecOf(inp.interior, f, { time, reduced: rm, night: this.dark, T: inp.T, rate: inp.rate }, tier);
+    // The room's own machinery (screens, gauges, turbines) steps a few times a second: each step composes the whole
+    // room again (every prop snapped and outlined), which at ten steps a second was most of an open room's cost. The
+    // people keep moving at the frame rate.
+    const spec = roomSpecOf(inp.interior, f, { time: Math.floor(time * this.roomHz) / this.roomHz, reduced: rm, night: this.dark, T: inp.T, rate: inp.rate }, tier);
     const key = JSON.stringify(spec);
     const same = this.shown && this.shown.place === inp.interior.placeId && this.shown.floor === f.id;
     let repainted = false;
@@ -389,13 +409,20 @@ export class RoomView {
     });
     this.geometry = { wide, x: X0, y: Y0, zoom: zi, w: bw * zi, h: bh * zi, stack: stackRect, labels, props };
     this.lastS2 = S2;
-    this.animated = !rm && (spec.frame > 0 || moving || this.entering || !!this.leaving || !!this.job || !!this.slide);
-    if (this.leaving && this.enterK <= 0) { const done = this.leaving; this.leaving = undefined; this.animated = false; done(); }
+    this.transition = !rm && (this.entering || !!this.leaving || !!this.job || !!this.slide);
+    this.animated = !rm && (spec.frame > 0 || moving || this.transition);
+    if (this.leaving && this.enterK <= 0) { const done = this.leaving; this.leaving = undefined; this.animated = false; this.transition = false; done(); }
     this.frames++;
     const ms = perfNow() - start;
     this.times.push(ms);
     if (this.times.length > 600) this.times.shift();
     this.o.onFrame?.(this);
+  }
+
+  /** What the panel's elements over the room follow (agents' places, the floor's geometry): see CityView.domKey. */
+  domKey(): string {
+    const g = this.geometry;
+    return [this.input?.interior.placeId, this.input?.floor, g.x, g.y, g.zoom, g.w, g.h, this.vp.w, this.vp.h, this.hover, this.hits.map((h) => h.id + ':' + h.r.map(Math.round).join(',')).join(';')].join('|');
   }
 
   stats(): FrameStats {
@@ -428,6 +455,9 @@ export function unstack(ctx: Canvas2D, plates: readonly PlacedSign[], dpr: numbe
   }
   return out;
 }
+
+/** Steps a second of a room's own animation (its sprite is composed again at each). */
+export const ROOM_HZ = 3;
 
 /** Frame timing uses the real clock even when tests drive the animation clock. */
 const perfNow = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());

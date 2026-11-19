@@ -64,3 +64,21 @@ export function onRatioChange(fn: () => void, env: {
   const id = every > 0 ? setInterval(check, every) : undefined;
   return () => { done = true; mq?.removeEventListener?.('change', check); env.removeEventListener?.('resize', check); if (id !== undefined) clearInterval(id); };
 }
+
+/**
+ * A view's onFrame for the panel: re-render (bump `frame`) when what the panel's elements follow changed (`key`),
+ * at most every `ms`, and once more after the last change. Painting a frame alone re-renders nothing.
+ */
+export function frameNotifier(key: () => string, bump: () => void, ms = 120): { onFrame(): void; dispose(): void } {
+  let last = 0, shown = '', timer: ReturnType<typeof setTimeout> | undefined;
+  const fire = () => { timer = undefined; last = performance.now(); shown = key(); bump(); };
+  return {
+    onFrame() {
+      if (key() === shown) return;
+      const wait = ms - (performance.now() - last);
+      if (wait <= 0) { if (timer) { clearTimeout(timer); timer = undefined; } fire(); }
+      else timer ??= setTimeout(fire, wait);
+    },
+    dispose() { if (timer) clearTimeout(timer); timer = undefined; },
+  };
+}

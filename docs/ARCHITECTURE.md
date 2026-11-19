@@ -21,7 +21,8 @@ Without the art package the plugin still runs: `plugin/src/client/kit.ts` is the
 `CityView` (`renderer/src/view.ts`) owns one city canvas:
 
 1. `buildScene` (`scene.ts`, pure): store + placement + T → places, agents, signs, pools, car count. Rebuilt when the
-   input, hover, light or the animation clock (in twelfths of a second) changes.
+   input, hover, light or the scene's animation clock changes (four steps a second, twelve while someone walks
+   across town, two when the page is left alone; cars, power lines and smoke move at the frame rate).
 2. `paintCity` (`paint.ts`): into a low-resolution **art buffer**. A cached **static layer** holds the ground and
    everything still (street furniture, trees, still buildings). It is rebuilt only when one of them changes. Each
    frame then blits that layer, draws the moving things (running and waiting towers, cars, agents), and draws again
@@ -31,10 +32,16 @@ Without the art package the plugin still runs: `plugin/src/client/kit.ts` is the
 5. **Text layer** (`text.ts`): signs at screen resolution, on whole pixels; a sign behind a sprite is cut out by
    drawing that sprite again over it.
 6. **Overlays, screen stage.**
-7. `onFrame(view)`: the panel moves its DOM name plates and hover card.
+7. `onFrame(view)`: the panel moves its DOM name plates and hover card, re-rendering only when `domKey()` (data,
+   camera, size, hover, walkers) changed.
 
-The loop paints only when something changed or something moves (`scene.animated`, or an overlay's `animated()`).
+The loop (`pace.ts`) paints on demand: at once (every display frame) when something changed, the camera glides or a
+transition runs; at `AMBIENT_FPS` (12) while only the ambient life moves (`scene.animated`, or an overlay's
+`animated()`); at `CALM_FPS` (4) once nobody has moved the pointer, scrolled or pressed a key for `CALM_AFTER_MS`
+(10 s); at `BLURRED_FPS` (1) while the window has no focus; never while the page is hidden or the panel unmounted.
+The rooms (`RoomView`) follow the same pace; a room's own machinery steps `ROOM_HZ` (3) times a second.
 Under reduced motion there are no tweens, the clock is 0 and there are at most two frames a second.
+`scripts/cpu-check.mjs` measures frames a second and CPU in each of these states (CI fails on a frame-rate regression).
 
 ## Extension point 1: `ArtKit` (renderer/src/artkit.ts)
 
@@ -128,3 +135,8 @@ translated. Titles appear only in the DOM (name plates, cards, list), never in p
 - `node scripts/city-check.mjs --perf [--gpu]`: frame times and sprite memory at 100 buildings, 30 running and
   10 events a second.
 - `node scripts/city-check.mjs --shots <dir>`: screenshots for review.
+- `node scripts/cpu-check.mjs [--gpu]`: frames a second and CPU (all browser processes) of the real panel at dpr 2,
+  on the sample day and a 300-session day: active, left alone, blurred, hidden, in a room, the list. In CI.
+- `node scripts/panel-check.mjs`: the today bar at 1920, 1440, 1024 and 390 px in both languages (every figure on
+  screen), the nearby cities' settings (the closing click stays there), focus around rooms and the tour, the sound
+  button. In CI.

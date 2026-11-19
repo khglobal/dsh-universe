@@ -2,7 +2,7 @@
 // first; inside a group, sessions newest first, each followed by its own subagents.
 import type { Drafts, Seen } from './seen.ts';
 import { stateAt, type AgentTrack, type Store } from './store.ts';
-import { toReview } from './today.ts';
+import { runningRoots, toReview } from './today.ts';
 import { rally } from './rally.ts';
 
 export const LIST_GROUPS = ['need', 'review', 'running', 'failed', 'idle', 'done'] as const;
@@ -28,7 +28,10 @@ export function listGroups(store: Store, T: number, city: string, seen?: Seen, d
   const need = rally(store, T);
   const inSquare = new Set(need.map((s) => s.agent.id));
   const vis = store.agents().filter((s) => stateAt(s, T) !== 'future' && !inSquare.has(s.agent.id));
-  const by = (st: string) => familyOrder(vis.filter((s) => stateAt(s, T) === st));
+  // A session whose subagents still work is in Running (with them), like the today bar counts it.
+  const busy = runningRoots(store, T);
+  const groupOf = (s: AgentTrack) => (busy.has(s.agent.id) ? 'running' : stateAt(s, T));
+  const by = (st: string) => familyOrder(vis.filter((s) => groupOf(s) === st));
   const review = vis.filter((s) => toReview(s, T, city, seen, drafts));
   const reviewIds = new Set(review.map((s) => s.agent.id));
   return [

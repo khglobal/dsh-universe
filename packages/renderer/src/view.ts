@@ -1,6 +1,8 @@
 // The city view: a low-resolution art buffer scaled to the screen by a whole number, the text
 // layer on top at screen resolution, a camera in zoom levels, hit testing, and a frame loop that only repaints when
-// something moves. Reduced motion: no tweens, nothing animated, at most two frames a second.
+// something moves (pace.ts: at once for a change or a camera glide, AMBIENT_FPS for the ambient life, BLURRED_FPS in
+// a window without the focus, nothing on a hidden page). Reduced motion: no tweens, nothing animated, at most two
+// frames a second.
 import type { ArtKit, Canvas2D } from './artkit.ts';
 import { deviceRatio, homeCamera, minZoom, scaleOf, toArt, toScreen, wholeCity, zoomStep, pan, type Camera, type Viewport } from './camera.ts';
 import { artXY, ZOOM_LEVELS } from './geometry.ts';
@@ -10,6 +12,7 @@ import { coloredSet, type LayerId } from '@dsh-universe/model';
 import { buildScene, type Scene, type SceneInput, type Sign } from './scene.ts';
 import { drawTextLayer, type Occluder, type PlacedSign } from './text.ts';
 import { Traffic } from './traffic.ts';
+import { AMBIENT_FPS, CALM_AFTER_MS, FrameLoop, documentPage, frameGap, type PageState } from './pace.ts';
 
 export interface CityViewOptions {
   kit: ArtKit;
@@ -20,6 +23,11 @@ export interface CityViewOptions {
   /** Requests a frame; defaults to requestAnimationFrame. */
   raf?: (fn: (t: number) => void) => number;
   cancelRaf?: (id: number) => void;
+  /** A timer for long gaps between frames (default setTimeout with the browser's frames; none with injected ones). */
+  timeout?: ((fn: () => void, ms: number) => unknown) | null;
+  clearTimeout?: (id: unknown) => void;
+  /** Whether the page is hidden or its window blurred (default: the real document). */
+  page?: PageState;
   /** Clock for frame timing (ms). */
   clock?: () => number;
   /** Canvases for the static layer (tests pass a fake). */
@@ -93,10 +101,11 @@ export class CityView {
   private readonly traffic = new Traffic();
   private readonly still: StaticLayer;
   private dirty = true;
-  private raf = 0;
-  private lastPaint = 0;
+  private readonly loop: FrameLoop;
+  private readonly page: PageState;
   private lastTick = 0;
-  private running = false;
+  /** Steps of the scene's animation clock a second (pace.ts). */
+  private sceneHz = 12;
   private readonly times: number[] = [];
   private frames = 0;
   private t0: number;
@@ -122,6 +131,8 @@ export class CityView {
       return { canvas, ctx: (canvas as HTMLCanvasElement).getContext('2d') as Canvas2D };
     }));
     this.t0 = this.now();
+    this.page = o.page ?? documentPage();
+    this.loop = new FrameLoop({ tick: (t) => this.tick(t), raf: o.raf, cancelRaf: o.cancelRaf, timeout: o.timeout, clearTimeout: o.clearTimeout, clock: () => this.now(), page: this.page });
   }
 
   private now() { return this.o.clock ? this.o.clock() : performance.now(); }
@@ -192,23 +203,32 @@ export class CityView {
   /** True at the whole-city zoom level or further out. */
   isWhole(): boolean { return this.cam.zi <= wholeCity(this.vp, this.scene?.growth ?? 0).zi; }
 
-  start(): void { this.running = true; this.kick(); }
-  stop(): void { this.running = false; if (this.raf) (this.o.cancelRaf ?? cancelAnimationFrame)(this.raf); this.raf = 0; }
+  start(): void { this.loop.start(); this.kick(); }
+  stop(): void { this.loop.stop(); }
 
-  private kick(): void {
-    if (!this.running || this.raf) return;
-    this.raf = (this.o.raf ?? requestAnimationFrame)((t) => { this.raf = 0; this.tick(t); });
+  private kick(): void { this.loop.request(0); }
+
+  /** Whether only the ambient life moves (windows, cars, people): painted at AMBIENT_FPS. */
+  private ambient(rm: boolean): boolean {
+    return !rm && (!!this.scene?.animated || (!!this.scene && !!this.last && this.overlays.some((o) => o.animated?.(this.frameOf(this.actx, 0)))));
+  }
+  /** The least time to the next paint (ms), or undefined when nothing needs one. */
+  private gap(rm: boolean): number | undefined {
+    return frameGap({ urgent: this.dirty || !!this.goal, ambient: this.ambient(rm), reducedMotion: rm, blurred: this.page.blurred(), calm: this.page.idleFor() >= CALM_AFTER_MS });
   }
 
   private tick(ts: number): void {
-    if (!this.running) return;
+    if (!this.loop.running) return;
     const rm = this.o.reducedMotion();
-    const animated = !rm && (!!this.scene?.animated || (!!this.scene && !!this.last && this.overlays.some((o) => o.animated?.(this.frameOf(this.actx, 0)))));
-    const gliding = !!this.goal;
-    const due = this.dirty || animated || gliding;
-    // Reduced motion: a still picture, at most two frames a second.
-    if (due && (!rm || ts - this.lastPaint >= 500)) { this.paint(ts); this.lastPaint = ts; this.dirty = false; }
-    if (animated || gliding || (rm && this.dirty)) this.kick();
+    const gap = this.gap(rm);
+    if (gap === undefined) return;
+    // The scene's own clock (cranes turn 2.5 times a second, waiting towers blink twice) steps four times a second,
+    // twelve while someone walks across town, twice when the page is left alone or in the background; the cars, the
+    // power lines and the smoke keep moving at the frame rate.
+    this.sceneHz = gap >= 1000 / AMBIENT_FPS + 1 ? 2 : this.scene?.agents.some((a) => a.person.walking) ? 12 : 4;
+    if (this.loop.due(ts, gap)) { this.paint(ts); this.loop.lastPaint = ts; this.dirty = false; }
+    const next = this.gap(rm);
+    if (next !== undefined) this.loop.request(next);
   }
 
   /** One frame. `ts` in ms. Public for tests and the performance script. */
@@ -232,7 +252,7 @@ export class CityView {
     if (!this.input) return;
     const tA = this.now();
     // The scene changes with the data, the hover, the light, and the animation clock in twelfths of a second.
-    const tq = Math.floor(time * 12) / 12;
+    const tq = Math.floor(time * this.sceneHz) / this.sceneHz;
     const sk = this.inputVersion + '|' + this.hover + '|' + this.follow + '|' + this.dark + '|' + tq;
     const T = this.input.live && !rm ? this.input.T + Math.min(1500, this.now() - this.inputAt) : this.input.T;
     const scene = this.scene = sk === this.sceneKey && this.scene ? this.scene : buildScene({ ...this.input, T, time: tq, night: this.dark, hover: this.hover, follow: this.follow });
@@ -288,10 +308,16 @@ export class CityView {
     // Only sprites that actually cover a sign can cut it out: test their tight rectangles first.
     const occ: Occluder[] = [];
     if (signs.length) {
-      const rects = signs.map((s) => [s.x - 160, s.y - 60, s.x + 160, s.y + 20]);
+      // The signs' rectangles in columns of the screen: a sprite is only tested against those in its own columns.
+      const COL = 256, cols = new Map<number, number[][]>();
+      for (const s of signs) { const r = [s.x - 160, s.y - 60, s.x + 160, s.y + 20]; for (let k = Math.floor(r[0] / COL); k <= Math.floor(r[2] / COL); k++) { const l = cols.get(k); if (l) l.push(r); else cols.set(k, [r]); } }
+      const covers = (t0: number, t1: number, t2: number, t3: number) => {
+        for (let k = Math.floor(t0 / COL); k <= Math.floor(t2 / COL); k++) for (const r of cols.get(k) ?? []) if (t0 < r[2] && t2 > r[0] && t1 < r[3] && t3 > r[1]) return true;
+        return false;
+      };
       for (const b of this.last.blits) {
         const t0 = offX + b.t[0] * sc, t1 = offY + b.t[1] * sc, t2 = offX + b.t[2] * sc, t3 = offY + b.t[3] * sc;
-        if (!rects.some((r) => t0 < r[2] && t2 > r[0] && t1 < r[3] && t3 > r[1])) continue;
+        if (t2 < -400 || t0 > this.canvas.width + 400 || t3 < -100 || t1 > this.canvas.height + 100 || !covers(t0, t1, t2, t3)) continue;
         occ.push({ image: b.image, sx: Math.round(offX + b.x * sc), sy: Math.round(offY + b.y * sc), sw: Math.round(b.w * sc), sh: Math.round(b.h * sc), depth: b.depth, t: [t0, t1, t2, t3] });
       }
     }
@@ -306,6 +332,16 @@ export class CityView {
     this.times.push(ms);
     if (this.times.length > 600) this.times.shift();
     this.o.onFrame?.(this);
+  }
+
+  /**
+   * What the panel's own elements over the city (name plates, cards, the hover plate) follow: the data, the camera,
+   * the size, the hover and the layer, and the people walking. It changes far less often than frames are painted:
+   * the panel re-renders only when it does.
+   */
+  domKey(): string {
+    const walk = this.scene?.agents.some((a) => a.person.walking) ? this.sceneKey : '';
+    return [this.inputVersion, this.hover, this.follow, this.dark, Math.round(this.cam.x), Math.round(this.cam.y), this.cam.zi, this.vp.w, this.vp.h, this.vp.dpr, this.layer, this.scene?.T, walk].join('|');
   }
 
   private frameOf(ctx: Canvas2D, time: number): OverlayFrame {

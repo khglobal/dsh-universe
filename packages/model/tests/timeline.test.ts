@@ -115,3 +115,24 @@ test('timeline hover: one ten-minute bar read out (calls, edits and commands, fa
   assert.deepEqual(binReadout(s, at(10, 10)), { from: at(10, 10), to: at(10, 20), calls: 1, work: 0, failed: 1 });
   assert.deepEqual(binReadout(s, at(11)), { from: at(11), to: at(11, 10), calls: 0, work: 0, failed: 0 });
 });
+
+test('timeline at night (QA finding 7): between midnight and 06:00 the axis reaches now and ← goes back one minute', async () => {
+  const { daySpan, stepScrub, createStore: cs } = await import('../src/index.ts');
+  const live = new Date(2026, 10, 19, 1, 37).getTime();
+  const [from, to] = daySpan(cs(), live);
+  assert.ok(from <= live - 60_000 && to > live, `${new Date(from).toTimeString()} – ${new Date(to).toTimeString()}`);
+  assert.equal(stepScrub(null, live, 'ArrowLeft', from), live - 60_000);
+  const day = daySpan(cs(), new Date(2026, 10, 19, 15).getTime());
+  assert.equal(new Date(day[0]).getHours(), 6, 'by day the axis still starts at 06:00');
+});
+
+test('earlier days (QA finding 14): a neighbouring city\'s store covers every day, so a day without sessions says none; DSH\'s own storage says unknown', async () => {
+  const { historyWindow, createStore: cs } = await import('../src/index.ts');
+  const T = new Date(2026, 10, 18, 12).getTime();
+  const stored = [{ day: '2026-11-17', sessions: 3, failed: 1 }];
+  const own = historyWindow(stored, cs(), T);
+  const nb = historyWindow(stored, cs(), T, undefined, true);
+  assert.equal(own.filter((d) => !d.today && !d.known).length, own.length - 2);
+  assert.ok(nb.every((d) => d.known), 'every day known for a complete source');
+  assert.equal(nb.find((d) => d.day === '2026-11-16')!.sessions, 0);
+});

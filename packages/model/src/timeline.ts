@@ -15,6 +15,20 @@ export const REPLAY_MS = 15_000;
 export const REPLAY_STEPS = 15;
 export const REPLAY_STEP_MS = 450;
 
+const HOUR = 3600_000;
+/**
+ * The span the timeline draws: 06:00–22:00, widened to whatever happened earlier or later today, and always to now
+ * (between midnight and 06:00 the axis starts at the hour before now, so now has its marker and ← goes back a minute).
+ */
+export function daySpan(store: Store, live: number): [number, number] {
+  const d0 = dayStart(live);
+  let a = d0 + 6 * HOUR, b = d0 + 22 * HOUR;
+  for (const s of store.agents()) if (s.agent.startedAt >= d0 && s.agent.startedAt < a) a = Math.max(d0, Math.floor(s.agent.startedAt / HOUR) * HOUR);
+  if (live < a) a = Math.max(d0, Math.floor(live / HOUR) * HOUR - HOUR);
+  if (live > b) b = Math.min(d0 + 24 * HOUR, Math.ceil(live / HOUR) * HOUR);
+  return [a, b];
+}
+
 /** A scrubber value → the moment to show; null means live. */
 export function scrubTo(v: number, live: number, from = dayStart(live)): number | null {
   if (!Number.isFinite(v) || v >= live - LIVE_SNAP_MS) return null;

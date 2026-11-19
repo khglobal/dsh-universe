@@ -92,6 +92,13 @@ export function UniversePanel({ env }: { env: Env }) {
     const dx = r.left < 12 ? 12 - r.left : r.right > w - 12 ? w - 12 - r.right : 0;
     if (dx) el.style.transform = `translateX(${Math.round(dx)}px)`;
   });
+  // Opened from the one-line notice (which goes away with the press): focus moves into the settings, not to the body.
+  const focusSettings = useRef(false);
+  useEffect(() => {
+    if (!settingsOpen || !focusSettings.current) return;
+    focusSettings.current = false;
+    pop.panel.current?.querySelector<HTMLElement>('input, button')?.focus({ preventScroll: true });
+  }, [settingsOpen]);
   const feed = useFeed(active === 'dsh' ? env.feed : env.neighbours!.feed(active, off));
   const dshTitles = useObservable(env.titles);
   // An adjacent city's sessions carry their own label (a title the member set, or none): never DSH's list.
@@ -261,8 +268,8 @@ export function UniversePanel({ env }: { env: Env }) {
   const noticeNames = shownNotice.map((id) => t('nb.city.' + id));
   const hintBar = shownNotice.length > 0 && (
     <div role="status" data-dshu-notice={shownNotice.join(' ')} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '4px 10px', ...px, boxShadow: 'none', fontSize: 12.5, maxWidth: 640 }}>
-      <span style={{ flex: '1 1 220px' }}>{t('nb.found', { name: noticeNames.length > 1 ? t('nb.and', { a: noticeNames.slice(0, -1).join(t('nb.comma')), b: noticeNames[noticeNames.length - 1] }) : noticeNames[0] })}</span>
-      <button type="button" style={{ ...S.btn, minHeight: 26, padding: '0 8px' }} onClick={() => { setSettings(true); setNotice([]); }}>{t('nb.settings')}</button>
+      <span style={{ flex: '1 1 220px' }}>{t('nb.found', { n: noticeNames.length, name: noticeNames.length > 1 ? t('nb.and', { a: noticeNames.slice(0, -1).join(t('nb.comma')), b: noticeNames[noticeNames.length - 1] }) : noticeNames[0] })}</span>
+      <button type="button" style={{ ...S.btn, minHeight: 26, padding: '0 8px' }} onClick={() => { focusSettings.current = true; setSettings(true); setNotice([]); }}>{t('nb.settings')}</button>
       <button type="button" style={{ ...S.btn, minHeight: 26, padding: '0 8px' }} onClick={() => setNotice([])}>{t('e.dismiss')}</button>
     </div>
   );
@@ -300,6 +307,8 @@ export function UniversePanel({ env }: { env: Env }) {
       <div ref={rootRef} style={{ ...S.page, display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', position: 'relative' }}
         // A sound left on from an earlier visit starts with the member's first click (browsers need a gesture).
         onPointerDownCapture={() => { if (prefs.sound) unlockSound(); }}
+        // A key works as well as a click (browsers accept either as the gesture that lets audio start).
+        onKeyDownCapture={() => { if (prefs.sound) unlockSound(); }}
         onKeyDown={(e) => {
           if ((e.key !== 'n' && e.key !== 'N') || /INPUT|TEXTAREA|SELECT/.test((e.target as Element).tagName)) return;
           const r = rally(feed.store, T);
@@ -369,7 +378,7 @@ export function UniversePanel({ env }: { env: Env }) {
       {feed.full && <p style={S.note}>{t('e.full')}</p>}
       <TodayBar buttons={view.buttons} t={t} onPress={press} chrome />
       <ListView t={t} lang={lang} T={T} sections={view.sections} places={view.places} schedules={view.schedules}
-        plugins={view.plugins} days={historyWindow(feed.history, feed.store, T)} focus={focus} onOpen={open} onSeen={markSeen} />
+        plugins={view.plugins} days={historyWindow(feed.history, feed.store, T, undefined, active !== 'dsh')} focus={focus} onOpen={open} onSeen={markSeen} />
     </div>
   );
 }

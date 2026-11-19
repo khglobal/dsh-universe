@@ -8,6 +8,7 @@ export * from './text.ts';
 export * from './traffic.ts';
 export * from './paint.ts';
 export * from './view.ts';
+export * from './pace.ts';
 // The data views: only the factories are public; their helpers stay inside the package.
 export { createDataViews, createPlanBlueprints, createSquareBadge, type DataViewOptions, type Tag } from './overlay.ts';
 export * from './room-scene.ts';

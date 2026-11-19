@@ -116,3 +116,41 @@ test('list: needs you first; subagents follow their parent', () => {
   seen.mark(seenKey('dsh', 'quiet', 0));
   assert.deepEqual(listGroups(day(), at(11), 'dsh', seen).find((x) => x.id === 'done')!.rows.map((s) => s.agent.id), ['quiet'], 'seen → back among the finished');
 });
+
+test('running: a session whose main turn ended while its subagents still work counts as running, in the bar and the list alike (QA finding 6)', async () => {
+  const { createStore: cs, listGroups: lg, todayAt: ta, runningRoots } = await import('../src/index.ts');
+  const st = cs();
+  const T0 = new Date(2026, 10, 18, 10).getTime(), m = 60_000;
+  st.applyAll([
+    { type: 'agent', data: { id: 'p', sessionId: 'p', workspaceId: 'w', label: '', kind: 'main', state: 'running', startedAt: T0 } },
+    { type: 'turn', data: { t: T0, agentId: 'p', phase: 'start' } },
+    { type: 'turn', data: { t: T0 + 5 * m, agentId: 'p', phase: 'end', reason: 'completed' } },
+    { type: 'agent', data: { id: 'k1', sessionId: 'k1', parentAgentId: 'p', workspaceId: 'w', label: '', kind: 'subagent', state: 'running', startedAt: T0 + m } },
+    { type: 'turn', data: { t: T0 + m, agentId: 'k1', phase: 'start' } },
+    { type: 'agent', data: { id: 'k2', sessionId: 'k2', parentAgentId: 'p', workspaceId: 'w', label: '', kind: 'subagent', state: 'running', startedAt: T0 + m } },
+    { type: 'turn', data: { t: T0 + m, agentId: 'k2', phase: 'start' } },
+    { type: 'agent', data: { id: 'q', sessionId: 'q', workspaceId: 'w', label: '', kind: 'main', state: 'running', startedAt: T0 } },
+    { type: 'turn', data: { t: T0, agentId: 'q', phase: 'start' } },
+    { type: 'turn', data: { t: T0 + 2 * m, agentId: 'q', phase: 'end', reason: 'completed' } },
+  ]);
+  const T = T0 + 10 * m;
+  assert.deepEqual([...runningRoots(st, T)], ['p']);
+  const t = ta(st, T, 'dsh');
+  assert.equal(t.running, 1);
+  assert.deepEqual(t.items.run, ['p']);
+  const run = lg(st, T, 'dsh').find((g) => g.id === 'running')!.rows.map((s) => s.agent.id);
+  assert.deepEqual(run, ['p', 'k1', 'k2'], 'the session and its working subagents, together');
+  assert.ok(!lg(st, T, 'dsh').find((g) => g.id === 'done')!.rows.some((s) => s.agent.id === 'p'));
+});
+
+test('looking back (QA finding 13): the next scheduled run at T is the first run after T, not the next one from now', async () => {
+  const { createStore: cs, todayAt: ta } = await import('../src/index.ts');
+  const st = cs();
+  const h = (x: number) => new Date(2026, 10, 18, x).getTime();
+  st.applyAll([
+    { type: 'schedule', data: { id: 'a', title: 'Morning report', status: 'active', nextAt: h(15) + 45 * 60_000, runs: [{ at: h(8) + 30 * 60_000 }, { at: h(9) }] } },
+  ]);
+  assert.equal(ta(st, h(6), 'dsh').next?.at, h(8) + 30 * 60_000, 'at 06:00 the 08:30 run was next');
+  assert.equal(ta(st, h(8) + 45 * 60_000, 'dsh').next?.at, h(9));
+  assert.equal(ta(st, h(12), 'dsh').next?.at, h(15) + 45 * 60_000, 'live: the planned next run');
+});

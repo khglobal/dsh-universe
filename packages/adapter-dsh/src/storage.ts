@@ -2,6 +2,7 @@
 // Keys: `day:<YYYY-MM-DD>:<chunk>` hold up to CHUNK numbered events; `meta` holds the counters. Writes are batched
 // (every few seconds), so a busy host does constant work per event.
 import type { SeqEvent, UEvent } from '@dsh-universe/model';
+import { sanitize } from '@dsh-universe/adapter-kit';
 import type { KvLike } from './kv.ts';
 
 export const RETENTION_DAYS = 14;
@@ -17,6 +18,31 @@ export function dayOf(t: number, tz?: string): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+/** Fields an event cannot do without (an event missing one is dropped when read back). */
+const REQUIRED: Partial<Record<UEvent['type'], readonly string[]>> = {
+  workspace: ['id'], agent: ['id'], activity: ['t', 'agentId'], turn: ['t', 'agentId', 'phase'], approval: ['id', 'agentId', 'askedAt'],
+  job: ['id', 'agentId', 'startedAt'], deliverable: ['t', 'agentId'], schedule: ['id'], connector: ['id'], usage: ['t', 'agentId'],
+  planmode: ['t', 'agentId'], retry: ['id', 't', 'agentId'],
+};
+/** Counts and sizes are never negative. */
+const COUNTS = ['input', 'output', 'cacheRead', 'cacheWrite', 'tokens', 'count', 'durationMs', 'attempt', 'delayMs', 'hooks'];
+
+/**
+ * A stored record as read back, checked like a new event (the file can be damaged or edited by hand): the model's
+ * fields only, the ones it needs present, no negative counts, and a number after `after`. Anything else is dropped.
+ */
+export function storedEvent(x: unknown, after: number): SeqEvent | undefined {
+  if (!x || typeof x !== 'object') return undefined;
+  const { seq, e } = x as { seq?: unknown; e?: unknown };
+  if (typeof seq !== 'number' || !Number.isInteger(seq) || seq <= after) return undefined;
+  const clean = sanitize(e);
+  if (!clean) return undefined;
+  const d = clean.data as Record<string, unknown>;
+  if ((REQUIRED[clean.type] ?? []).some((k) => d[k] === undefined)) return undefined;
+  for (const k of COUNTS) if (typeof d[k] === 'number' && (d[k] as number) < 0) d[k] = 0;
+  return { seq, e: clean };
+}
+
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86_400_000);
 
 interface Meta { version: 1; day: string; seq: number; chunks: number; full?: boolean; days: string[] }
@@ -28,6 +54,8 @@ export interface DayStore {
   append(e: UEvent): number;
   /** Today's events after `seq`, at most `limit`. */
   since(seq: number, limit: number): { seq: number; events: SeqEvent[]; more: boolean };
+  /** Today's date (rolls over to a new day first, like every other call). */
+  day(): string;
   /** All of today. */
   today(): { day: string; seq: number; events: SeqEvent[]; full: boolean };
   /** Days with stored events, oldest first. */
@@ -40,7 +68,11 @@ export interface DayStore {
   dispose(): Promise<void>;
 }
 
-export function createDayStore(o: { table: KvLike; now: () => number; flushMs?: number; tz?: string; onError?: (e: unknown) => void }): DayStore {
+export function createDayStore(o: {
+  table: KvLike; now: () => number; flushMs?: number; tz?: string; onError?: (e: unknown) => void;
+  /** At a new day: the events it starts with, from the day that ended (rollover.ts carryOver). */
+  carry?: (day: string, events: readonly SeqEvent[]) => readonly UEvent[];
+}): DayStore {
   let meta: Meta = { version: 1, day: dayOf(o.now(), o.tz), seq: 0, chunks: 0, days: [] };
   let events: SeqEvent[] = [];
   let flushed = 0;
@@ -53,11 +85,16 @@ export function createDayStore(o: { table: KvLike; now: () => number; flushMs?: 
   function rollover() {
     const day = dayOf(o.now(), o.tz);
     if (day === meta.day) return;
-    // A new day: the old one is written out first, then numbering starts again.
+    // A new day: the old one is written out first, then numbering starts again, with what carries over.
     void flush();
+    const prevDay = meta.day, prev = events;
     meta = { version: 1, day, seq: 0, chunks: 0, days: meta.days.includes(meta.day) || !events.length ? meta.days : [...meta.days, meta.day] };
     events = [];
     flushed = 0;
+    let seed: readonly UEvent[] = [];
+    try { seed = o.carry?.(prevDay, prev) ?? []; } catch (e) { o.onError?.(e); }
+    for (const e of seed) events.push({ seq: ++meta.seq, e });
+    if (seed.length) schedule();
   }
 
   function schedule() {
@@ -89,13 +126,21 @@ export function createDayStore(o: { table: KvLike; now: () => number; flushMs?: 
       if (m && m.version === 1 && Array.isArray(m.days)) {
         meta.days = m.days.filter((d) => typeof d === 'string');
         if (m.day === meta.day) {
-          for (let c = 0; c < m.chunks; c++) {
+          let bad = 0;
+          for (let c = 0; c < (Number.isInteger(m.chunks) ? m.chunks : 0); c++) {
             const chunk = await read(key(m.day, c));
-            if (Array.isArray(chunk)) events.push(...(chunk as SeqEvent[]));
+            if (!Array.isArray(chunk)) continue;
+            for (const x of chunk) {
+              const ok = storedEvent(x, events.length ? events[events.length - 1].seq : 0);
+              if (ok) events.push(ok); else bad++;
+            }
           }
+          if (bad) o.onError?.(Object.assign(new Error(bad + ' damaged record(s) skipped'), { name: 'DamagedRecords' }));
           meta.seq = events.length ? events[events.length - 1].seq : 0;
-          meta.full = m.full;
-          flushed = events.length;
+          meta.full = m.full === true;
+          // Damaged records dropped: the whole day is written again (repaired) with the next flush.
+          flushed = bad ? 0 : events.length;
+          if (bad) schedule();
         }
       }
     },
@@ -116,6 +161,7 @@ export function createDayStore(o: { table: KvLike; now: () => number; flushMs?: 
       const slice = events.slice(lo, lo + limit);
       return { seq: slice.length ? slice[slice.length - 1].seq : from, events: slice, more: lo + limit < events.length };
     },
+    day() { rollover(); return meta.day; },
     today() { rollover(); return { day: meta.day, seq: meta.seq, events: events.slice(), full: !!meta.full }; },
     days: () => meta.days.slice(),
     async readDay(day) {
@@ -123,7 +169,7 @@ export function createDayStore(o: { table: KvLike; now: () => number; flushMs?: 
       for (let c = 0; ; c++) {
         const chunk = await read(key(day, c));
         if (!Array.isArray(chunk)) break;
-        for (const x of chunk as SeqEvent[]) out.push(x.e);
+        for (const x of chunk) { const ok = storedEvent(x, -1); if (ok) out.push(ok.e); }
       }
       return out;
     },

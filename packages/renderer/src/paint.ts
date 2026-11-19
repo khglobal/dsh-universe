@@ -48,6 +48,8 @@ export type SurfaceFactory = (w: number, h: number) => Surface;
  */
 export class StaticLayer {
   key = '';
+  /** The scene and light the key was last worked out for (a new scene is built only a few times a second). */
+  keyOf: { scene: Scene; light: string } | undefined;
   surface: Surface | undefined;
   blits: Blit[] = [];
   hits: HitArea[] = [];
@@ -101,7 +103,6 @@ export function paintCity(A: Canvas2D, kit: ArtKit, scene: Scene, traffic: Traff
   // The crowd in the square is drawn over whatever stands in front of it: it must always be seen.
   for (const a of scene.agents) live.push({ k: 'agent', depth: a.inSquare ? a.depth + 1000 : a.depth, a });
   for (const t of scene.trains) live.push({ k: 'train', depth: t.x + 14.5, x: t.x, car: t.car });
-  still.sort((x, y) => x.depth - y.depth);
   live.sort((x, y) => x.depth - y.depth);
 
   const hitsLive: HitArea[] = [], topsLive = new Map<string, [number, number]>(), blitsLive: Blit[] = [];
@@ -142,7 +143,10 @@ export function paintCity(A: Canvas2D, kit: ArtKit, scene: Scene, traffic: Traff
   };
 
   // The static layer: rebuilt only when something still changed (or the light, the border, the claims).
-  const sig = layer ? stillKey(kit, scene, still) : '';
+  const sig = !layer ? '' : layer.keyOf?.scene === scene && layer.keyOf.light === lightKey ? layer.key : stillKey(kit, scene, still);
+  if (layer) layer.keyOf = { scene, light: lightKey };
+  // Sorted only when drawn (a layer rebuild or no layer): the order never matters for the key.
+  const sortStill = () => still.sort((x, y) => x.depth - y.depth);
   let rebuilt = false;
   let stillBlits: Blit[], stillHits: HitArea[], stillTops: Map<string, [number, number]>;
   if (layer) {
@@ -159,6 +163,7 @@ export function paintCity(A: Canvas2D, kit: ArtKit, scene: Scene, traffic: Traff
       highwayStubs(pen(L), g);
       for (const p of scene.pools) { const q = artXY(p.x, p.y), s = kit.pool(p.colour, p.r); L.drawImage(s.image, q[0] + s.dx, q[1] + s.dy); }
       layer.blits = []; layer.hits = []; layer.tops = new Map();
+      sortStill();
       for (const it of still) draw(L, it, layer.hits, layer.tops, layer.blits);
       layer.key = sig;
       rebuilt = true;
@@ -172,6 +177,7 @@ export function paintCity(A: Canvas2D, kit: ArtKit, scene: Scene, traffic: Traff
     highwayStubs(px, g);
     for (const p of scene.pools) { const q = artXY(p.x, p.y), s = kit.pool(p.colour, p.r); A.drawImage(s.image, q[0] + s.dx, q[1] + s.dy); }
     stillBlits = []; stillHits = []; stillTops = new Map();
+    sortStill();
     for (const it of still) { draw(A, it, stillHits, stillTops, stillBlits); draws++; }
   }
   // The moving things, and every still thing in front of one of them drawn again over it.
@@ -188,9 +194,15 @@ export function paintCity(A: Canvas2D, kit: ArtKit, scene: Scene, traffic: Traff
   }
   if (liveRects.length) {
     const front: Blit[] = [];
+    // The moving things' rectangles in columns of the art buffer: a still sprite is only tested against those in
+    // its own columns (a few hundred still sprites against dozens of cars every frame otherwise).
+    const COL = 64, cols = new Map<number, Blit[]>();
+    for (const r of liveRects) for (let c = Math.floor(r.t[0] / COL); c <= Math.floor(r.t[2] / COL); c++) { const l = cols.get(c); if (l) l.push(r); else cols.set(c, [r]); }
     for (const b of stillBlits) {
       if (redraw.has(b) || b.x > view[2] || b.y > view[3] || b.x + b.w < view[0] || b.y + b.h < view[1]) continue;
-      for (const r of liveRects) if (b.depth > r.depth && b.t[0] < r.t[2] && b.t[2] > r.t[0] && b.t[1] < r.t[3] && b.t[3] > r.t[1]) { redraw.add(b); front.push(b); break; }
+      search: for (let c = Math.floor(b.t[0] / COL); c <= Math.floor(b.t[2] / COL); c++) {
+        for (const r of cols.get(c) ?? []) if (b.depth > r.depth && b.t[0] < r.t[2] && b.t[2] > r.t[0] && b.t[1] < r.t[3] && b.t[3] > r.t[1]) { redraw.add(b); front.push(b); break search; }
+      }
     }
     // A still sprite drawn again may cover a moving one that stands in front of it: replay just those, by depth.
     const again = live.filter((it) => (liveOf.get(it) ?? []).some((r) => front.some((b) => b.depth < it.depth && b.t[0] < r.t[2] && b.t[2] > r.t[0] && b.t[1] < r.t[3] && b.t[3] > r.t[1])));

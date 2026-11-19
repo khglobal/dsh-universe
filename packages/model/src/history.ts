@@ -32,7 +32,11 @@ export function todayTotals(store: Store, T: number): UDay {
 }
 
 /** The 14 days ending with T's day, oldest first. Today is live; a stored row for today is ignored. */
-export function historyWindow(stored: readonly UDay[], store: Store, T: number, n = HISTORY_DAYS): HistoryDay[] {
+/**
+ * `complete`: the source covers every day of the window (a neighbouring city's own store, read 14 days back), so a
+ * day it has nothing for had no sessions; otherwise (DSH's own day storage) such a day is unknown.
+ */
+export function historyWindow(stored: readonly UDay[], store: Store, T: number, n = HISTORY_DAYS, complete = false): HistoryDay[] {
   const byDay = new Map(stored.map((d) => [d.day, d]));
   const out: HistoryDay[] = [];
   const base = new Date(dayStart(T));
@@ -42,7 +46,7 @@ export function historyWindow(stored: readonly UDay[], store: Store, T: number, 
     const key = dayKey(d.getTime());
     if (k === 0) { out.push({ ...todayTotals(store, T), known: true, today: true }); continue; }
     const row = byDay.get(key);
-    out.push(row ? { day: key, sessions: row.sessions, failed: row.failed, known: true, today: false } : { day: key, sessions: 0, failed: 0, known: false, today: false });
+    out.push(row ? { day: key, sessions: row.sessions, failed: row.failed, known: true, today: false } : { day: key, sessions: 0, failed: 0, known: complete, today: false });
   }
   return out;
 }

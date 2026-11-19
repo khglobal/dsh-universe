@@ -10,14 +10,14 @@ const checkbox = node('checkbox'), close = node('close'), sign = node('city sign
 const panel = holder(checkbox, close), trigger = holder(label);
 
 test('popover: Esc closes it and gives focus back to its button', () => {
-  assert.deepEqual(dismissal({ type: 'keydown', key: 'Escape' }, panel, trigger), { focusTrigger: true });
+  assert.deepEqual(dismissal({ type: 'keydown', key: 'Escape' }, panel, trigger), { focusTrigger: true, swallow: true });
   assert.equal(dismissal({ type: 'keydown', key: 'Enter' }, panel, trigger), null);
   assert.equal(dismissal({ type: 'keydown', key: 'Tab' }, panel, trigger), null);
 });
 
 test('popover: a click anywhere else closes it (the city sign beside it, the city), without moving focus', () => {
-  assert.deepEqual(dismissal({ type: 'pointerdown', target: sign }, panel, trigger), { focusTrigger: false });
-  assert.deepEqual(dismissal({ type: 'pointerdown', target: canvas }, panel, trigger), { focusTrigger: false });
+  assert.deepEqual(dismissal({ type: 'pointerdown', target: sign }, panel, trigger), { focusTrigger: false, swallow: true });
+  assert.deepEqual(dismissal({ type: 'pointerdown', target: canvas }, panel, trigger), { focusTrigger: false, swallow: true });
 });
 
 test('popover: a click inside it (a checkbox) keeps it open; its button is left to toggle it', () => {
@@ -28,7 +28,7 @@ test('popover: a click inside it (a checkbox) keeps it open; its button is left 
 });
 
 test('popover: with its elements gone (unmounted), any click closes it', () => {
-  assert.deepEqual(dismissal({ type: 'pointerdown', target: checkbox }, null, null), { focusTrigger: false });
+  assert.deepEqual(dismissal({ type: 'pointerdown', target: checkbox }, null, null), { focusTrigger: false, swallow: true });
 });
 
 test('popover: no open state is ever stored, and a stray stored flag is dropped on reload', () => {
@@ -39,4 +39,17 @@ test('popover: no open state is ever stored, and a stray stored flag is dropped 
   writePrefs(p, { setItem: (_k, v) => { out = v; } });
   assert.doesNotMatch(out, /settings|popover/i);
   assert.equal(JSON.parse(out).toured, true);
+});
+
+test('popover: the press that closes it goes no further: its pointerup and click are swallowed once', async () => {
+  const { swallowPress } = await import('../src/client/popover.ts');
+  const ls = new Map<string, (e: Event) => void>();
+  const doc = { addEventListener: (t: string, f: (e: Event) => void) => { ls.set(t, f); }, removeEventListener: (t: string) => { ls.delete(t); } };
+  swallowPress(doc as never);
+  let stopped = 0;
+  const ev = (type: string) => ({ type, stopPropagation: () => { stopped++; }, preventDefault: () => {} }) as unknown as Event;
+  ls.get('pointerup')!(ev('pointerup'));
+  ls.get('click')!(ev('click'));
+  assert.equal(stopped, 2);
+  assert.equal(ls.size, 0, 'only that one press: the next click goes through');
 });

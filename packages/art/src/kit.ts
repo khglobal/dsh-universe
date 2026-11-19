@@ -53,13 +53,16 @@ export function createArtKit(o: { make?: SurfaceFactory; budgetBytes?: number } 
     building(spec: BuildingSpec): Drawn {
       const { id, ...rest } = spec;
       const key = light + '|' + JSON.stringify({ ...rest, frames: { ...rest.frames, crane: 0 } });
+      // A blinking (waiting) tower keeps both of its pictures: they take turns twice a second, and painting one again
+      // each time (with its read-back for the outline) was most of a frame's cost.
+      const owner = spec.frames.blink ? id + '#blink' : id;
       const meta = topOf.get(id);
       let s: Sprite;
       let m = meta;
-      if (meta && meta.key !== key && redraws >= REDRAWS_PER_FRAME && cache.peek(id)) s = cache.peek(id)!;
+      if (meta && meta.key !== key && redraws >= REDRAWS_PER_FRAME && cache.peek(owner)) s = cache.peek(owner)!;
       else {
         let fresh: typeof meta | undefined;
-        s = cache.get(id, key, 140, 344, 70, 304, () => { const r = paintTower(spec); fresh = { key, top: r.top * AS, doorY: r.doorY, crane: r.crane, roof: r.roof }; redraws++; }, { tx0: spec.at[0], ty0: spec.at[1] });
+        s = cache.get(owner, key, 140, 344, 70, 304, () => { const r = paintTower(spec); fresh = { key, top: r.top * AS, doorY: r.doorY, crane: r.crane, roof: r.roof }; redraws++; }, { tx0: spec.at[0], ty0: spec.at[1] });
         if (fresh) { topOf.set(id, fresh); m = fresh; }
       }
       const out: Drawn = { ...s, top: m?.top ?? 0, doorY: m?.doorY };
@@ -80,10 +83,12 @@ export function createArtKit(o: { make?: SurfaceFactory; budgetBytes?: number } 
       const key = light + '|' + JSON.stringify(rest);
       const [w, h, ox, oy] = CIVIC_BOX[spec.kind];
       let top = 0;
-      const s = cache.get(id, key, w, h, ox, oy, () => { top = civicPaint[spec.kind](spec); }, { tx0: spec.at[0], ty0: spec.at[1] });
-      const meta = topOf.get(id);
+      // Both pictures of a blinking place (a busy power station) stay cached, like a waiting tower's.
+      const owner = spec.frames?.blink ? id + '#blink' : id;
+      const s = cache.get(owner, key, w, h, ox, oy, () => { top = civicPaint[spec.kind](spec); }, { tx0: spec.at[0], ty0: spec.at[1] });
+      const meta = topOf.get(owner);
       if (meta && meta.key === key) return { ...s, top: meta.top };
-      topOf.set(id, { key, top: top * AS, doorY: 0 });
+      topOf.set(owner, { key, top: top * AS, doorY: 0 });
       return { ...s, top: top * AS };
     },
     item(it: StreetItem): Sprite {

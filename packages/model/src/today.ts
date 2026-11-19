@@ -43,11 +43,28 @@ export function hasDraft(s: AgentTrack, drafts?: Drafts): boolean {
 /** Deliverables presented by T: an extra marker on a session to review, no longer a condition. */
 export const deliverablesAt = (s: AgentTrack, T: number) => s.deliverables.filter((d) => d.t <= T).reduce((a, d) => a + d.count, 0);
 
+/**
+ * The sessions at work at T: a root session counts while it or anyone in its family (subagents, engine runs) is
+ * running, and it is not waiting for the member (that counts under "need you"). One definition for the today bar,
+ * the neighbouring cities' chips and the list's Running group: a main turn that ended while its subagents still
+ * work is still running.
+ */
+export function runningRoots(store: Store, T: number): Set<string> {
+  const agents = store.agents();
+  const parent = new Map(agents.map((s) => [s.agent.id, s.agent.parentAgentId]));
+  const rootId = (id: string) => { let r = id; for (let k = 0; k < 32; k++) { const p = parent.get(r); if (!p || !parent.has(p)) break; r = p; } return r; };
+  const out = new Set<string>();
+  for (const s of agents) if (stateAt(s, T) === 'running') out.add(rootId(s.agent.id));
+  for (const id of [...out]) { const r = store.agent(id); if (!r || stateAt(r, T) === 'waiting' || stateAt(r, T) === 'future') out.delete(id); }
+  return out;
+}
+
 export function todayAt(store: Store, T: number, city: string, seen?: Seen, drafts?: Drafts): Today {
   const agents = store.agents();
   const need = rallyAt(store, T);
   const roots = agents.filter((s) => !s.agent.parentAgentId);
-  const running = roots.filter((s) => stateAt(s, T) === 'running').sort((a, b) => a.agent.startedAt - b.agent.startedAt || a.agent.id.localeCompare(b.agent.id));
+  const busy = runningRoots(store, T);
+  const running = roots.filter((s) => busy.has(s.agent.id)).sort((a, b) => a.agent.startedAt - b.agent.startedAt || a.agent.id.localeCompare(b.agent.id));
   const review = roots.filter((s) => toReview(s, T, city, seen, drafts)).sort((a, b) => (a.agent.endedAt ?? 0) - (b.agent.endedAt ?? 0) || a.agent.id.localeCompare(b.agent.id));
   let errors = 0, tokens = 0;
   const errPlaces = new Map<string, number>();
@@ -62,9 +79,17 @@ export function todayAt(store: Store, T: number, city: string, seen?: Seen, draf
       errPlaces.set(p, Math.max(errPlaces.get(p) ?? 0, e.t));
     }
   }
+  // Looking back, a run that came later today was still ahead at T (QA finding 13): the next run at T is the first
+  // of the schedule's runs after T, or its next planned one.
+  const nextOf = (x: ReturnType<Store['schedules']>[number]) => {
+    let n = x.status === 'active' && x.nextAt !== undefined && x.nextAt > T ? x.nextAt : Infinity;
+    for (const r of x.runs) if (r.at > T && r.at < n) n = r.at;
+    return n;
+  };
   const upcoming = store.schedules()
-    .filter((x) => x.status === 'active' && x.nextAt !== undefined && x.nextAt > T)
-    .sort((a, b) => a.nextAt! - b.nextAt! || a.id.localeCompare(b.id));
+    .map((x) => ({ ...x, nextAt: nextOf(x) }))
+    .filter((x) => Number.isFinite(x.nextAt))
+    .sort((a, b) => a.nextAt - b.nextAt || a.id.localeCompare(b.id));
   const models = [...new Set(agents.flatMap((s) => s.usage.filter((u) => u.t <= T).map((u) => u.model)))].sort();
   return {
     need: need.length,

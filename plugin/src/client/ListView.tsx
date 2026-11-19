@@ -92,7 +92,7 @@ export function ListView(p: ListProps) {
         </Group>
       )}
       {p.days.some((d) => !d.today && d.known) && (
-        <Group title={p.t('li.days')} count={p.days.filter((d) => !d.today && d.known).length}>
+        <Group title={p.t('li.days')} count={p.days.filter((d) => !d.today).length}>
           {p.days.filter((d) => !d.today).reverse().map((d) => (
             <div key={d.day} role="listitem" style={S.row}>
               <span style={{ fontSize: 12, color: C.muted }}>{d.day}</span>

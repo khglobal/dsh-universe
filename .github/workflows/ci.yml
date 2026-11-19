@@ -52,3 +52,21 @@ jobs:
         run: node scripts/city-check.mjs --crisp
       - name: room crispness and prop pixel size
         run: node scripts/room-check.mjs --crisp
+  # The panel left open (QA 0.3.0): frames a second in each state a member leaves it in (active, left alone, blurred,
+  # hidden, in a room, the list) and how busy the page's main thread is while left alone; and the rendered panel (the
+  # today bar at four widths in both languages, focus, the popover's closing click, the sound button).
+  panel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc }
+      - run: npm ci --no-audit --no-fund
+      - name: headless chromium
+        run: npx playwright-core install --with-deps chromium-headless-shell
+      - name: frame rate and CPU while left open
+        run: node scripts/cpu-check.mjs --main-limit 25
+      - name: today bar, focus, sound and the nearby cities' settings
+        run: node scripts/panel-check.mjs

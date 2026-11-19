@@ -380,7 +380,8 @@ export function buildScene(o: SceneInput): Scene {
   });
   // Everyone else outdoors: walking between places (from the moment their calls moved there), standing at a shared
   // place, or sitting at their own door after an error. Inside a building they are heads at the windows.
-  const placeAt = (id: string) => places.find((p) => p.id === id);
+  const placeById = new Map(places.map((p) => [p.id, p]));
+  const placeAt = (id: string) => placeById.get(id);
   const doorOf = (id: string, s: AgentTrack): [number, number] | undefined => {
     const p = placeAt(id);
     if (!p) return undefined;
