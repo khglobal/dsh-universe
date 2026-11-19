@@ -176,7 +176,8 @@ export function UniversePanel({ env }: { env: Env }) {
   }
 
   // Into another city (a chip, or a figure only an adjacent city has).
-  const go = (id: CityId) => { setActive(id); setRegion(false); setRegionFocus(undefined); setLayer('all'); setTarget(undefined); setFocus(undefined); };
+  // Going to a city answers the one-line notice (it would otherwise hang over that city's rooms).
+  const go = (id: CityId) => { setActive(id); setRegion(false); setRegionFocus(undefined); setNotice([]); setLayer('all'); setTarget(undefined); setFocus(undefined); };
   const press = (cat: keyof Today['items']) => {
     const items = view.today.items[cat];
     const i = nextIndex(cursor[cat] ?? -1, items.length);

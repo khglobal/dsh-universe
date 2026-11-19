@@ -21,8 +21,9 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync,
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { pathToFileURL } from 'node:url';
 
-const { values: opt, positionals } = parseArgs({ allowPositionals: true, options: { dsh: { type: 'string', default: '0.2.2-rc.2' }, shots: { type: 'string' }, keep: { type: 'boolean' }, width: { type: 'string', default: '1400' }, dark: { type: 'boolean' } } });
+const { values: opt, positionals } = parseArgs({ allowPositionals: true, options: { dsh: { type: 'string', default: '0.2.2-rc.2' }, shots: { type: 'string' }, keep: { type: 'boolean' }, width: { type: 'string', default: '1400' }, dark: { type: 'boolean' }, at: { type: 'string' } } });
 const tgz = positionals[0] && resolve(positionals[0]);
 if (!tgz) throw Error('usage: neighbours-check.mjs <package.tgz> [--dsh <version>] [--shots <prefix>] [--keep]');
 const { MARKERS, CUSTOM_TITLE, seedLocalStores } = await import('../fixtures/local-stores.ts');
@@ -33,8 +34,15 @@ const NAMES = { claude: 'Claude', chatgpt: 'ChatGPT', workbuddy: 'WorkBuddy' };
 const T = realpathSync(mkdtempSync(join(tmpdir(), 'dsh-neighbours-')));
 const home = join(T, 'home'), docs = join(T, 'Documents'), app = join(T, 'app');
 for (const d of [home, docs, app]) mkdirSync(d, { recursive: true });
-seedLocalStores(home, Date.now());
+// `--at HH:MM`: DSH and the page run with their clocks set to that time today (the fixture's day is laid out over
+// working hours, so a run just after midnight would find every session still in the future).
+let shift = 0;
+if (opt.at) { const [h, m] = opt.at.split(':').map(Number); const d = new Date(); d.setHours(h, m, 0, 0); shift = d.getTime() - Date.now(); }
+seedLocalStores(home, Date.now() + shift);
+const clockMod = join(T, 'clock.mjs');
+writeFileSync(clockMod, `const off = ${shift}; if (off) { const R = Date; class D extends R { constructor(...a) { if (a.length) super(...a); else super(R.now() + off); } static now() { return R.now() + off; } } globalThis.Date = D; }\n`);
 const env = { ...process.env, HOME: home, USERPROFILE: home, DSH_HOME: join(home, '.dsh'), npm_config_cache: join(T, 'npm-cache') };
+const serverEnv = shift ? { ...env, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import ${pathToFileURL(clockMod).href}`.trim() } : env;
 const problems = [];
 const step = (m) => console.log(`[neighbours] ${m}`);
 const shot = (page, name, lang) => (opt.shots ? page.screenshot({ path: `${opt.shots}-${name}-${lang}.png` }) : Promise.resolve());
@@ -48,7 +56,7 @@ try {
   writeFileSync(overlay, `- id: workspace-controller\n  config:\n    documentsDirectory: ${JSON.stringify(docs)}\n`);
   if (spawnSync(dsh, ['plugin', '--profile', 'web', 'add', `file:${tgz}`], { cwd: T, env, stdio: 'inherit' }).status !== 0) throw Error('dsh plugin add failed');
   let log = '';
-  server = spawn(dsh, ['--profile', 'web', '--patch', overlay, '--no-open', '--host', '127.0.0.1', '--port', '0'], { cwd: T, env, stdio: ['ignore', 'pipe', 'pipe'] });
+  server = spawn(dsh, ['--profile', 'web', '--patch', overlay, '--no-open', '--host', '127.0.0.1', '--port', '0'], { cwd: T, env: serverEnv, stdio: ['ignore', 'pipe', 'pipe'] });
   server.stdout.on('data', (b) => { log += b; });
   server.stderr.on('data', (b) => { log += b; });
   const url = await new Promise((ok, fail) => {
@@ -68,6 +76,7 @@ try {
     };
     const newContext = async (lang) => {
       const ctx = await browser.newContext({ viewport: { width: Number(opt.width), height: Number(opt.width) < 600 ? 844 : 900 }, locale: lang === 'zh' ? 'zh-CN' : 'en-US', colorScheme: opt.dark ? 'dark' : 'light' });
+      if (shift) await ctx.clock.setSystemTime(Date.now() + shift);
       // The first-run tour was seen (it would cover the city); nothing else is preset.
       await ctx.addInitScript(() => { try { const k = 'khglobal-dsh-universe.view'; if (!localStorage.getItem(k)) localStorage.setItem(k, JSON.stringify({ toured: true })); } catch { /* no storage */ } });
       // The ambience's oscillators, by pitch (to check each city plays its own bus).
@@ -191,7 +200,7 @@ try {
               await page.mouse.click(box.x + box.width * (0.08 + 0.7 * ((i % 6) / 5)), box.y + box.height * (0.38 + 0.25 * (Math.floor(i / 6) / 7)));
               await page.waitForTimeout(250);
               // A click on a building goes straight inside: back out, and open its card from its name instead.
-              const inside = await page.locator('[data-dshu-card]').count() === 0 && await page.getByRole('button', { name: /Back to the city|回到城市|返回城市/ }).count();
+              const inside = await page.getByRole('button', { name: /^(Back to the city|返回城市)$/ }).count();
               const txt = (await page.locator('[data-dshu-card]').count()) ? await page.locator('[data-dshu-card]').first().innerText({ timeout: 1000 }).catch(() => '') : '';
               if (/\d\d-\d\d/.test(txt) || inside) { found = true; wentIn = !!inside; } else await page.keyboard.press('Escape');
             }
