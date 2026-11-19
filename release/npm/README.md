@@ -32,10 +32,13 @@ is scheduled next. Metadata only, read on your own device.
   **ChatGPT** holds Codex; **WorkBuddy** holds WorkBuddy's. A small chip such as "Claude · 3 running" goes there in one
   click; zoom out to see the cities side by side. The Today bar adds their running sessions, failed calls and tokens
   as "+n local". Each source has its own switch under **Nearby cities**.
+- **Sound** (off by default). Each city has its own ambience driven by its activity: a murmur while sessions run,
+  ticks for calls, a falling sign while calls fail, two low notes while someone waits.
 - **Day and night.** Auto, day or night; at night only places that are working or waiting are lit.
 - **Accessible.** Keyboard control, a screen-reader list view, reduced motion, light and dark themes, English and
   Chinese.
-- **Fast.** Built for 60 fps; it still draws with no GPU.
+- **Fast.** Built for 60 fps; it still draws with no GPU. Light on the battery: it paints only what moves, slows down
+  when left alone and almost stops in a background window.
 - **Private by design.** Metadata only, never chat or tool content; nothing leaves your device. Local agent session
   metadata (Claude Code, Claude app, Codex, WorkBuddy) is shown automatically; turn any source off under
   **Nearby cities**.

@@ -37,6 +37,14 @@ const json = (p) => JSON.parse(readFileSync(p, 'utf8'));
 const sha = (b) => createHash('sha256').update(b).digest('hex');
 const semver = (v) => { const m = /^(\d+)\.(\d+)\.(\d+)$/u.exec(v); if (!m) throw Error(`not a plain semver: ${v}`); return m.slice(1).map(Number); };
 const cmp = (a, b) => { const x = semver(a), y = semver(b); for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] - y[i]; return 0; };
+/** The body of the `## <version>` section of a changelog, trimmed, or '' when it has none. */
+function releaseNotes(log, version) {
+  const lines = log.split('\n');
+  const at = lines.findIndex((l) => l.trim() === `## ${version}`);
+  if (at < 0) return '';
+  const end = lines.findIndex((l, i) => i > at && /^## /u.test(l));
+  return lines.slice(at + 1, end < 0 ? undefined : end).join('\n').trim();
+}
 
 // 1. Build (typecheck + minified bundle). The build refuses to write anything when the types do not check.
 if (!opt['skip-build']) run(process.execPath, [join(root, 'scripts/build.mjs')], root);
@@ -94,8 +102,11 @@ try {
     : known(prevSource)
       ? sh('git', ['log', '--first-parent', '--format=%s', `${prevSource}..${commit}`, '--', 'plugin', 'packages', 'LICENSE']).split('\n').filter(Boolean)
       : [sh('git', ['log', '-1', '--format=%s', commit])];
+  // A section for this version in CHANGELOG.md (written by hand for a notable release) replaces the commit list.
+  const notes = releaseNotes(existsSync(join(root, 'CHANGELOG.md')) ? readFileSync(join(root, 'CHANGELOG.md'), 'utf8') : '', version);
   const day = new Date().toISOString().slice(0, 10);
-  const head = `## ${version}（${day}）\n\n` + (subjects.length ? subjects.map((s) => `- ${s}`).join('\n') : '- 第一个成员版本。') + `\n\n来源：khglobal/dsh-universe@${commit.slice(0, 12)}\n`;
+  const head = `## ${version}（${day}）\n\n` + (notes ? notes
+    : subjects.length ? subjects.map((s) => `- ${s}`).join('\n') : '- 第一个成员版本。') + `\n\n来源：khglobal/dsh-universe@${commit.slice(0, 12)}\n`;
   const prevLog = existsSync(join(target, 'CHANGELOG.md')) ? readFileSync(join(target, 'CHANGELOG.md'), 'utf8').replace(/^# [^\n]*\n+/u, '') : '';
   put('CHANGELOG.md', `# 更新记录\n\n${head}${prevLog ? `\n${prevLog}` : ''}`);
   put('SOURCE.json', JSON.stringify({ repository: 'khglobal/dsh-universe', commit, version }, null, 2) + '\n');
