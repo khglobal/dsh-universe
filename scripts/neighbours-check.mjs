@@ -97,7 +97,16 @@ try {
       const clear = async () => { for (let i = 0; i < 20 && await mask.count(); i++) { await page.keyboard.press('Escape'); await page.waitForTimeout(500); } };
       await clear();
       const t0 = Date.now();
-      await page.getByText('DSH Universe', { exact: true }).first().click();
+      // A narrow window hides DSH's sidebar behind its menu button.
+      const entry = page.getByText('DSH Universe', { exact: true }).first();
+      if (!(await entry.isVisible().catch(() => false))) {
+        const labels = await page.locator('button').evaluateAll((els) => els.map((e) => (e.getAttribute('aria-label') || e.textContent || '').trim()).filter(Boolean).slice(0, 40));
+        console.log('[neighbours] sidebar hidden; buttons: ' + JSON.stringify(labels));
+        if (opt.shots) await page.screenshot({ path: `${opt.shots}-narrow-start-${lang}.png` });
+        await page.getByRole('button', { name: /^(Open sidebar|打开侧边栏|展开侧边栏|显示侧边栏)$/ }).first().click({ timeout: 5000 }).catch(() => {});
+        await page.waitForTimeout(800);
+      }
+      await entry.click();
       // The DSH city first: interactive (its canvas and Today bar) before the neighbours are read.
       await page.locator('[data-dshu-today]').first().waitFor({ timeout: 20_000 }).catch(() => problems.push(`${lang}: the DSH city did not come up`));
       const firstPaint = Date.now() - t0;
