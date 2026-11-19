@@ -1,7 +1,8 @@
 # DSH Universe (`@khglobal/dsh-universe`)
 
-Your workspace drawn as a small city: sessions are buildings and agents are the people in it. One entry in the sidebar
-opens the city panel, the list and the Today bar.
+AI agent data visualization for DeepSeek Harness: your agents' activity as a live, interactive pixel city. Sessions are
+buildings and agents are the people; errors, token use, call volume, schedules and items waiting on you are shown at a
+glance. One entry in the sidebar opens the city panel, the list and the Today bar.
 
 It reads host metadata only (session state, tool names, usage, times), never session content, plan text or replies.
 

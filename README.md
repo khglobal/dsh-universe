@@ -1,7 +1,13 @@
 # DSH Universe
 
-Your DeepSeek Harness day as a small pixel city. Every session is a building and every agent is a person, so one look
-tells you what is running, what is waiting for you and what got done today.
+**AI agent data visualization for DeepSeek Harness.** DSH Universe turns your AI agents' activity into a live,
+interactive pixel city: every session is a building and every agent is a person. Errors, token use, call volume,
+schedules and the items waiting on you are all on one screen, so you can read your agents' day at a glance.
+
+- **See** what is running, what failed, where the tokens went and what needs you, live.
+- **Filter** to one kind of data at a time: Errors, Token use, Call volume, Scheduled, Running or To review.
+- **Drill in** to a session's building, rewind the day on the timeline, or jump straight to the session in DSH.
+- **Private by design:** metadata only, read on your own device; nothing is uploaded.
 
 ![The city on a sample day](docs/screenshots/city-day.png)
 

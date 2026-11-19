@@ -1,7 +1,7 @@
 {
   "name": "@khglobal/dsh-universe",
   "version": "0.0.0",
-  "description": "Your DeepSeek Harness day as a small pixel city: sessions are buildings, agents are the people. See what is running, what is waiting for you and what got done today. Reads metadata only; nothing leaves your device.",
+  "description": "AI agent data visualization for DeepSeek Harness: your agents' sessions, errors, token use, call volume, schedules and items waiting on you as a live, interactive pixel city. Sessions are buildings, agents are people. Reads metadata only; nothing leaves your device.",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
   "author": "KH",
@@ -20,7 +20,13 @@
     "deepseek-harness",
     "dashboard",
     "pixel-art",
-    "visualization"
+    "visualization",
+    "ai",
+    "agent",
+    "data-visualization",
+    "observability",
+    "monitoring",
+    "analytics"
   ],
   "exports": {
     ".": { "default": "./dist/index.js" },
