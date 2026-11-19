@@ -4,13 +4,13 @@
 session and task across all your DSH workspaces into a live, interactive pixel city: sessions are buildings, agents
 are people.
 
+![The live city: agents walk between buildings, a new session goes up, agents line up in Review Square, a train brings a scheduled run to the Scheduler, and in the Errors view Error Recovery's engines drive out to a fire](docs/screenshots/city.gif)
+
 One glance tells you what is running, what is waiting on you, what failed, where the tokens went and what is
 scheduled next. Errors, token use, call volume, schedules and finished work each have their own view, and one click
 takes you to the session in DSH. It reads metadata only, on your own device.
 
-![The city on a sample day](docs/screenshots/city-day.png)
-
-All screenshots use a made-up sample day (`fixtures/dsh-sample.ts`). No real sessions or data.
+All screenshots and animations use a made-up sample day (`fixtures/dsh-sample.ts`). No real sessions or data.
 
 ## Features
 
@@ -46,6 +46,9 @@ All screenshots use a made-up sample day (`fixtures/dsh-sample.ts`). No real ses
   their roofs until you open them or mark them as seen.
 
 **Inside each session**
+
+![Inside a session building: the cursor opens the call tape, error beacon and job printer cards, changes floor, and the agents move between desks as their tools change](docs/screenshots/indoor.gif)
+
 - Each session is a building that grows with its work.
 - Click it to go inside: real rooms themed by the session title, with floor size following the building's size.
 - Agents and subagents sit at their desks, posed by the kind of tool they are using.
@@ -131,6 +134,10 @@ npm ci
 npm run dev        # the panel on the sample day at http://127.0.0.1:5174/ (?lang=en, ?theme=dark)
 npm run check      # typecheck, build, tests, locale checks, npm tarball audit
 ```
+
+The README animations are recorded from the real panel on the sample day with a fixed clock, so they come out the
+same every time: `CHROME_PATH=<chrome-headless-shell> node scripts/readme-gifs.mjs` (needs FFmpeg; gifsicle is used
+when it is installed).
 
 How the packages fit together: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). User guide:
 [docs/USER-GUIDE.en.md](docs/USER-GUIDE.en.md).

@@ -5,7 +5,7 @@ session and task across all your DSH workspaces into a live, interactive pixel c
 are people. One glance tells you what is running, what is waiting on you, what failed, where the tokens went and what
 is scheduled next. Metadata only, read on your own device.
 
-![The city on a sample day](screenshots/city.png)
+![The live city: agents walk between buildings, a new session goes up, agents line up in Review Square, a scheduled run arrives by train, and Error Recovery's engines drive out to a fire](https://raw.githubusercontent.com/khglobal/dsh-universe/dev/docs/screenshots/city.gif)
 
 ## Features
 
@@ -30,11 +30,11 @@ is scheduled next. Metadata only, read on your own device.
 - **Fast.** Built for 60 fps; it still draws with no GPU.
 - **Private by design.** Metadata only, never chat or tool content; nothing leaves your device.
 
-![Inside a building](screenshots/inside.png)
+![Inside a session building: the call tape, error beacon and job printer cards, changing floor, agents moving between desks](https://raw.githubusercontent.com/khglobal/dsh-universe/dev/docs/screenshots/indoor.gif)
 
 ![The list view](screenshots/list.png)
 
-The screenshots use made-up sample data.
+The screenshots and animations use made-up sample data.
 
 ## Install
 

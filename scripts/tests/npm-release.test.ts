@@ -69,6 +69,8 @@ test('check-tarball: URLs, internal hosts, addresses, paths, tokens and map refe
   }
   // The READMEs may link the npm page; they may not carry an internal host or a host product name.
   assert.deepEqual(audit(swap(clean(), 'README.md', 'See https://www.npmjs.com/package/@khglobal/dsh-universe'), { license: LICENSE }), []);
+  assert.deepEqual(audit(swap(clean(), 'README.md', '![City](https://raw.githubusercontent.com/khglobal/dsh-universe/dev/docs/screenshots/city.gif)'), { license: LICENSE }), []);
+  assert.ok((audit(swap(clean(), 'README.md', '![x](https://raw.githubusercontent.com/someone/else/main/x.gif)'), { license: LICENSE }) as string[]).length > 0);
   assert.ok((audit(swap(clean(), 'README.md', 'In Astero Agent.'), { license: LICENSE }) as string[]).length > 0);
   assert.ok((audit(swap(clean(), 'README.md', 'see https://x.asterosuite.com/npm/'), { license: LICENSE }) as string[]).length > 0);
 });
