@@ -88,11 +88,12 @@ export function Tile({ env, size, theme, reducedMotion }: { env: Env } & TilePro
     return <div ref={setEl} data-dshu-tile={layout} style={{ ...box, display: 'flex', alignItems: 'center', color: MUTED, fontSize: 13 }}>{feed.phase === 'error' ? t('h.error') : t('h.loading')}</div>;
   }
   const f = tileFigures(d, local);
-  // `plus`: the local addition ("+2 local"), after the label in the label's colour; DSH's own figure stays the number.
+  // `plus`: the local addition ("+2 local") on its own small line under the label; DSH's own figure stays the number.
   const stat = (n: number | string, label: string, warn = false, big = 22, plus = '') => (
     <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-      <b style={{ fontSize: big, lineHeight: `${big + 2}px`, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: warn && Number(n) > 0 ? WARN : INK }}>{n}</b>
-      <span style={{ fontSize: 12, lineHeight: '16px', color: warn && Number(n) > 0 ? WARN : MUTED, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}{plus && <span data-dshu-local="">{' ' + plus}</span>}</span>
+      <b style={{ fontSize: big, lineHeight: `${big + 2}px`, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: warn && Number(n) > 0 ? WARN : INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n}</b>
+      <span style={{ fontSize: 12, lineHeight: '16px', color: warn && Number(n) > 0 ? WARN : MUTED, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+      {plus && <span data-dshu-local="" style={{ fontSize: 11, lineHeight: '14px', color: MUTED, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{plus}</span>}
     </span>
   );
   const plus = (n: number, tok = false) => (n > 0 ? t('td.local', { n: tok ? fmtTokens(n, lang) : String(n) }) : '');
