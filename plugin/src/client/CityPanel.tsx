@@ -16,6 +16,9 @@ import type { Translate } from './types.ts';
 import { CITY, layerSummary, placeName, rowOf } from './view.ts';
 import { tokens as fmtTokens } from './format.ts';
 
+/** True in the dev page build (scripts/dev.mjs), false in the shipped plugin (plugin/scripts/build.mjs). */
+declare const __DSHU_DEV__: boolean | undefined;
+
 /** How far the city moves at once during a replay. */
 export const REPLAY_CITY_STEP_MS = 15 * 60_000;
 
@@ -211,7 +214,8 @@ export function CityPanel(p: CityProps) {
     const offRatio = onRatioChange(fit);
     const offs = overlayFactories().map((f) => view.addOverlay(f({ t, lang })));
     view.start();
-    (globalThis as { __dshuCity?: CityView }).__dshuCity = view;
+    // The check scripts drive the dev page through this global; production bundles define __DSHU_DEV__ false and drop it.
+    if (typeof __DSHU_DEV__ !== 'undefined' && __DSHU_DEV__) (globalThis as { __dshuCity?: CityView }).__dshuCity = view;
     return () => { for (const off of offs) off(); ro?.disconnect(); offRatio(); view.stop(); notify.dispose(); viewRef.current = null; };
   }, [kit]);
 

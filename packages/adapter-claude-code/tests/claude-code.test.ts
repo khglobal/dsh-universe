@@ -106,3 +106,19 @@ test('claude code: sessions the Claude app owns are left out, so each is counted
     await skip.stop();
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
+
+test('claude code: a quiet open turn ends after 10 minutes with no call open, after 30 with one (a dead CLI is not Running for long)', async () => {
+  const { claudeCodeReader, STALE_MS, IDLE_STALE_MS } = await import('../src/reader.ts');
+  const r = claudeCodeReader('/nonexistent');
+  const ends = (now: number, calls: [string, { t: number; name: string }][]) => {
+    const out: unknown[] = [];
+    const st = { agentId: 'a', sessionId: 's', announced: true, turnOpen: true, lastT: 0, calls: new Map(calls), usage: new Set<string>(), ended: new Set<string>() };
+    r.settle!(st as Parameters<NonNullable<typeof r.settle>>[0], { dayStart: 0, now, emit: (e) => out.push(e), mark() {}, once: () => true });
+    return out.length;
+  };
+  assert.equal(IDLE_STALE_MS, 10 * 60_000);
+  assert.equal(ends(IDLE_STALE_MS - 1, []), 0);
+  assert.equal(ends(IDLE_STALE_MS + 1, []), 1, 'no call open: stopped after 10 quiet minutes');
+  assert.equal(ends(IDLE_STALE_MS + 1, [['c', { t: 0, name: 'Bash' }]]), 0, 'a long command may run quietly');
+  assert.equal(ends(STALE_MS + 1, [['c', { t: 0, name: 'Bash' }]]), 1);
+});

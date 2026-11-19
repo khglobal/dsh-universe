@@ -37,8 +37,14 @@ export const WORKBUDDY_TOOLS: CategoryTable = { platform: 'workbuddy', tools: T,
 const WAIT: Record<string, 'question' | 'plan'> = { AskUserQuestion: 'question', ExitPlanMode: 'plan' };
 /** A turn whose last reply came this long ago with no call after it is over (the reply is written before any call). */
 export const QUIET_MS = 20_000;
-/** A session with no new line for this long while a turn is open is taken as stopped (the app was closed). */
+/**
+ * A session with no new line for this long while a turn is open is taken as stopped (the app was closed). With a call open
+ * the wait can be legitimate (a long command, a permission prompt, a question to the member): 30 minutes. With no
+ * call open the agent writes as it works, so 10 quiet minutes mean the process died; a neighbour session no longer
+ * stays Running for half an hour after it was killed. A line that arrives later simply opens the turn again.
+ */
 export const STALE_MS = 30 * 60_000;
+export const IDLE_STALE_MS = 10 * 60_000;
 
 type Rec = Record<string, unknown>;
 const rec = (v: unknown): Rec => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Rec) : {});
@@ -108,7 +114,7 @@ export function workbuddyReader(home: string): StoreReader<WbFile> {
     settle(st, ctx) {
       if (!st.turnOpen || !st.announced) return;
       if (st.endAt !== undefined && !st.calls.size && ctx.now - st.lastT > QUIET_MS) end(st, st.endAt, 'completed', ctx);
-      else if (ctx.now - st.lastT > STALE_MS) end(st, st.lastT, 'other', ctx);
+      else if (ctx.now - st.lastT > (st.calls.size ? STALE_MS : IDLE_STALE_MS)) end(st, st.lastT, 'other', ctx);
     },
   };
 }

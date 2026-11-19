@@ -53,8 +53,10 @@ const seenCache: { key: string; map: Map<string, boolean> } = { key: '', map: ne
 
 // ---------- the leak check (local, with a real canvas) ----------
 
-/** On when a check script sets `globalThis.__dshuLeakCheck` (never in normal use: it reads pixels back). */
-const leakCheckOn = () => (globalThis as { __dshuLeakCheck?: boolean }).__dshuLeakCheck === true;
+/** True in the dev page build (scripts/dev.mjs), false in the shipped plugin (plugin/scripts/build.mjs). */
+declare const __DSHU_DEV__: boolean | undefined;
+/** On when a check script sets `globalThis.__dshuLeakCheck` on the dev page (never in the shipped plugin: it reads pixels back). */
+const leakCheckOn = () => typeof __DSHU_DEV__ !== 'undefined' && __DSHU_DEV__ && (globalThis as { __dshuLeakCheck?: boolean }).__dshuLeakCheck === true;
 type Snap = { w: number; h: number; data: Uint8ClampedArray };
 /** The pixels the layer's subjects cover (their sprites' opaque pixels and the people kept in colour), by the spec. */
 function specMask(f: OverlayFrame, d: LayerData, ox: number, oy: number, w: number, h: number): Uint8Array {
@@ -175,7 +177,7 @@ export function createDataViews(o: DataViewOptions): Overlay & { tags(): Tag[] }
       if (before && mid && spec) { const late = diff(mid, snapshot(g)); for (let i = 0; i < spec.length; i++) if (late.mask[i]) spec[i] = 1; drawnMask = { w: before.w, h: before.h, mask: spec, ox, oy }; }
     },
     screen(f) {
-      if (leakCheckOn() && f.layer !== 'all' && drawnMask) (globalThis as { __dshuLeaks?: unknown }).__dshuLeaks = findLeaks(f, drawnMask);
+      if (typeof __DSHU_DEV__ !== 'undefined' && __DSHU_DEV__ && leakCheckOn() && f.layer !== 'all' && drawnMask) (globalThis as { __dshuLeaks?: unknown }).__dshuLeaks = findLeaks(f, drawnMask);
       if (f.layer === 'all' || !tags.length) return;
       drawTags(f.ctx, tags, f.toScreen, f.dpr);
     },

@@ -34,7 +34,14 @@ put('plan', 'update_plan');
 /** MCP tools are named `<server>__<tool>`. */
 const MCP = /^(?:mcp__)?([A-Za-z0-9_.-]+?)__[A-Za-z0-9]/;
 export const CODEX_TOOLS: CategoryTable = { platform: 'codex', tools: T, connectorOf: (tool) => (T[tool] ? undefined : MCP.exec(tool)?.[1]) };
+/**
+ * A session with no new line for this long while a turn is open is taken as stopped (the CLI was closed). With a call open
+ * the wait can be legitimate (a long command, a permission prompt, a question to the member): 30 minutes. With no
+ * call open the agent writes as it works, so 10 quiet minutes mean the process died; a neighbour session no longer
+ * stays Running for half an hour after it was killed. A line that arrives later simply opens the turn again.
+ */
 export const STALE_MS = 30 * 60_000;
+export const IDLE_STALE_MS = 10 * 60_000;
 
 type Rec = Record<string, unknown>;
 const rec = (v: unknown): Rec => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Rec) : {});
@@ -52,7 +59,7 @@ export interface CxFile {
   announced: boolean;
   turnOpen: boolean;
   lastT: number;
-  calls: Map<string, { t: number; name: string; ok?: boolean }>;
+  calls: Map<string, { t: number; name: string; ok?: boolean; done?: boolean }>;
   usageN: number;
 }
 
@@ -91,7 +98,7 @@ export function codexReader(home: string): StoreReader<CxFile> {
       if (o) onLine(st, o, ctx);
     },
     settle(st, ctx) {
-      if (st.turnOpen && st.announced && ctx.now - st.lastT > STALE_MS) {
+      if (st.turnOpen && st.announced && ctx.now - st.lastT > ([...st.calls.values()].some((c) => !c.done) ? STALE_MS : IDLE_STALE_MS)) {
         st.turnOpen = false;
         ctx.emit({ type: 'turn', data: { t: st.lastT, agentId: st.agentId, phase: 'end', reason: 'other' } });
       }
@@ -134,6 +141,7 @@ function result(st: CxFile, ctx: LineCtx, t: number, id: string, ok?: boolean) {
   const c = st.calls.get(id);
   if (!c) return;
   if (ok !== undefined) c.ok = ok;
+  c.done = true;
   const category = categoryOf(CODEX_TOOLS, c.name);
   const connectorId = category === 'connector' ? CODEX_TOOLS.connectorOf(c.name) : undefined;
   ctx.emit({ type: 'activity', data: { id, t: c.t, agentId: st.agentId, category, tool: c.name, durationMs: Math.max(0, t - c.t), ...(c.ok !== undefined ? { ok: c.ok } : {}), ...(connectorId ? { connectorId } : {}) } });

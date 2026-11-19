@@ -19,7 +19,8 @@ const ID = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).name;
 const tsc = spawnSync(process.execPath, [require.resolve('typescript/bin/tsc'), '-p', join(root, 'tsconfig.json'), '--noEmit'], { stdio: 'inherit' });
 if (tsc.status !== 0) throw Error('[build] typecheck failed; nothing written');
 
-const shipped = { minify: true, sourcemap: false, legalComments: 'none', charset: 'ascii' };
+// __DSHU_DEV__ false drops the debug globals the check scripts use on the dev page (window.__dshuCity, __dshuRoom).
+const shipped = { minify: true, sourcemap: false, legalComments: 'none', charset: 'ascii', define: { __DSHU_DEV__: 'false' } };
 const staging = await mkdtemp(join(dir, '.build-'));
 try {
   await build({

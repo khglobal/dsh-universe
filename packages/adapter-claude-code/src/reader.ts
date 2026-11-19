@@ -37,8 +37,14 @@ const MCP = /^mcp__([A-Za-z0-9_.-]+?)__/;
 export const CLAUDE_CODE_TOOLS: CategoryTable = { platform: 'claude-code', tools: T, connectorOf: (tool) => MCP.exec(tool)?.[1] };
 /** Tools whose call waits for the member, closed by their result. */
 const WAIT: Record<string, 'question' | 'plan'> = { AskUserQuestion: 'question', ExitPlanMode: 'plan' };
-/** A session with no new line for this long while a turn is open is taken as stopped (the CLI was closed). */
+/**
+ * A session with no new line for this long while a turn is open is taken as stopped (the CLI was closed). With a call open
+ * the wait can be legitimate (a long command, a permission prompt, a question to the member): 30 minutes. With no
+ * call open the agent writes as it works, so 10 quiet minutes mean the process died; a neighbour session no longer
+ * stays Running for half an hour after it was killed. A line that arrives later simply opens the turn again.
+ */
 export const STALE_MS = 30 * 60_000;
+export const IDLE_STALE_MS = 10 * 60_000;
 
 type Rec = Record<string, unknown>;
 const rec = (v: unknown): Rec => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Rec) : {});
@@ -143,7 +149,7 @@ export function transcriptReader(o: TranscriptOptions): StoreReader<CcFile> {
       onLine(st, o, ctx);
     },
     settle(st, ctx) {
-      if (st.turnOpen && st.announced && ctx.now - st.lastT > STALE_MS) {
+      if (st.turnOpen && st.announced && ctx.now - st.lastT > (st.calls.size ? STALE_MS : IDLE_STALE_MS)) {
         st.turnOpen = false;
         ctx.emit({ type: 'turn', data: { t: st.lastT, agentId: st.agentId, phase: 'end', reason: 'other' } });
       }

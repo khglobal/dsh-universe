@@ -3,7 +3,8 @@
 // with the neighbouring cities' "+n local" figures (dev page ?local=1, sample day): every button whole inside the
 // window and inside the bar (nothing cut, nothing behind a scroller only a trackpad reaches), every figure's text
 // whole (the next scheduled task's title alone may end in an ellipsis; its full text is the button's name), and no
-// button under the city / list switch or the neighbouring cities' controls.
+// button under the city / list switch or the neighbouring cities' controls; no item wider than its buttons (#25); the
+// "+n local" breakdown by city shows on keyboard focus and hides on Esc (#23).
 // The nearby cities' settings: the click on the city that closes it does not also enter the building under it (5).
 // Focus (8): inside a room the city's covered controls are out of the Tab order, Esc gives focus back to the city,
 // and the notice's "Nearby cities" puts focus into the settings. The tour's building card closes with the tour (9).
@@ -42,8 +43,31 @@ async function check(b, base, w, lang, shots) {
       if (el.scrollWidth > el.clientWidth + 1 && !(sched && el.getAttribute('aria-label'))) out.push(`"${name}" text cut (${el.scrollWidth} > ${el.clientWidth})`);
       for (const o of others) if (q.left < o.right - 1 && q.right > o.left + 1 && q.top < o.bottom - 1 && q.bottom > o.top + 1) out.push(`"${name}" under another control`);
     }
+    // Each item is as wide as what it holds (#25: the scheduled task's item kept its whole title's width).
+    for (const li of ul.querySelectorAll(':scope > li')) {
+      if (getComputedStyle(li).position === 'absolute') continue;
+      const kids = [...li.children].filter((x) => x.getClientRects().length);
+      const used = kids.reduce((a, x) => a + x.getBoundingClientRect().width, 0) + Math.max(0, kids.length - 1) * (parseFloat(getComputedStyle(li).columnGap) || 0);
+      const extra = li.getBoundingClientRect().width - used;
+      if (extra > 2) out.push(`an item is ${Math.round(extra)} px wider than its buttons`);
+    }
     return { out, n: btns.length, local: ul.querySelectorAll('button[data-dshu-local]').length, h: Math.round(ur.height) };
   });
+  // The "+n local" breakdown by city shows under the bar on keyboard focus (#23: it was a mouse-only title), inside
+  // the window, and Esc hides it.
+  const fig = page.locator('[data-dshu-today] button[data-dshu-local]').first();
+  if (await fig.count()) {
+    await page.locator('[data-dshu-today] button').first().focus();
+    for (let i = 0; i < 8 && !(await fig.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press('Tab');
+    const tip = page.locator('[data-dshu-by-text]');
+    const box = await tip.boundingBox().catch(() => null);
+    if (!box || !(await tip.textContent())?.trim()) r.out.push('the "+n local" breakdown did not show on keyboard focus');
+    else if (box.x < -0.5 || box.x + box.width > w + 0.5) r.out.push('the "+n local" breakdown leaves the window');
+    const describe = await fig.evaluate((el) => document.getElementById(el.getAttribute('aria-describedby') ?? '')?.textContent ?? '');
+    if (!describe.trim()) r.out.push('the "+n local" figure is not described by its breakdown');
+    await page.keyboard.press('Escape');
+    if (await tip.count()) r.out.push('Esc did not hide the "+n local" breakdown');
+  }
   if (r.n < 6) r.out.push(`${r.n} buttons, expected 6`);
   if (!r.local) r.out.push('no "+n local" figure shown');
   if (shots) await page.screenshot({ path: join(shots, `todaybar-${lang}-${w}.png`), clip: { x: 0, y: 0, width: w, height: Math.min(260, w < 600 ? 300 : 200) } });

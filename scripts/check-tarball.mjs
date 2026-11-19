@@ -36,6 +36,8 @@ const SECRETS = [
   [/\b(?:ghp|gho|ghs|ghu|github_pat)_[A-Za-z0-9_]{20,}|\bnpm_[A-Za-z0-9]{30,}|\bsk-[A-Za-z0-9]{20,}|\bAKIA[0-9A-Z]{16}\b|-----BEGIN [A-Z ]*PRIVATE KEY-----|\bxox[bpas]-[A-Za-z0-9-]{10,}/gu, 'token or key'],
   [/sourceMappingURL/gu, 'source map reference'],
   [/\bworkdsh[A-Za-z]*|\bastero[A-Za-z]*/giu, 'host product name'],
+  // The dev page's check globals (window.__dshuCity, __dshuRoom, __dshuLeakCheck) are compiled out of the shipped bundle.
+  [/__dshu[A-Za-z]*/gu, 'dev-only debug global', 'js'],
 ];
 
 /** The files of a .tgz: name (without `package/`) and size. Plain ustar, as npm writes it. */

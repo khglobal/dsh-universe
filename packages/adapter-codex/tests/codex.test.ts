@@ -67,3 +67,18 @@ test('codex: absent store is silent', async () => {
     assert.equal((await a.snapshot('')).events.length, 0);
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
+
+test('codex: a quiet open turn ends after 10 minutes with no call open, after 30 with one', async () => {
+  const { codexReader, STALE_MS, IDLE_STALE_MS } = await import('../src/reader.ts');
+  const r = codexReader('/nonexistent');
+  const ends = (now: number, calls: [string, { t: number; name: string; done?: boolean }][]) => {
+    const out: unknown[] = [];
+    const st = { agentId: 'a', announced: true, turnOpen: true, lastT: 0, calls: new Map(calls), usageN: 0 };
+    r.settle!(st as Parameters<NonNullable<typeof r.settle>>[0], { dayStart: 0, now, emit: (e) => out.push(e), mark() {}, once: () => true });
+    return out.length;
+  };
+  assert.equal(ends(IDLE_STALE_MS + 1, []), 1);
+  assert.equal(ends(IDLE_STALE_MS + 1, [['c', { t: 0, name: 'shell', done: true }]]), 1, 'a finished call does not keep it open');
+  assert.equal(ends(IDLE_STALE_MS + 1, [['c', { t: 0, name: 'shell' }]]), 0);
+  assert.equal(ends(STALE_MS + 1, [['c', { t: 0, name: 'shell' }]]), 1);
+});

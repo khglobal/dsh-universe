@@ -63,7 +63,8 @@ test('check-tarball: sources, maps, art, fixtures, docs and stray files fail', (
 
 test('check-tarball: URLs, internal hosts, addresses, paths, tokens and map references in the bundle fail', () => {
   for (const bad of ['fetch("https://example.com/x")', 'h="x.asterosuite.com"', 'ip="10.20.30.40"', 'u="http://localhost:3000"',
-    'p="/Users/someone/x"', 't="ghp_abcdefghijklmnopqrstuvwxyz0123"', '//# sourceMappingURL=client.js.map', 's="asteroWorkbench"']) {
+    'p="/Users/someone/x"', 't="ghp_abcdefghijklmnopqrstuvwxyz0123"', '//# sourceMappingURL=client.js.map', 's="asteroWorkbench"',
+    'globalThis.__dshuCity=v']) {
     const problems = audit(swap(clean(), 'dist/index.js', bad), { license: LICENSE }) as string[];
     assert.ok(problems.some((p) => p.startsWith('dist/index.js:')), `${bad}: ${problems.join('; ')}`);
   }

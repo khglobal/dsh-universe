@@ -16,6 +16,9 @@ import { placeName, rowOf } from './view.ts';
 const PROP_CARD_OUTER = 248 + 24 + 4, AGENT_CARD_OUTER = 236 + 24 + 4;
 import { floorLabel, floorValue, propLines, roomSummary, type PropId } from './interior-text.ts';
 
+/** True in the dev page build (scripts/dev.mjs), false in the shipped plugin (plugin/scripts/build.mjs). */
+declare const __DSHU_DEV__: boolean | undefined;
+
 /** What the host provides when the panel does not say (everything; a missing source then shows zeros, not "—"). */
 const ALL_CAPS: UCapabilities = {
   approvals: true, schedules: true, subagents: true, jobs: true, deliverables: true, skills: true, memory: false, tokens: true, cost: false, latency: true,
@@ -88,7 +91,8 @@ export function InteriorView(p: InteriorProps & { caps?: UCapabilities }) {
     ro?.observe(el);
     const offRatio = onRatioChange(fit);
     view.start();
-    (globalThis as { __dshuRoom?: RoomView }).__dshuRoom = view;
+    // The check scripts drive the dev page through this global; production bundles define __DSHU_DEV__ false and drop it.
+    if (typeof __DSHU_DEV__ !== 'undefined' && __DSHU_DEV__) (globalThis as { __dshuRoom?: RoomView }).__dshuRoom = view;
     return () => { ro?.disconnect(); offRatio(); view.stop(); notify.dispose(); viewRef.current = null; };
   }, [kit]);
 
