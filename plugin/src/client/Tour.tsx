@@ -2,7 +2,7 @@
 // outline round it. Not modal (the panel stays usable); Esc or × ends it; focus goes to the card's main button, and
 // back to the city when it ends. Nothing
 // moves, with or without reduced motion. Shown once per device (prefs `toured`); the legend has a "show again" button.
-import { useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import { btn, px } from './chrome.ts';
 import { C } from './styles.ts';
 import { TOUR, tourStep, type TourAction } from './tour.ts';
@@ -37,6 +37,10 @@ export function Tour({ t, root, step, onStep }: { t: Translate; root: RefObject<
   const [placeCard, setPlaceCard] = useState<Box | undefined>();
   const [size, setSize] = useState({ w: 800, h: 600 });
   const main = useRef<HTMLButtonElement>(null);
+  // The card's real height (its text wraps differently with each font and width), for keeping clear of the zoom group.
+  const cardEl = useRef<HTMLDivElement>(null);
+  const [cardH, setCardH] = useState(150);
+  useLayoutEffect(() => { const h = cardEl.current?.offsetHeight; if (h && Math.abs(h - cardH) > 1) setCardH(h); });
   const s = TOUR[step];
   // The target can move with the camera: looked up again twice a second while the card is open (no animation).
   useEffect(() => {
@@ -84,16 +88,23 @@ export function Tour({ t, root, step, onStep }: { t: Translate; root: RefObject<
     top = Math.max(12, Math.min(size.h - H - 12, top));
   }
   if (s.id !== 'building' && note && left < note.x + note.w && left + W > note.x && top < note.y + note.h && top + H > note.y) top = Math.min(size.h - H - 12, note.y + note.h + 8);
-  if (zoomBox && left + W > zoomBox.x - 8 && top < zoomBox.y + zoomBox.h && top + H + 60 > zoomBox.y) {
+  const overZoom = () => !!zoomBox && left + W > zoomBox.x - 8 && left < zoomBox.x + zoomBox.w + 8 && top < zoomBox.y + zoomBox.h + 8 && top + cardH + 8 > zoomBox.y;
+  if (zoomBox && overZoom()) {
+    // First to its left, narrower if need be; then above it (or below it) when the group lies in a wide row.
     W = Math.max(Math.min(W, 220), Math.min(W, zoomBox.x - 8 - 12));
     left = Math.max(12, Math.min(left, zoomBox.x - 8 - W));
+    if (overZoom()) {
+      const above = zoomBox.y - 8 - cardH, below = zoomBox.y + zoomBox.h + 8;
+      if (above >= 12 && (!box || above >= box.y + box.h + 4 || box.y > zoomBox.y)) top = above;
+      else if (below + cardH <= size.h - 12) top = below;
+    }
   }
   const ring: CSSProperties | undefined = box && { position: 'absolute', left: box.x - 4, top: box.y - 4, width: box.w + 8, height: box.h + 8, border: '2px solid #F0A020', borderRadius: 6, boxShadow: '0 0 0 2px #141A30', pointerEvents: 'none', zIndex: TOUR_RING_Z };
   const id = 'dshu-tour-' + s.id;
   return (
     <>
       {ring && <div aria-hidden="true" data-dshu-tour-ring="" style={ring} />}
-      <div role="dialog" aria-modal="false" aria-labelledby={id + '-t'} aria-describedby={id + '-x'} data-dshu-tour={s.id}
+      <div ref={cardEl} role="dialog" aria-modal="false" aria-labelledby={id + '-t'} aria-describedby={id + '-x'} data-dshu-tour={s.id}
         onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); act('close'); } }}
         style={{ ...px, position: 'absolute', left: Math.round(left), top: Math.round(top), width: W, boxSizing: 'border-box', padding: '12px 14px', zIndex: 21, color: C.text, fontSize: 13, lineHeight: '19px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>

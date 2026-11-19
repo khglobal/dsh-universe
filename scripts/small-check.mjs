@@ -1,4 +1,4 @@
-// Rendered check of small windows (QA finding 10, #18) on the dev page: at 390x844, 320x480, 700x300 and 1440x900,
+// Rendered check of small windows (QA finding 10, #18) on the dev page: at 390x844, 390x700, 360x640, 320x480, 700x300 and 1440x900,
 // in Chinese and English, first run (tour) and after it, legend open and closed, every zoom button is inside the window
 // and under no other control (the tour's card excepted at 320x480, where the city is under 200 px tall). In a room at 390 and 320 px, a floor's tooltip does not stay open over the room once
 // the floor was tapped, nor cover the floor's "On this floor now" list.
@@ -11,7 +11,7 @@ import { browser, prepare } from './city-check.mjs';
 
 const args = process.argv.slice(2);
 const arg = (f) => { const i = args.indexOf(f); return i >= 0 ? args[i + 1] : undefined; };
-export const SIZES = [[390, 844], [320, 480], [700, 300], [1440, 900]];
+export const SIZES = [[390, 844], [390, 700], [360, 640], [320, 480], [700, 300], [1440, 900]];
 
 async function open(b, base, [w, h], lang, prefs) {
   const page = await b.newPage({ viewport: { width: w, height: h }, reducedMotion: 'reduce' });
