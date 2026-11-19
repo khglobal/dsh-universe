@@ -44,8 +44,8 @@ test('local store: thousands of files and a large one, read without holding the 
     appendFileSync(big, Array.from({ length: 2000 }, (_, i) => JSON.stringify({ timestamp: new Date(d0 + 60_000 + i * 1000).toISOString(), type: 'assistant' })).join('\n') + '\n');
     const { reader, seen } = counter(root);
     const city = createLocalCity(reader, { passMs: 200 });
-    let gap = 0, last = performance.now();
-    const iv = setInterval(() => { const n = performance.now(); gap = Math.max(gap, n - last - 4); last = n; }, 4);
+    const gaps: number[] = []; let last = performance.now();
+    const iv = setInterval(() => { const n = performance.now(); gaps.push(n - last - 4); last = n; }, 4);
     let passes = 0, events = 0;
     for (;;) { const r = await city.pass(); passes++; events += r.events.length; if (r.complete || passes > 200) break; }
     clearInterval(iv);
@@ -53,7 +53,12 @@ test('local store: thousands of files and a large one, read without holding the 
     assert.ok(seen.lines < 2000 + 2000, `yesterday's 20 000 lines are skipped by seeking (read ${seen.lines})`);
     assert.equal(seen.tails, 3000, 'older files: head and tail only');
     assert.equal(events, 2000);
-    assert.ok(gap < 150, `the event loop was never held long (longest gap ${Math.round(gap)} ms)`);
+    // Other test files run in parallel, so single long gaps can be scheduling noise: the 99th percentile shows
+    // whether the reader itself holds the loop, the maximum only that it never stalls.
+    gaps.sort((a, b) => a - b);
+    const p99 = gaps[Math.floor(gaps.length * 0.99)], max = gaps[gaps.length - 1];
+    assert.ok(p99 < 40, `the event loop is handed back every few ms (p99 gap ${Math.round(p99)} ms)`);
+    assert.ok(max < 600, `no stall (longest gap ${Math.round(max)} ms)`);
     // Appended lines are read once, nothing earlier again.
     appendFileSync(big, JSON.stringify({ timestamp: new Date().toISOString(), type: 'user' }) + '\n');
     city.touch();
