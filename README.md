@@ -87,6 +87,12 @@ All screenshots and animations use a made-up sample day (`fixtures/dsh-sample.ts
   calls and tokens carry the same "+n local" part; the tile asks for those figures only while it is on screen, about
   once every 45 seconds. A click opens the city.
 
+**Sound** (off by default)
+- Each city has its own ambience, driven by its own activity: a murmur while sessions run, soft ticks for calls, a
+  falling sign while calls fail, two low notes while someone waits. Only the city in view plays, and moving to another
+  city crossfades; zoomed out to all cities, they play quietly together and the city you point at comes forward.
+  Nothing plays before your first click, while looking back, or with reduced motion.
+
 **Day and night**
 - Auto (follows the DSH theme), day or night. At night only places that are working or waiting are lit.
 

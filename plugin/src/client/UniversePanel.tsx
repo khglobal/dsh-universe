@@ -10,7 +10,8 @@ import { LIST_CSS, btn, group, groupBtn, px } from './chrome.ts';
 import { citiesFound, citiesShown, neighbourOn, offSources, readPrefs, writePrefs, type Prefs } from './prefs.ts';
 import { useFeed, useNow, useObservable } from './hooks.ts';
 import { clock } from './format.ts';
-import { unlockSound, useSquareSound, useTime } from './time.ts';
+import { unlockSound, useTime } from './time.ts';
+import { QUIET, levelsOf, useAmbience, type CityLevels } from './sound.ts';
 import './overlays.ts';
 import { ListView, rowId } from './ListView.tsx';
 import { S } from './styles.ts';
@@ -131,7 +132,20 @@ export function UniversePanel({ env }: { env: Env }) {
   }, [feed.version, feed.phase, T, titles, lang, drafts, time.mode, active, shownSums]);
   // The DSH city's sessions running, for its chip while another city is shown.
   const dshRunning = useMemo(() => (dsh.phase === 'ready' ? todayAt(dsh.store, live, CITY).running : undefined), [dsh.version, dsh.phase, live]);
-  useSquareSound(prefs.sound && prefs.view === 'city', view?.today.need ?? 0, time.mode === 'live');
+  // The ambience: the city in view, or in the cities-around view all of them from a distance (the focused card's
+  // city brought forward). Each city's sound follows its own activity.
+  const [regionFocus, setRegionFocus] = useState<CityId | undefined>();
+  const levels = useMemo(() => {
+    const out: Record<string, CityLevels> = {};
+    if (view && feed.phase === 'ready') out[active] = levelsOf(feed.store, live, view.today.running, view.today.need);
+    if (active !== 'dsh' && dsh.phase === 'ready') { const d = todayAt(dsh.store, live, CITY); out.dsh = levelsOf(dsh.store, live, d.running, d.need); }
+    for (const x of shownSums) if (x.id !== active) out[x.id] = { ...QUIET, running: x.running, errors: Math.min(x.errors, 5), traffic: x.running * 4 };
+    return out;
+  }, [feed.version, dsh.version, Math.floor(live / 5000), active, shownSums]);
+  const mix: Record<string, number> = regionOpen
+    ? Object.fromEntries((['dsh', ...enabled] as CityId[]).map((id) => [id, regionFocus ? (id === regionFocus ? 0.8 : 0.12) : 0.3]))
+    : { [active]: 1 };
+  useAmbience(prefs.sound && prefs.view === 'city', time.mode === 'live', levels, mix);
 
   if (feed.phase !== 'ready' || !view) {
     const err = feed.phase === 'error';
@@ -149,7 +163,7 @@ export function UniversePanel({ env }: { env: Env }) {
   }
 
   // Into another city (a chip, or a figure only an adjacent city has).
-  const go = (id: CityId) => { setActive(id); setRegion(false); setLayer('all'); setTarget(undefined); setFocus(undefined); };
+  const go = (id: CityId) => { setActive(id); setRegion(false); setRegionFocus(undefined); setLayer('all'); setTarget(undefined); setFocus(undefined); };
   const press = (cat: keyof Today['items']) => {
     const items = view.today.items[cat];
     const i = nextIndex(cursor[cat] ?? -1, items.length);
@@ -230,7 +244,7 @@ export function UniversePanel({ env }: { env: Env }) {
   const noticeNames = shownNotice.map((id) => t('nb.city.' + id));
   const hintBar = shownNotice.length > 0 && (
     <div role="status" data-dshu-notice={shownNotice.join(' ')} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '4px 10px', ...px, boxShadow: 'none', fontSize: 12.5, maxWidth: 640 }}>
-      <span style={{ flex: '1 1 220px' }}>{t('nb.found', { name: noticeNames.length > 1 ? t('nb.and', { a: noticeNames[0], b: noticeNames[1] }) : noticeNames[0] })}</span>
+      <span style={{ flex: '1 1 220px' }}>{t('nb.found', { name: noticeNames.length > 1 ? t('nb.and', { a: noticeNames.slice(0, -1).join(t('nb.comma')), b: noticeNames[noticeNames.length - 1] }) : noticeNames[0] })}</span>
       <button type="button" style={{ ...S.btn, minHeight: 26, padding: '0 8px' }} onClick={() => { setSettings(true); setNotice([]); }}>{t('nb.settings')}</button>
       <button type="button" style={{ ...S.btn, minHeight: 26, padding: '0 8px' }} onClick={() => setNotice([])}>{t('e.dismiss')}</button>
     </div>
@@ -292,7 +306,7 @@ export function UniversePanel({ env }: { env: Env }) {
         {regionOpen && enabled.length > 0 && env.neighbours ? (
           <Region t={t} lang={lang} now={live} dark={hostDark(rootRef.current)} active={active}
             cities={[{ id: 'dsh' as CityId, feed: env.feed }, ...enabled.map((id) => ({ id: id as CityId, feed: env.neighbours!.feed(id, off) }))]}
-            onEnter={go} onClose={() => setRegion(false)} />
+            onEnter={go} onClose={() => { setRegion(false); setRegionFocus(undefined); }} onFocusCity={setRegionFocus} />
         ) : <CityPanel key={active} onZoomOutFar={enabled.length > 0 ? () => setRegion(true) : undefined} beside={chips || undefined}
           hideLayers={active === 'dsh' ? undefined : [...(feed.platform?.caps.schedules ? [] : ['scheduled' as const]), ...(feed.platform?.caps.tokens ? [] : ['tokens' as const])]}
           t={t} lang={lang} T={T} store={feed.store} placement={feed.placement ?? EMPTY_PLACEMENT} titles={titles} version={feed.version}

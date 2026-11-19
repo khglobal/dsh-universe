@@ -70,6 +70,13 @@ try {
       const ctx = await browser.newContext({ viewport: { width: Number(opt.width), height: Number(opt.width) < 600 ? 844 : 900 }, locale: lang === 'zh' ? 'zh-CN' : 'en-US', colorScheme: opt.dark ? 'dark' : 'light' });
       // The first-run tour was seen (it would cover the city); nothing else is preset.
       await ctx.addInitScript(() => { try { const k = 'khglobal-dsh-universe.view'; if (!localStorage.getItem(k)) localStorage.setItem(k, JSON.stringify({ toured: true })); } catch { /* no storage */ } });
+      // The ambience's oscillators, by pitch (to check each city plays its own bus).
+      await ctx.addInitScript(() => {
+        const C = window.AudioContext; if (!C) return;
+        const made = (window.__dshuOsc = []);
+        const orig = C.prototype.createOscillator;
+        C.prototype.createOscillator = function () { const o = orig.call(this); const s = o.start.bind(o); o.start = (t) => { made.push({ f: o.frequency.value, at: performance.now(), state: this.state }); return s(t); }; return o; };
+      });
       return ctx;
     };
     const open = async (lang, ctx) => {
@@ -116,7 +123,8 @@ try {
       step(`${lang}: the DSH city was up in ${firstPaint} ms`);
       const noticeIds = await page.locator('[data-dshu-notice]').getAttribute('data-dshu-notice').catch(() => null);
       if (noticeIds !== CITIES.join(' ')) problems.push(`${lang}: the one-line notice should name the three cities (${noticeIds})`);
-      if (!(await page.evaluate(() => document.body.innerText)).includes(W.found)) problems.push(`${lang}: notice text missing`);
+      const noticeText = await page.locator('[data-dshu-notice]').innerText().catch(() => '');
+      if (!noticeText.includes(W.found) || !CITIES.every((c) => noticeText.includes(NAMES[c]))) problems.push(`${lang}: notice text "${noticeText}"`);
       if ((await chipIds(page)).join() !== CITIES.join()) problems.push(`${lang}: chips ${(await chipIds(page)).join()}`);
       const chipText = await page.locator('[data-dshu-chips]').innerText().catch(() => '');
       for (const c of CITIES) if (!new RegExp(NAMES[c] + ' · \\d').test(chipText)) problems.push(`${lang}: chip text "${chipText}" has no ${NAMES[c]} count`);
@@ -142,16 +150,22 @@ try {
         await page.waitForTimeout(1500);
         const ltext = await page.evaluate(() => document.body.innerText);
         if (id === 'claude-code' && !ltext.includes(CUSTOM_TITLE)) problems.push(`${lang}: the set title is not shown`);
-        if (!ltext.includes('demo-app') && !ltext.includes('billing-api')) problems.push(`${lang}: ${id}: no folder-named sessions in the list`);
+        if (!['demo-app', 'billing-api', 'market-report'].some((f) => ltext.includes(f))) problems.push(`${lang}: ${id}: no folder-named sessions in the list`);
         if (id === 'claude' && !(ltext.includes(W.app) && ltext.includes(W.cli) && ltext.includes('Cowork'))) problems.push(`${lang}: the Claude list does not tag Claude app and Claude Code sessions`);
         if (id === 'workbuddy' && !ltext.includes('market-report')) problems.push(`${lang}: no WorkBuddy session named by folder`);
         await shot(page, id + '-list', lang);
         await page.getByRole('button', { name: W.city, exact: true }).first().click();
         await page.waitForTimeout(1500);
         if (id !== 'chatgpt') {
-          // Into the building in the middle of the view: its rooms, then back.
-          await clear(); await page.locator('[role=application]').first().focus().catch(() => {});
-          await page.keyboard.press('Enter');
+          // A building's card (with its product tag), then inside: its rooms, then back.
+          await clear();
+          const plate = page.locator('button[aria-haspopup=dialog]', { hasText: id === 'claude' ? 'Cowork' : 'market-report' }).first();
+          await plate.click().catch(() => problems.push(`${lang}: ${id}: no building name plate`));
+          await page.waitForTimeout(800);
+          const card = await page.locator('[data-dshu-card]').innerText().catch(() => '');
+          if (!card.includes(id === 'claude' ? W.app : 'WorkBuddy')) problems.push(`${lang}: ${id}: the card does not say which product (${card.replace(/\s+/g, ' ').slice(0, 80)})`);
+          await shot(page, id + '-card', lang);
+          await page.locator('[data-dshu-card] button', { hasText: lang === 'zh' ? '进楼看看' : 'Go inside' }).click().catch(() => problems.push(`${lang}: ${id}: no way inside`));
           await page.waitForTimeout(2500);
           await shot(page, id + '-inside', lang);
           await page.keyboard.press('Escape');
@@ -159,6 +173,27 @@ try {
         }
         await clear(); await page.locator('[data-dshu-chip="dsh"]').click();
         await page.waitForTimeout(1500);
+      }
+
+      step(`${lang}: the ambience plays each city's own sound once Sound is on`);
+      {
+        await clear();
+        const soundBtn = page.getByRole('button', { name: lang === 'zh' ? '环境音' : 'Sound', exact: true }).first();
+        const before = await page.evaluate(() => window.__dshuOsc.length);
+        if (before) problems.push(`${lang}: sound before the member turned it on`);
+        await soundBtn.click();
+        const PITCH = { dsh: 170, claude: 150, chatgpt: 190, workbuddy: 210 };
+        const heard = async (city) => page.evaluate((f) => window.__dshuOsc.some((o) => Math.abs(o.f - f) < 1 && o.state === 'running'), PITCH[city] / 2);
+        await page.waitForTimeout(1500);
+        if (!(await heard('dsh'))) problems.push(`${lang}: no DSH ambience`);
+        for (const id of CITIES) {
+          await clear(); await page.locator(`[data-dshu-chip="${id}"]`).click();
+          await page.waitForTimeout(2500);
+          if (!(await heard(id))) problems.push(`${lang}: ${id}: no ambience in the city`);
+        }
+        await clear(); await page.locator('[data-dshu-chip="dsh"]').click();
+        await page.waitForTimeout(800);
+        await soundBtn.click();
       }
 
       step(`${lang}: zoomed out past the widest view`);

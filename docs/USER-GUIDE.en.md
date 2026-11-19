@@ -125,6 +125,15 @@ Turn any source off under **Nearby cities**. The README lists exactly which file
 Nothing is uploaded and nothing is put into any prompt. The day's summary is kept in DSH's own storage on this
 device and deleted after 14 days.
 
+## Sound
+
+**Sound** in the toolbar (off by default) turns on the city's ambience: a low murmur while sessions run, soft ticks
+for calls, a falling sign while calls fail, and two low notes every 2.4 seconds while someone waits in Review Square.
+Every city (DSH, Claude, ChatGPT, WorkBuddy) has its own pitch and follows its own activity; only the city you are in
+plays, and moving to another crossfades. Zoomed out to all cities, they play quietly together and the card you point
+at or focus comes forward, so you can hear which city is busy. It starts with your first click (browsers allow no sound
+before), and stays silent in the list view, while looking back or replaying, and with reduced motion.
+
 ## One city per device
 
 Each device builds its own city. Where a building stands, which results you have seen, and your view settings
