@@ -13,6 +13,8 @@ export interface LocalAdapterOptions<S> {
   caps: UCapabilities;
   /** The folder whose presence means the tool is on this device. */
   root: string;
+  /** In place of `root`, when a tool's store may be in one of several folders. */
+  present?: () => boolean;
   /** Folders to watch for changes (inside `root`). */
   watch: readonly string[];
   reader: StoreReader<S>;
@@ -75,7 +77,7 @@ export function createLocalAdapter<S>(o: LocalAdapterOptions<S>): LocalAdapter {
 
   return {
     platform: o.platform.id,
-    async detect() { return { present: existsSync(o.root) }; },
+    async detect() { return { present: o.present ? o.present() : existsSync(o.root) }; },
     describeConsent: () => o.consent,
     capabilities: () => o.caps,
     async snapshot(day) {

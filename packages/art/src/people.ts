@@ -18,11 +18,15 @@ const MEMBER: Look = { shirt: '#E8705A', sleeve: '#FFFFFF', skin: '#F2C9A5', hai
 /**
  * Outside coding engines keep their own face (skin and hair from the seed) but wear that engine's outfit, so a Claude
  * Code or Codex agent reads as one at a glance, in the street and at a desk: Claude Code a terracotta jacket with a
- * cream cap and a white spark on the chest; Codex a near-black hoodie with a teal visor and a teal chest stripe.
+ * cream cap and a white spark on the chest; the Claude app the same in reverse (a cream jacket, a terracotta cap);
+ * Codex a near-black hoodie with a teal visor and a teal chest stripe; WorkBuddy a violet jacket with a green
+ * headset and badge.
  */
 const ENGINE_LOOK: Record<NonNullable<PersonSpec['engine']>, Pick<Look, 'shirt' | 'sleeve' | 'pants' | 'accC'>> = {
   'claude-code': { shirt: '#C8643C', sleeve: '#B5573A', pants: '#5A4636', accC: '#F4F1E8' },
+  'claude-app': { shirt: '#F4F1E8', sleeve: '#E3E0D6', pants: '#5A4636', accC: '#C8643C' },
   codex: { shirt: '#27304F', sleeve: '#141A30', pants: '#39415A', accC: '#14A8A4' },
+  workbuddy: { shirt: '#8E5BE8', sleeve: '#27304F', pants: '#39415A', accC: '#8BD93E' },
 };
 function lookOf(spec: PersonSpec): Look {
   if (spec.member) return MEMBER;
@@ -31,9 +35,12 @@ function lookOf(spec: PersonSpec): Look {
 }
 /** The engine's mark: a cap or visor on the head and a badge on the chest. */
 function engineMark(px: PixelPen, X: number, by: number, engine: NonNullable<PersonSpec['engine']>, o: Look): void {
-  if (engine === 'claude-code') {
+  if (engine === 'claude-code' || engine === 'claude-app') {
     px(X - 4, by - 8, 8, 2, o.accC); px(X + 2, by - 6, 3, 1, o.accC);   // cap with its peak
     px(X - 1, by + 1, 1, 3, '#FFFFFF'); px(X - 2, by + 2, 3, 1, '#FFFFFF');   // spark
+  } else if (engine === 'workbuddy') {
+    px(X - 4, by - 8, 8, 1, o.accC); px(X - 1, by - 9, 2, 1, o.accC);   // headset band with its mic
+    px(X - 2, by + 1, 4, 2, o.accC);   // chest badge
   } else {
     px(X - 4, by - 7, 8, 1, o.accC); px(X - 4, by - 6, 1, 2, o.accC); px(X + 3, by - 6, 1, 2, o.accC);   // visor band
     px(X - 3, by + 2, 6, 1, o.accC);   // chest stripe

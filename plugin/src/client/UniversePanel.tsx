@@ -1,13 +1,13 @@
 // The full-page panel (phase 1: the list view; the city drawing comes in phase 2). The top sentence, the today bar
 // and the list all come from the same data at the same moment.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { NeighbourId, NeighbourSummary } from '@dsh-universe/adapter-dsh';
+import { CITY_SOURCES, cityOfSource, type NeighbourId, type NeighbourSummary, type SourceId } from '@dsh-universe/adapter-dsh';
 import { Region, SIGN, type CityId } from './Region.tsx';
 import { hostDark } from './prefs.ts';
 import { LAYER_OF_TODAY, buildingOf, historyWindow, nextIndex, rally, seenKey, idxAt, type LayerId, type Today } from '@dsh-universe/model';
 import { CityPanel, TOUR_BUILDING, type CityTarget } from './CityPanel.tsx';
 import { LIST_CSS, btn, group, groupBtn, px } from './chrome.ts';
-import { neighbourOn, readPrefs, writePrefs, type Prefs } from './prefs.ts';
+import { citiesFound, citiesShown, neighbourOn, offSources, readPrefs, writePrefs, type Prefs } from './prefs.ts';
 import { useFeed, useNow, useObservable } from './hooks.ts';
 import { clock } from './format.ts';
 import { unlockSound, useSquareSound, useTime } from './time.ts';
@@ -38,13 +38,15 @@ const NO_TITLES: Record<string, string> = {};
 export function UniversePanel({ env }: { env: Env }) {
   const [prefs, setPrefsState] = useState<Prefs>(() => readPrefs());
   const setPrefs = (p: Prefs) => { setPrefsState(p); writePrefs(p); };
-  // Adjacent cities: which tools have a store on this device (folder presence only), which are shown (all of them
-  // unless the member turned one off), the city shown and whether the cities-around view is open. Silent where
-  // nothing is found (a cloud workspace).
-  const [present, setPresent] = useState<readonly NeighbourId[]>([]);
+  // Adjacent cities, one per vendor: which sources have a store on this device (folder presence only), which cities
+  // are shown (any with a source the member left on), the city shown and whether the cities-around view is open.
+  // Silent where nothing is found (a cloud workspace).
+  const [present, setPresent] = useState<readonly SourceId[]>([]);
   useEffect(() => { let gone = false; env.neighbours?.detect().then((ids) => { if (!gone) setPresent(ids); }, () => undefined); return () => { gone = true; }; }, []);
-  const enabled = present.filter((id) => neighbourOn(prefs, id));
-  const enabledKey = enabled.join(',');
+  const found = citiesFound(present);
+  const enabled = citiesShown(prefs, present);
+  const off = offSources(prefs);
+  const enabledKey = enabled.join(',') + '|' + off.join(',');
   // Their figures, every few seconds. Asked for only once the DSH city is up, so the host's reading of a large
   // store never delays it; the figures fill in as the reading goes on.
   const dsh = useFeed(env.feed);
@@ -55,7 +57,7 @@ export function UniversePanel({ env }: { env: Env }) {
     if (!nb || !enabled.length || !dshUp) { setSums([]); return; }
     let gone = false, timer: ReturnType<typeof setTimeout> | undefined;
     const tick = async () => {
-      const s = await nb.summary(enabled).catch(() => [] as NeighbourSummary[]);
+      const s = await nb.summary(enabled, off).catch(() => [] as NeighbourSummary[]);
       if (gone) return;
       setSums(s);
       timer = setTimeout(tick, 3000);
@@ -64,10 +66,10 @@ export function UniversePanel({ env }: { env: Env }) {
     return () => { gone = true; if (timer) clearTimeout(timer); };
   }, [enabledKey, dshUp]);
   const shownSums = sums.filter((x) => enabled.includes(x.id));
-  // The first time a tool is found: one line saying its city is shown, once per device.
+  // The first time a city's source is found: one line saying the city is shown, once per device.
   const [notice, setNotice] = useState<readonly NeighbourId[]>([]);
   useEffect(() => {
-    const fresh = present.filter((id) => neighbourOn(prefs, id) && !prefs.noticed.includes(id));
+    const fresh = enabled.filter((id) => !prefs.noticed.includes(id));
     if (!fresh.length) return;
     setNotice(fresh);
     setPrefs({ ...prefs, noticed: [...prefs.noticed, ...fresh] });
@@ -76,13 +78,19 @@ export function UniversePanel({ env }: { env: Env }) {
   const active: CityId = activeChoice !== 'dsh' && enabled.includes(activeChoice) && env.neighbours ? activeChoice : 'dsh';
   const [regionOpen, setRegion] = useState(false);
   const [settingsOpen, setSettings] = useState(false);
-  const feed = useFeed(active === 'dsh' ? env.feed : env.neighbours!.feed(active));
+  const feed = useFeed(active === 'dsh' ? env.feed : env.neighbours!.feed(active, off));
   const dshTitles = useObservable(env.titles);
   // An adjacent city's sessions carry their own label (a title the member set, or none): never DSH's list.
   const titles = active === 'dsh' ? dshTitles : NO_TITLES;
-  const choose = (id: NeighbourId, on: boolean) => {
-    setPrefs({ ...prefs, neighbours: { ...prefs.neighbours, [id]: on } });
-    if (!on) { env.neighbours?.stop(id); if (active === id) setActive('dsh'); }
+  const choose = (id: SourceId, on: boolean) => {
+    const next = { ...prefs, neighbours: { ...prefs.neighbours, [id]: on } };
+    setPrefs(next);
+    if (!on) {
+      env.neighbours?.stop(id);
+      // The city's last source turned off: back to DSH.
+      const city = cityOfSource(id);
+      if (active === city && !citiesShown(next, present).includes(city)) setActive('dsh');
+    }
   };
   const drafts = useObservable(env.drafts ?? NO_DRAFTS);
   const live = useNow(env.now);
@@ -133,7 +141,7 @@ export function UniversePanel({ env }: { env: Env }) {
         <div role={err ? 'alert' : 'status'} style={{ ...px, maxWidth: 420, padding: '16px 18px' }}>
           <p style={{ ...S.head, margin: '0 0 6px' }}>{err ? t('h.error') : t('h.loading')}</p>
           <p style={{ ...S.note, margin: 0 }}>{err ? t('e.error') : t('e.backfill')}</p>
-          {err && <button type="button" style={{ ...S.btn, marginTop: 12 }} onClick={() => (active === 'dsh' ? env.feed : env.neighbours!.feed(active)).retry()}>{t('e.retry')}</button>}
+          {err && <button type="button" style={{ ...S.btn, marginTop: 12 }} onClick={() => (active === 'dsh' ? env.feed : env.neighbours!.feed(active, off)).retry()}>{t('e.retry')}</button>}
           {active !== 'dsh' && <button type="button" style={{ ...S.btn, marginTop: 12, marginLeft: 8 }} onClick={() => setActive('dsh')}>{t('nb.back')}</button>}
         </div>
       </div>
@@ -184,8 +192,8 @@ export function UniversePanel({ env }: { env: Env }) {
   ].filter((k) => k && !dismissed.has(k));
   const cityName = t('nb.city.' + active);
   // The adjacent cities' controls, beside the city / list switch: the sign of the city shown (once there is more
-  // than one), and the settings with one switch per tool found on this device.
-  const nbControls = present.length > 0 && (
+  // than one), and the settings with one switch per source found on this device, under its city.
+  const nbControls = found.length > 0 && (
     <div style={{ position: 'relative', display: 'flex', gap: 8, alignItems: 'center' }} data-dshu-ctl="">
       {active !== 'dsh' && (
         <span data-dshu-sign={active} style={{ ...group, alignItems: 'center', gap: 6, padding: '3px 10px', fontSize: 12.5, fontWeight: 700 }}>
@@ -197,11 +205,19 @@ export function UniversePanel({ env }: { env: Env }) {
       {settingsOpen && (
         <div id="dshu-nb-settings" role="group" aria-label={t('nb.settings')} data-dshu-nb-settings=""
           style={{ ...px, position: 'absolute', zIndex: 20, top: 36, right: 0, width: 300, padding: '10px 12px', fontSize: 12.5, lineHeight: '18px' }}>
-          {present.map((id) => (
-            <label key={id} style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 600, marginBottom: 6 }}>
-              <input type="checkbox" checked={neighbourOn(prefs, id)} onChange={(e) => choose(id, e.currentTarget.checked)} />
-              {t('nb.toggle', { name: t('nb.city.' + id) })}
-            </label>
+          {found.map((city) => (
+            <fieldset key={city} data-dshu-nb-city={city} style={{ border: 0, margin: '0 0 6px', padding: 0, minWidth: 0 }}>
+              <legend style={{ display: 'flex', alignItems: 'center', gap: 6, padding: 0, marginBottom: 4, fontWeight: 700 }}>
+                <span aria-hidden="true" style={{ width: 8, height: 8, background: SIGN[city], border: '2px solid #27304F', flex: 'none' }} />
+                {t('nb.cityOf', { name: t('nb.city.' + city) })}
+              </legend>
+              {CITY_SOURCES[city].filter((s) => present.includes(s)).map((id) => (
+                <label key={id} data-dshu-nb-source={id} style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 600, margin: '0 0 4px 14px' }}>
+                  <input type="checkbox" checked={neighbourOn(prefs, id)} onChange={(e) => choose(id, e.currentTarget.checked)} />
+                  {t('nb.toggle', { name: t('nb.src.' + id) })}
+                </label>
+              ))}
+            </fieldset>
           ))}
           <p style={{ ...S.note, margin: '6px 0 0' }}>{t('nb.reads')}</p>
           <p style={{ ...S.note, margin: '4px 0 0' }}>{t('nb.undo')}</p>
@@ -275,7 +291,7 @@ export function UniversePanel({ env }: { env: Env }) {
         )}
         {regionOpen && enabled.length > 0 && env.neighbours ? (
           <Region t={t} lang={lang} now={live} dark={hostDark(rootRef.current)} active={active}
-            cities={[{ id: 'dsh' as CityId, feed: env.feed }, ...enabled.map((id) => ({ id: id as CityId, feed: env.neighbours!.feed(id) }))]}
+            cities={[{ id: 'dsh' as CityId, feed: env.feed }, ...enabled.map((id) => ({ id: id as CityId, feed: env.neighbours!.feed(id, off) }))]}
             onEnter={go} onClose={() => setRegion(false)} />
         ) : <CityPanel key={active} onZoomOutFar={enabled.length > 0 ? () => setRegion(true) : undefined} beside={chips || undefined}
           hideLayers={active === 'dsh' ? undefined : [...(feed.platform?.caps.schedules ? [] : ['scheduled' as const]), ...(feed.platform?.caps.tokens ? [] : ['tokens' as const])]}

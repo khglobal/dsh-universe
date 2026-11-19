@@ -20,7 +20,7 @@
 // generated summary, `agentName`, account and organisation ids, PR links.
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
-import { categoryOf, type CategoryTable, type Category } from '@dsh-universe/model';
+import { categoryOf, type CategoryTable, type Category, type Engine } from '@dsh-universe/model';
 import { folderName, isoTimeOf, listFiles, pathId, type FileRef, type LineCtx, type StoreReader } from '@dsh-universe/adapter-kit/local';
 
 const T: Record<string, Category> = {};
@@ -63,23 +63,55 @@ export interface CcFile {
   calls: Map<string, { t: number; name: string }>;
   usage: Set<string>;
   ended: Set<string>;
+  /** The product this session belongs to (Claude Code, or the Claude app whose agent runs Claude Code inside). */
+  engine?: Engine;
 }
+
+/** Where a Claude Code-format transcript store is, and whose sessions it holds. */
+export interface TranscriptOptions {
+  /** The files to read (sessions and their subagents), touched at or after `since`. */
+  list(since: number, tick: () => Promise<void>): Promise<FileRef[]>;
+  engine: Engine;
+  /** A fixed district for a file's session (the Claude app's Cowork sessions each run in a folder of their own). */
+  workspace?: (file: FileRef) => { id: string; title: string } | undefined;
+}
+
+/** A session file (`<project>/<id>.jsonl`) or a subagent's (`<project>/<id>/subagents/agent-<x>.jsonl`), relative. */
+export const SESSION_FILE = /^[^/]+\/[^/]+\.jsonl$/, SUBAGENT_FILE = /^[^/]+\/[^/]+\/subagents\/agent-[^/]+\.jsonl$/;
+/** The root session id of a transcript file (its name, or for a subagent the folder above `subagents`). */
+export const sessionOfFile = (path: string): string => (basename(dirname(path)) === 'subagents' ? basename(dirname(dirname(path))) : basename(path, '.jsonl'));
 
 /** Lines worth parsing: the record types read here (a cheap test before JSON.parse; the type is checked again). */
 const WANTED = /"type":"(?:assistant|user|system|custom-title)"/;
 
-export function claudeCodeReader(home: string): StoreReader<CcFile> {
+/**
+ * Claude Code's own store. `skip`: sessions another source owns (the Claude app's Code tab writes its sessions here
+ * too; they belong to the Claude app and are read there, so each session is counted once).
+ */
+export function claudeCodeReader(home: string, skip?: () => Promise<ReadonlySet<string>> | ReadonlySet<string>): StoreReader<CcFile> {
   const projects = join(home, '.claude', 'projects');
-  return {
+  return transcriptReader({
+    engine: 'claude-code',
     async list(since, tick) {
-      return listFiles(projects, (rel) => /^[^/]+\/[^/]+\.jsonl$/.test(rel) || /^[^/]+\/[^/]+\/subagents\/agent-[^/]+\.jsonl$/.test(rel), { depth: 3, since, tick });
+      const all = await listFiles(projects, (rel) => SESSION_FILE.test(rel) || SUBAGENT_FILE.test(rel), { depth: 3, since, tick });
+      const owned = await skip?.();
+      return owned?.size ? all.filter((f) => !owned.has(sessionOfFile(f.path))) : all;
     },
+  });
+}
+
+/** A Claude Code-format transcript store (Claude Code itself, or the agent the Claude app runs) → model events. */
+export function transcriptReader(o: TranscriptOptions): StoreReader<CcFile> {
+  return {
+    list: o.list,
     async open(f: FileRef) {
       const name = basename(f.path, '.jsonl');
       const sub = basename(dirname(f.path)) === 'subagents';
-      if (!sub) return fresh(name, name);
+      const ws = o.workspace?.(f);
+      const init = (st: CcFile) => { st.engine = o.engine; if (ws) { st.ws = ws.id; st.folder = ws.title; } return st; };
+      if (!sub) return init(fresh(name, name));
       const sessionId = basename(dirname(dirname(f.path)));
-      const st = fresh('sub:' + sessionId + ':' + name.replace(/^agent-/, ''), sessionId);
+      const st = init(fresh('sub:' + sessionId + ':' + name.replace(/^agent-/, ''), sessionId));
       st.parent = sessionId;
       try {
         // The subagent's preset name only (`description` is its task and is never read).
@@ -135,7 +167,7 @@ function announce(st: CcFile, t: number, ctx: LineCtx) {
   const ws = workspaceOf(st);
   if (ctx.once(ws)) ctx.emit({ type: 'workspace', data: { id: ws, title: st.folder ?? '', displayPath: st.folder ?? '' } });
   ctx.emit({ type: 'agent', data: {
-    id: st.agentId, sessionId: st.parent ?? st.sessionId, workspaceId: ws, label: st.parent ? '' : st.title ?? '', engine: 'claude-code',
+    id: st.agentId, sessionId: st.parent ?? st.sessionId, workspaceId: ws, label: st.parent ? '' : st.title ?? '', engine: st.engine ?? 'claude-code',
     kind: st.parent ? 'subagent' : 'main', ...(st.parent ? { parentAgentId: st.parent } : {}), ...(st.role ? { role: st.role } : {}),
     ...(st.model ? { model: st.model } : {}), state: 'running', startedAt: t,
   } });
@@ -153,9 +185,9 @@ function onLine(st: CcFile, o: Rec, ctx: LineCtx) {
   meta(st, o);
   const t = Date.parse(str(o.timestamp) ?? '');
   if (!Number.isFinite(t)) return;
-  if (o.type === 'assistant') { const m = str(rec(o.message).model); if (m && m !== '<synthetic>') st.model = m; }
   if (!st.parent) ctx.mark(t, st.sessionId, o.type === 'assistant' && o.isApiErrorMessage === true);
-  if (t < ctx.dayStart) return;
+  // Before today: only the model is kept (the session's agent is announced with it); today's changes are emitted below.
+  if (t < ctx.dayStart) { const m = o.type === 'assistant' ? str(rec(o.message).model) : undefined; if (m && m !== '<synthetic>') st.model = m; return; }
   announce(st, t, ctx);
   st.lastT = Math.max(st.lastT, t);
   const agentId = st.agentId;

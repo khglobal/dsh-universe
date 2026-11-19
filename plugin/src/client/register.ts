@@ -6,7 +6,7 @@ import { PLUGIN_ID, PLUGIN_SLUG } from '@dsh-universe/adapter-dsh';
 import { NS, PANEL, en, zh } from '../locales/index.ts';
 import { createApi } from './api.ts';
 import { createFeed, type Feed } from './feed.ts';
-import type { NeighbourId } from '@dsh-universe/adapter-dsh';
+import { cityOfSource, type NeighbourId } from '@dsh-universe/adapter-dsh';
 import { translator } from './format.ts';
 import { Tile, type TileProps } from './Tile.tsx';
 import type { ClientCtx, ConnectionService, Env, Observable, SessionDraftsService, SessionsService, UiWorkspaceService } from './types.ts';
@@ -49,8 +49,8 @@ export function createEnv(ctx: ClientCtx): Env {
   });
   const feed = createFeed(api);
   // One feed per adjacent city, made when the member first looks at it (its figures come from `summary` until
-  // then), dropped when it is turned off.
-  const nfeeds = new Map<NeighbourId, Feed>();
+  // then), made again when one of its sources is turned on or off.
+  const nfeeds = new Map<NeighbourId, { key: string; feed: Feed }>();
   const seen = createSeen({
     read: () => globalThis.localStorage?.getItem(SEEN_STORAGE_KEY),
     write: (v) => globalThis.localStorage?.setItem(SEEN_STORAGE_KEY, v),
@@ -68,9 +68,17 @@ export function createEnv(ctx: ClientCtx): Env {
     now: Date.now,
     neighbours: {
       detect: async () => { const r = await api.neighbours.detect(); return r.ok ? r.value.filter((x) => x.present).map((x) => x.id) : []; },
-      summary: async (ids) => { if (!ids.length) return []; const r = await api.neighbours.summary(ids); return r.ok ? r.value : []; },
-      feed: (id) => { let f = nfeeds.get(id); if (!f) nfeeds.set(id, f = createFeed(api.neighbours.city(id), { appendOnly: true, intervalMs: 3000 })); return f; },
-      stop: (id) => { nfeeds.get(id)?.dispose(); nfeeds.delete(id); void api.neighbours.stop(id); },
+      summary: async (ids, off) => { if (!ids.length) return []; const r = await api.neighbours.summary(ids, off); return r.ok ? r.value : []; },
+      feed: (id, off) => {
+        const key = off.join(',');
+        const had = nfeeds.get(id);
+        if (had?.key === key) return had.feed;
+        had?.feed.dispose();
+        const feed = createFeed(api.neighbours.city(id, [...off]), { appendOnly: true, intervalMs: 3000 });
+        nfeeds.set(id, { key, feed });
+        return feed;
+      },
+      stop: (id) => { const c = cityOfSource(id); nfeeds.get(c)?.feed.dispose(); nfeeds.delete(c); void api.neighbours.stop(id); },
     },
   };
 }

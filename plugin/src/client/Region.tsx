@@ -1,5 +1,5 @@
 // The cities around: what the member sees when zooming out past the widest view of a city, once at least one
-// adjacent city (Claude Code, Codex on this device) is turned on. Each city is a card with a clear sign, a still
+// adjacent city (Claude, ChatGPT, WorkBuddy on this device) is turned on. Each city is a card with a clear sign, a still
 // picture of the whole city and today's numbers; choosing one goes into it. The DSH city is always first.
 import { useEffect, useMemo, useRef } from 'react';
 import { emptyPlacement, todayAt } from '@dsh-universe/model';
@@ -15,7 +15,7 @@ import { CITY } from './view.ts';
 
 export type CityId = 'dsh' | NeighbourId;
 /** The sign colour of each city (a band on its card; the name is always written beside it). */
-export const SIGN: Record<CityId, string> = { dsh: '#2F6BDE', 'claude-code': '#C8643C', codex: '#14A8A4' };
+export const SIGN: Record<CityId, string> = { dsh: '#2F6BDE', claude: '#C8643C', chatgpt: '#14A8A4', workbuddy: '#8E5BE8' };
 
 export function Region({ cities, active, t, lang, now, dark, onEnter, onClose }: {
   cities: { id: CityId; feed: Feed }[]; active: CityId; t: Translate; lang: string; now: number; dark: boolean;

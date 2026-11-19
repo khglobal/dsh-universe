@@ -24,18 +24,21 @@ is scheduled next. Metadata only, read on your own device.
   board, error beacon and job printers.
 - **Timeline.** Look back at any minute of today, replay the day, and see totals for the last 14 days.
 - **Workspace-aware.** Each workspace is its own district; buildings keep their place.
-- **Works with Claude Code and Codex.** Work a session delegates to Claude Code or Codex (DSH's official subagent
-  plugins) stands in that session's building in the engine's colours, named after it, with its status. Optional
-  neighbouring cities, automatic: when Claude Code or Codex is on the same device, its sessions (including those
-  started outside DSH) appear as a city beside the DSH one, live, with no setup. A small chip such as
-  "Claude Code · 3 running" goes there in one click; zoom out to see the cities side by side. The Today bar adds their
-  running sessions, failed calls and tokens as "+n local". Turn either off under **Nearby cities**.
+- **Works with Claude, ChatGPT (Codex) and WorkBuddy.** Work a session delegates to Claude Code or Codex (DSH's
+  official subagent plugins) stands in that session's building in the engine's colours, named after it, with its
+  status. Neighbouring cities, one per vendor, automatic: when another agent tool is on the same device, its sessions
+  (including those started outside DSH) appear as a city beside the DSH one, live, with no setup. **Claude** holds
+  Claude Code and the Claude desktop app's agent sessions (Cowork and its Code tab), each tagged with its product;
+  **ChatGPT** holds Codex; **WorkBuddy** holds WorkBuddy's. A small chip such as "Claude · 3 running" goes there in one
+  click; zoom out to see the cities side by side. The Today bar adds their running sessions, failed calls and tokens
+  as "+n local". Each source has its own switch under **Nearby cities**.
 - **Day and night.** Auto, day or night; at night only places that are working or waiting are lit.
 - **Accessible.** Keyboard control, a screen-reader list view, reduced motion, light and dark themes, English and
   Chinese.
 - **Fast.** Built for 60 fps; it still draws with no GPU.
-- **Private by design.** Metadata only, never chat or tool content; nothing leaves your device. Local Claude Code and
-  Codex session metadata is shown automatically; turn it off under **Nearby cities**.
+- **Private by design.** Metadata only, never chat or tool content; nothing leaves your device. Local agent session
+  metadata (Claude Code, Claude app, Codex, WorkBuddy) is shown automatically; turn any source off under
+  **Nearby cities**.
 
 ![Inside a session building: the call tape, error beacon and job printer cards, changing floor, agents moving between desks](https://raw.githubusercontent.com/khglobal/dsh-universe/dev/docs/screenshots/indoor.gif)
 
@@ -73,17 +76,23 @@ text or file paths. Subagents are shown by their preset name, not their prompt.
 For runs delegated to Claude Code or Codex inside DSH: their start, end, engine and whether they failed; never their
 task or answer.
 
-The Claude Code and Codex cities, shown automatically when those tools are on this device, read their session files on this device for session ids,
+The Claude, ChatGPT and WorkBuddy cities, shown automatically when those tools are on this device, read only their
+agent session files on this device: Claude Code `~/.claude/projects`; the Claude desktop app's Cowork transcripts
+(`<app>/local-agent-mode-sessions/.../local_<id>/.claude/projects`) and, of its Code-tab files
+(`<app>/claude-code-sessions/.../local_<id>.json`), only `cliSessionId` and `fromCliTranscript`; Codex
+`~/.codex/sessions` and `~/.codex/archived_sessions`; WorkBuddy `~/.workbuddy/projects`. From these: session ids,
 times, project folder names, models, token counts, tool names and counts, error flags, turns, retries and subagents,
 and a title only when you set one yourself. Never messages, prompts, replies, reasoning, tool input or output,
-commands, file contents, error text, generated summaries or your prompt history. Read incrementally, at most 14 days
-back.
+commands, file contents, error text, generated titles or summaries, your prompt history, chats with Claude or ChatGPT
+(kept in the vendor's cloud), browser storage, cookies, sign-in, token or settings files, or the apps' databases. Read
+incrementally, at most 14 days back. A Code-tab session, also in Claude Code's store, is counted once.
 
 ## Privacy
 
-- Local Claude Code and Codex session metadata (never messages, prompts or tool content) is shown automatically when
-  those tools are installed on this device. To turn it off, clear its switch under **Nearby cities**: reading stops,
-  what was read is dropped, and the choice is remembered.
+- Local agent session metadata of Claude Code, the Claude desktop app, Codex and WorkBuddy (never messages, prompts
+  or tool content) is shown automatically when those tools are installed on this device; each source is on by
+  default. To turn one off, clear its switch under **Nearby cities**: reading stops, what was read is dropped, and the
+  choice is remembered (a choice made in 0.2 carries over).
 - Nothing is uploaded. The plugin makes no network requests of its own; the panel talks only to your own DSH.
 - Nothing is put into any prompt, and it adds no tools for the model.
 - The day's summary is kept in DSH's storage on this device for 14 days. Each device has its own city; nothing is

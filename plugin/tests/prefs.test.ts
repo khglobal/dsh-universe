@@ -8,8 +8,8 @@ test('prefs: the legend starts closed, the timeline open, the city shown, the so
   assert.deepEqual(readPrefs({ getItem: () => { throw new Error('denied'); } }), DEFAULT_PREFS);
   assert.deepEqual(readPrefs({ getItem: () => '{not json' }), DEFAULT_PREFS);
   const mem = new Map<string, string>();
-  writePrefs({ legend: true, dockMin: true, view: 'list', sound: true, toured: true, light: 'night', neighbours: { 'claude-code': true, codex: false }, noticed: ['codex'] }, { setItem: (k, v) => { mem.set(k, v); } });
-  assert.deepEqual(readPrefs({ getItem: (k) => mem.get(k) ?? null }), { legend: true, dockMin: true, view: 'list', sound: true, toured: true, light: 'night', neighbours: { 'claude-code': true, codex: false }, noticed: ['codex'] });
+  writePrefs({ legend: true, dockMin: true, view: 'list', sound: true, toured: true, light: 'night', neighbours: { 'claude-code': true, codex: false }, noticed: ['chatgpt'] }, { setItem: (k, v) => { mem.set(k, v); } });
+  assert.deepEqual(readPrefs({ getItem: (k) => mem.get(k) ?? null }), { legend: true, dockMin: true, view: 'list', sound: true, toured: true, light: 'night', neighbours: { 'claude-code': true, codex: false }, noticed: ['chatgpt'] });
   assert.ok(PREFS_KEY.startsWith('khglobal-dsh-universe'));
   assert.doesNotThrow(() => writePrefs(DEFAULT_PREFS, { setItem: () => { throw new Error('full'); } }));
 });

@@ -5,14 +5,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { conformanceProblems } from '@dsh-universe/adapter-kit';
 import { createStore, cumAt, errsAt, idxAt, stateAt, type UEvent } from '@dsh-universe/model';
-import { MARKERS, CUSTOM_TITLE, appendClaudeTurn, seedLocalStores } from '../../../fixtures/local-stores.ts';
+import { IDS, MARKERS, CUSTOM_TITLE, appendClaudeTurn, seedLocalStores } from '../../../fixtures/local-stores.ts';
 import { createClaudeCodeAdapter } from '../src/index.ts';
 
 const noon = () => { const d = new Date(); d.setHours(12, 0, 0, 0); return d.getTime(); };
 
 async function withStore(fn: (home: string, now: number) => Promise<void>) {
   const home = mkdtempSync(join(tmpdir(), 'dshu-cc-'));
-  try { const now = noon(); seedLocalStores(home, now, { codex: false }); await fn(home, now); } finally { rmSync(home, { recursive: true, force: true }); }
+  try { const now = noon(); seedLocalStores(home, now, { codex: false, claudeApp: false, workbuddy: false }); await fn(home, now); } finally { rmSync(home, { recursive: true, force: true }); }
 }
 
 test('claude code: metadata only; no marker from any content field reaches the output', async () => {
@@ -85,4 +85,24 @@ test('claude code: incremental, live and bounded', async () => {
     assert.equal(a.events().length, n0 + got.length);
     await a.stop();
   });
+});
+
+test('claude code: sessions the Claude app owns are left out, so each is counted once', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'dshu-cc-skip-'));
+  try {
+    const now = noon();
+    seedLocalStores(home, now, { codex: false, workbuddy: false });
+    const all = createClaudeCodeAdapter({ home, now: () => now });
+    const roots = (s: Awaited<ReturnType<typeof all.snapshot>>) => s.events.filter((e) => e.type === 'agent' && 'kind' in e.data && e.data.kind === 'main').map((e) => (e.data as { id: string }).id);
+    const without = roots(await all.snapshot(''));
+    assert.ok(without.includes(IDS.codeTab), 'the Code-tab session is in Claude Code\'s own store');
+    await all.stop();
+    const skip = createClaudeCodeAdapter({ home, now: () => now, skip: () => new Set([IDS.codeTab]) });
+    const kept = roots(await skip.snapshot(''));
+    assert.ok(!kept.includes(IDS.codeTab), 'owned by the Claude app: left out');
+    assert.ok(kept.includes(IDS.adopted), 'a terminal session the app only lists stays Claude Code\'s');
+    assert.equal(kept.length, without.length - 1);
+    assert.ok(kept.every((id) => id.startsWith('c0ffee01')));
+    await skip.stop();
+  } finally { rmSync(home, { recursive: true, force: true }); }
 });

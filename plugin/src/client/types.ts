@@ -45,14 +45,14 @@ export interface Env {
   /** The moment shown (live: the clock; mock data: the fixture's moment). */
   now(): number;
   /**
-   * The adjacent cities (Claude Code, Codex on this device). `detect` says which stores exist (nothing is read);
-   * `summary` gives today's figures of the cities shown (on unless the member turned one off); `feed` reads one
-   * city in full (when the member looks at it); `stop` turns it off on the host.
+   * The adjacent cities (Claude, ChatGPT, WorkBuddy on this device). `detect` says which sources' stores exist
+   * (nothing is read); `summary` gives today's figures of the cities shown; `feed` reads one city in full (when the
+   * member looks at it), without the sources in `off`; `stop` turns a source off on the host.
    */
   neighbours?: {
-    detect(): Promise<readonly import('@dsh-universe/adapter-dsh').NeighbourId[]>;
-    summary(ids: readonly import('@dsh-universe/adapter-dsh').NeighbourId[]): Promise<readonly import('@dsh-universe/adapter-dsh').NeighbourSummary[]>;
-    feed(id: import('@dsh-universe/adapter-dsh').NeighbourId): import('./feed.ts').Feed;
-    stop(id: import('@dsh-universe/adapter-dsh').NeighbourId): void;
+    detect(): Promise<readonly import('@dsh-universe/adapter-dsh').SourceId[]>;
+    summary(ids: readonly import('@dsh-universe/adapter-dsh').NeighbourId[], off: readonly import('@dsh-universe/adapter-dsh').SourceId[]): Promise<readonly import('@dsh-universe/adapter-dsh').NeighbourSummary[]>;
+    feed(id: import('@dsh-universe/adapter-dsh').NeighbourId, off: readonly import('@dsh-universe/adapter-dsh').SourceId[]): import('./feed.ts').Feed;
+    stop(id: import('@dsh-universe/adapter-dsh').SourceId): void;
   };
 }

@@ -10,7 +10,7 @@ import { emptyPlacement, type PlacementState, type Store } from '@dsh-universe/m
 import type { ArtKit } from '@dsh-universe/renderer';
 import { layoutOf, paintTileCity, tileFigures, TILE_LOCAL_MS, type TileLocal } from './tile-city.ts';
 import { clock, tokens as fmtTokens } from './format.ts';
-import { neighbourOn, readPrefs } from './prefs.ts';
+import { citiesShown, offSources, readPrefs } from './prefs.ts';
 import { useFeed, useNow } from './hooks.ts';
 import { makeKit } from './kit.ts';
 import type { Env } from './types.ts';
@@ -40,7 +40,7 @@ function useOnScreen(el: Element | null): boolean {
 }
 
 /**
- * What Claude Code and Codex on this device add today (the Today bar's "+n local"), for the cities the member left on.
+ * What the agent tools on this device (Claude, ChatGPT's Codex, WorkBuddy) add today (the Today bar's "+n local"), for the cities the member left on.
  * Asked for only while the tile is on screen, and gently (TILE_LOCAL_MS); nothing when the host has no neighbours.
  */
 function useLocal(env: Env, on: boolean): readonly TileLocal[] {
@@ -51,8 +51,8 @@ function useLocal(env: Env, on: boolean): readonly TileLocal[] {
     let gone = false, timer: ReturnType<typeof setTimeout> | undefined;
     const tick = async () => {
       const prefs = readPrefs();
-      const ids = (await nb.detect().catch(() => [])).filter((id) => neighbourOn(prefs, id));
-      const s = ids.length ? await nb.summary(ids).catch(() => []) : [];
+      const ids = citiesShown(prefs, await nb.detect().catch(() => []));
+      const s = ids.length ? await nb.summary(ids, offSources(prefs)).catch(() => []) : [];
       if (gone) return;
       setSums(s.filter((x) => ids.includes(x.id)));
       timer = setTimeout(tick, TILE_LOCAL_MS);

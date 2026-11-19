@@ -1,0 +1,14 @@
+{
+  "name": "@dsh-universe/adapter-claude-app",
+  "version": "0.1.0",
+  "private": true,
+  "license": "SEE LICENSE IN ../../LICENSE",
+  "description": "Reads the Claude desktop app's local agent sessions (Cowork and the Code tab) on this device for metadata only and turns them into the common model.",
+  "type": "module",
+  "exports": { ".": { "types": "./src/index.ts", "default": "./src/index.ts" } },
+  "dependencies": {
+    "@dsh-universe/model": "*",
+    "@dsh-universe/adapter-kit": "*",
+    "@dsh-universe/adapter-claude-code": "*"
+  }
+}

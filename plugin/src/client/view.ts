@@ -104,7 +104,7 @@ export function titleOf(s: AgentTrack, store: Store, titles: Record<string, stri
   const own = titles[s.agent.sessionId] || s.agent.label;
   if (own) return own;
   const ws = store.workspaces().find((w) => w.id === s.agent.workspaceId);
-  // A session of a Claude Code or Codex city without a title its member set: the project folder and the day.
+  // A session of a neighbouring city without a title its member set: the project folder and the day.
   if (s.agent.engine) {
     const d = new Date(s.agent.startedAt), p2 = (x: number) => String(x).padStart(2, '0');
     return t('row.neutral', { folder: ws ? workspaceName(ws.displayPath || ws.title, t('ws.default')) : t('ws.default'), date: `${p2(d.getMonth() + 1)}-${p2(d.getDate())}` });
@@ -116,7 +116,9 @@ export function rowOf(s: AgentTrack, store: Store, T: number, t: Translate, lang
   const st = stateAt(s, T);
   const ws = store.workspaces().find((w) => w.id === s.agent.workspaceId);
   const kids = store.agents().filter((k) => k.agent.parentAgentId === s.agent.id && k.agent.startedAt <= T).length;
-  const ctx = [ws ? workspaceName(ws.title, t('ws.default')) : '', s.agent.parentAgentId ? t('row.sub') : '', kids ? t('row.subs', { n: kids }) : ''].filter(Boolean).join(' · ');
+  // A neighbouring city's session says which product it is from (Claude Code or the Claude app in the Claude city).
+  const source = s.agent.engine && !s.agent.parentAgentId ? t('eng.' + s.agent.engine) : '';
+  const ctx = [source, ws ? workspaceName(ws.title, t('ws.default')) : '', s.agent.parentAgentId ? t('row.sub') : '', kids ? t('row.subs', { n: kids }) : ''].filter(Boolean).join(' · ');
   let detail = '';
   const w = waitAt(s, T);
   if (st === 'waiting' && w) {

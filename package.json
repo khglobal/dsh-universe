@@ -12,6 +12,8 @@
     "packages/adapter-dsh",
     "packages/adapter-claude-code",
     "packages/adapter-codex",
+    "packages/adapter-claude-app",
+    "packages/adapter-workbuddy",
     "plugin"
   ],
   "engines": {

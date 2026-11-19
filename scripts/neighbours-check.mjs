@@ -3,26 +3,32 @@
 //
 //   node scripts/neighbours-check.mjs <package.tgz> [--dsh 0.2.2-rc.2] [--shots <prefix>] [--keep]
 //
-// DSH runs with a temporary HOME seeded with made-up Claude Code and Codex stores (fixtures/local-stores.ts: the real
-// layouts, a marker string in every content field). In English and in Chinese:
-// - with no click, both cities are there: a one-line notice once, a chip per city ("Claude Code · n running"), and
-//   the Today bar's figures with "+n local";
-// - a chip goes to its city, which has its data views (no schedule view: Claude Code and Codex have no schedules);
+// DSH runs with a temporary HOME seeded with made-up Claude Code, Claude app, Codex and WorkBuddy stores
+// (fixtures/local-stores.ts: the real layouts, a marker string in every content field). In English and in Chinese:
+// - with no click, the three vendor cities are there (Claude: Claude Code and the Claude app; ChatGPT: Codex;
+//   WorkBuddy): a one-line notice once, a chip per city ("Claude · n running"), and the Today bar's figures with
+//   "+n local";
+// - a chip goes to its city, which has its data views (no schedule view: none of them has schedules) and its list,
+//   where each Claude session says which product it is from; a building can be entered;
 //   zooming out past the widest view shows the cities with their signs;
-// - turning Codex off in "Nearby cities" persists across a reload (and the notice does not come back);
+// - "Nearby cities" has one switch per source under its city; turning Codex and the Claude app off persists across
+//   a reload (the ChatGPT city goes, the Claude city stays with Claude Code; the notice does not come back);
 // - no marker is anywhere in the page, nor in anything the page sent or received.
 // Then the stores are moved away (a cloud workspace has none): no notice, no chips, no settings, silent.
-// Screenshots: <prefix>-<name>-<lang>.png.
+// `--width 390` and `--dark` check a narrow panel and the dark theme. Screenshots: <prefix>-<name>-<lang>.png.
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
-const { values: opt, positionals } = parseArgs({ allowPositionals: true, options: { dsh: { type: 'string', default: '0.2.2-rc.2' }, shots: { type: 'string' }, keep: { type: 'boolean' } } });
+const { values: opt, positionals } = parseArgs({ allowPositionals: true, options: { dsh: { type: 'string', default: '0.2.2-rc.2' }, shots: { type: 'string' }, keep: { type: 'boolean' }, width: { type: 'string', default: '1400' }, dark: { type: 'boolean' } } });
 const tgz = positionals[0] && resolve(positionals[0]);
 if (!tgz) throw Error('usage: neighbours-check.mjs <package.tgz> [--dsh <version>] [--shots <prefix>] [--keep]');
 const { MARKERS, CUSTOM_TITLE, seedLocalStores } = await import('../fixtures/local-stores.ts');
+const { claudeAppDir } = await import('../packages/adapter-claude-app/src/index.ts');
+const CITIES = ['claude', 'chatgpt', 'workbuddy'];
+const NAMES = { claude: 'Claude', chatgpt: 'ChatGPT', workbuddy: 'WorkBuddy' };
 
 const T = realpathSync(mkdtempSync(join(tmpdir(), 'dsh-neighbours-')));
 const home = join(T, 'home'), docs = join(T, 'Documents'), app = join(T, 'app');
@@ -57,11 +63,11 @@ try {
   const browser = await chromium.launch(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {});
   try {
     const L = {
-      en: { found: 'found on this device', settings: 'Nearby cities', list: 'List', city: 'City', errors: 'Errors', sched: 'Scheduled', local: 'local' },
-      zh: { found: '找到了', settings: '相邻城市', list: '清单', city: '城市', errors: '出错', sched: '定时任务', local: '本机' },
+      en: { found: 'found on this device', settings: 'Nearby cities', list: 'List', city: 'City', errors: 'Errors', sched: 'Scheduled', local: 'local', app: 'Claude app', cli: 'Claude Code' },
+      zh: { found: '找到了', settings: '相邻城市', list: '清单', city: '城市', errors: '出错', sched: '定时任务', local: '本机', app: 'Claude 应用', cli: 'Claude Code' },
     };
     const newContext = async (lang) => {
-      const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, locale: lang === 'zh' ? 'zh-CN' : 'en-US' });
+      const ctx = await browser.newContext({ viewport: { width: Number(opt.width), height: Number(opt.width) < 600 ? 844 : 900 }, locale: lang === 'zh' ? 'zh-CN' : 'en-US', colorScheme: opt.dark ? 'dark' : 'light' });
       // The first-run tour was seen (it would cover the city); nothing else is preset.
       await ctx.addInitScript(() => { try { const k = 'khglobal-dsh-universe.view'; if (!localStorage.getItem(k)) localStorage.setItem(k, JSON.stringify({ toured: true })); } catch { /* no storage */ } });
       return ctx;
@@ -71,7 +77,7 @@ try {
       const page = await ctx.newPage();
       const wire = [];   // everything the page sent and received (to check no marker passes)
       const reads = [];  // adjacent-city reads asked of the host
-      const note = (s) => { if (typeof s !== 'string') s = String(s); wire.push(s); if (/"n\.(snapshot|since|summary)"/.test(s)) reads.push(s.slice(0, 80)); };
+      const note = (s) => { if (typeof s !== 'string') s = String(s); wire.push(s); if (/"n\.(snapshot|since|summary)"/.test(s)) reads.push(s.slice(0, 400)); };
       page.on('request', (r) => { const b = r.postData(); if (b) note(b); });
       page.on('response', async (r) => { try { if ((r.headers()['content-type'] ?? '').includes('json')) note(await r.text()); } catch { /* gone */ } });
       page.on('websocket', (ws) => { ws.on('framesent', (f) => note(f.payload)); ws.on('framereceived', (f) => note(f.payload)); });
@@ -109,18 +115,18 @@ try {
       const { page, wire, reads, clear, firstPaint } = await open(lang, ctx);
       step(`${lang}: the DSH city was up in ${firstPaint} ms`);
       const noticeIds = await page.locator('[data-dshu-notice]').getAttribute('data-dshu-notice').catch(() => null);
-      if (noticeIds !== 'claude-code codex') problems.push(`${lang}: the one-line notice should name both tools (${noticeIds})`);
+      if (noticeIds !== CITIES.join(' ')) problems.push(`${lang}: the one-line notice should name the three cities (${noticeIds})`);
       if (!(await page.evaluate(() => document.body.innerText)).includes(W.found)) problems.push(`${lang}: notice text missing`);
-      if ((await chipIds(page)).join() !== 'claude-code,codex') problems.push(`${lang}: chips ${(await chipIds(page)).join()}`);
+      if ((await chipIds(page)).join() !== CITIES.join()) problems.push(`${lang}: chips ${(await chipIds(page)).join()}`);
       const chipText = await page.locator('[data-dshu-chips]').innerText().catch(() => '');
-      if (!/Claude Code · \d/.test(chipText) || !/Codex · \d/.test(chipText)) problems.push(`${lang}: chip text "${chipText}"`);
+      for (const c of CITIES) if (!new RegExp(NAMES[c] + ' · \\d').test(chipText)) problems.push(`${lang}: chip text "${chipText}" has no ${NAMES[c]} count`);
       const locals = await page.locator('[data-dshu-today] [data-dshu-local]').allInnerTexts();
       if (!locals.length || !locals.every((x) => x.includes(W.local))) problems.push(`${lang}: the Today bar does not add local sessions (${locals.join(' | ')})`);
       if (!reads.length) problems.push(`${lang}: on by default, yet nothing was read`);
       await shot(page, 'auto', lang);
 
       step(`${lang}: a chip goes to its city`);
-      for (const id of ['claude-code', 'codex']) {
+      for (const id of CITIES) {
         await clear(); await page.locator(`[data-dshu-chip="${id}"]`).click();
         await page.waitForTimeout(4000);
         if (await page.locator(`[data-dshu-sign="${id}"]`).count() !== 1) problems.push(`${lang}: ${id}: no city sign`);
@@ -137,8 +143,20 @@ try {
         const ltext = await page.evaluate(() => document.body.innerText);
         if (id === 'claude-code' && !ltext.includes(CUSTOM_TITLE)) problems.push(`${lang}: the set title is not shown`);
         if (!ltext.includes('demo-app') && !ltext.includes('billing-api')) problems.push(`${lang}: ${id}: no folder-named sessions in the list`);
+        if (id === 'claude' && !(ltext.includes(W.app) && ltext.includes(W.cli) && ltext.includes('Cowork'))) problems.push(`${lang}: the Claude list does not tag Claude app and Claude Code sessions`);
+        if (id === 'workbuddy' && !ltext.includes('market-report')) problems.push(`${lang}: no WorkBuddy session named by folder`);
+        await shot(page, id + '-list', lang);
         await page.getByRole('button', { name: W.city, exact: true }).first().click();
         await page.waitForTimeout(1500);
+        if (id !== 'chatgpt') {
+          // Into the building in the middle of the view: its rooms, then back.
+          await clear(); await page.locator('[role=application]').first().focus().catch(() => {});
+          await page.keyboard.press('Enter');
+          await page.waitForTimeout(2500);
+          await shot(page, id + '-inside', lang);
+          await page.keyboard.press('Escape');
+          await page.waitForTimeout(1200);
+        }
         await clear(); await page.locator('[data-dshu-chip="dsh"]').click();
         await page.waitForTimeout(1500);
       }
@@ -148,28 +166,42 @@ try {
       if (!(await page.locator('[data-dshu-region]').count())) problems.push(`${lang}: zooming out past the widest view did not show the cities`);
       await page.waitForTimeout(5000);
       const cards = await page.locator('[data-dshu-city]').evaluateAll((els) => els.map((e) => e.getAttribute('data-dshu-city')));
-      if (cards.join() !== 'dsh,claude-code,codex') problems.push(`${lang}: city cards ${cards.join()}`);
+      if (cards.join() !== ['dsh', ...CITIES].join()) problems.push(`${lang}: city cards ${cards.join()}`);
       await shot(page, 'region', lang);
       await page.keyboard.press('Escape');
       await page.waitForTimeout(800);
 
-      step(`${lang}: Codex turned off, and still off after a reload`);
+      step(`${lang}: Codex and the Claude app turned off, and still off after a reload`);
       await clear(); await page.locator('[aria-controls="dshu-nb-settings"]').click();
-      const codexBox = page.locator('[data-dshu-nb-settings] input[type=checkbox]').nth(1);
-      if (!(await codexBox.isChecked())) problems.push(`${lang}: Codex should be on by default`);
-      await codexBox.uncheck();
+      const groups = await page.locator('[data-dshu-nb-city]').evaluateAll((els) => els.map((e) => e.getAttribute('data-dshu-nb-city') + ':' + [...e.querySelectorAll('[data-dshu-nb-source]')].map((x) => x.getAttribute('data-dshu-nb-source')).join('+')));
+      if (groups.join() !== 'claude:claude-code+claude-app,chatgpt:codex,workbuddy:workbuddy') problems.push(`${lang}: settings groups ${groups.join()}`);
+      const box = (s) => page.locator(`[data-dshu-nb-source="${s}"] input[type=checkbox]`);
+      for (const s of ['claude-code', 'claude-app', 'codex', 'workbuddy']) if (!(await box(s).isChecked())) problems.push(`${lang}: ${s} should be on by default`);
       await shot(page, 'settings', lang);
+      await box('codex').uncheck();
+      await box('claude-app').uncheck();
+      await page.waitForTimeout(500);
       await clear(); await page.locator('[aria-controls="dshu-nb-settings"]').click();
-      await page.waitForTimeout(800);
-      if ((await chipIds(page)).join() !== 'claude-code') problems.push(`${lang}: after turning Codex off, chips ${(await chipIds(page)).join()}`);
+      await page.waitForTimeout(4000);
+      if ((await chipIds(page)).join() !== 'claude,workbuddy') problems.push(`${lang}: after turning Codex and the Claude app off, chips ${(await chipIds(page)).join()}`);
       leaks(`${lang} page`, await page.content());
       leaks(`${lang} page text`, await page.evaluate(() => document.body.innerText));
       leaks(`${lang} wire`, wire.join('\n'));
       await page.close();
       const again = await open(lang, ctx);
-      if ((await chipIds(again.page)).join() !== 'claude-code') problems.push(`${lang}: after a reload, chips ${(await chipIds(again.page)).join()} (Codex should stay off)`);
+      if ((await chipIds(again.page)).join() !== 'claude,workbuddy') problems.push(`${lang}: after a reload, chips ${(await chipIds(again.page)).join()} (Codex should stay off)`);
       if (await again.page.locator('[data-dshu-notice]').count()) problems.push(`${lang}: the notice came back after a reload`);
-      if (again.reads.some((r) => r.includes('codex'))) problems.push(`${lang}: Codex is off, yet it was read`);
+      if (again.reads.some((r) => r.includes('"chatgpt"'))) problems.push(`${lang}: Codex is off, yet the ChatGPT city was read`);
+      if (!again.reads.some((r) => /"off":\[[^\]]*"claude-app"/.test(r))) problems.push(`${lang}: the Claude app is off, yet not left out of the Claude city`);
+      await again.page.locator('[data-dshu-chip="claude"]').click().catch(() => problems.push(`${lang}: no Claude chip after the reload`));
+      await again.page.waitForTimeout(3000);
+      await again.page.getByRole('button', { name: W.list, exact: true }).first().click();
+      await again.page.waitForTimeout(1500);
+      const t2 = await again.page.evaluate(() => document.body.innerText);
+      if (t2.includes('Cowork') || t2.includes(W.app)) problems.push(`${lang}: the Claude app is off, yet its sessions are shown`);
+      if (!t2.includes(CUSTOM_TITLE)) problems.push(`${lang}: Claude Code sessions are gone with the app turned off`);
+      await again.page.getByRole('button', { name: W.city, exact: true }).first().click();
+      await again.page.waitForTimeout(800);
       await shot(again.page, 'off-persisted', lang);
       leaks(`${lang} wire (reload)`, again.wire.join('\n'));
       await ctx.close();
@@ -178,6 +210,8 @@ try {
     step('no stores (as in a cloud workspace): silent');
     renameSync(join(home, '.claude'), join(home, '.claude-away'));
     renameSync(join(home, '.codex'), join(home, '.codex-away'));
+    renameSync(join(home, '.workbuddy'), join(home, '.workbuddy-away'));
+    renameSync(claudeAppDir(home), claudeAppDir(home) + '-away');
     const { ctx, page, reads } = await open('en');
     if (await page.locator('[data-dshu-notice]').count()) problems.push('no stores, yet a notice');
     if (await page.locator('[data-dshu-chip]').count()) problems.push('no stores, yet chips');
@@ -197,5 +231,5 @@ try {
   if (opt.keep) step(`kept ${T}`); else rmSync(T, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
 }
 for (const p of problems) console.log(`[neighbours] problem: ${p}`);
-console.log(problems.length ? `[neighbours] ${problems.length} problem(s)` : `[neighbours] ok: official DSH ${opt.dsh}, adjacent cities on by default in en and zh, chips, off persists, nothing leaked`);
+console.log(problems.length ? `[neighbours] ${problems.length} problem(s)` : `[neighbours] ok: official DSH ${opt.dsh}, Claude, ChatGPT and WorkBuddy cities on by default in en and zh, chips, per-source switches, off persists, nothing leaked`);
 process.exit(problems.length ? 1 : 0);

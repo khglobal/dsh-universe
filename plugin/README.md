@@ -8,11 +8,24 @@ city panel, the list and the Today bar.
 It reads host metadata only (session state, tool names, usage, times), never session content, plan text or replies.
 
 Works with Claude Code and Codex: runs a DSH session delegates to them stand in its building, named after the engine.
-When Claude Code or Codex is on the same device, their sessions are shown automatically as neighbouring cities and
-counted in the Today bar as "+n local" (metadata only, read from their session files on this device; each can be
-turned off under Nearby cities). On the Astero workbench home, the Today tile (`@khglobal/dsh-universe#today`) shows
-what needs you, running sessions, failed calls, tokens and the next scheduled task, with the same "+n local" part, and
-opens the city on a click.
+
+Neighbouring cities, one per vendor, shown automatically when their agent tools are on the same device and counted
+in the Today bar as "+n local":
+
+- **Claude**: Claude Code (`~/.claude/projects`) and the Claude desktop app's agent sessions (Cowork, and sessions
+  started in its Code tab), each tagged with its product. A Code-tab session is also in Claude Code's store; it is
+  counted once, as the Claude app's.
+- **ChatGPT**: Codex (`~/.codex/sessions`, `~/.codex/archived_sessions`).
+- **WorkBuddy**: WorkBuddy's sessions (`~/.workbuddy/projects`).
+
+Metadata only (times, tool names and counts, token counts, models, error flags, subagents, project folder names), read
+from those session files on this device; nothing leaves it. Never read: messages, prompts, replies, reasoning, tool
+input or output, file contents, error text, generated titles, chats with Claude or ChatGPT (kept in the vendor's cloud),
+browser storage, cookies, account or token files, databases. Each source is on by default and has its own switch under
+**Nearby cities**; turning one off stops the reading and drops what was read.
+
+On the Astero workbench home, the Today tile (`@khglobal/dsh-universe#today`) shows what needs you, running sessions,
+failed calls, tokens and the next scheduled task, with the same "+n local" part, and opens the city on a click.
 
 ## Desktop and cloud
 

@@ -1,6 +1,6 @@
 // Small per-device view preferences (legend open, timeline minimised, city or list). Storage that cannot be read or
 // written falls back to the defaults and never throws.
-import { PLUGIN_SLUG } from '@dsh-universe/adapter-dsh';
+import { CITY_SOURCES, LEGACY_CITY, NEIGHBOURS, PLUGIN_SLUG, SOURCES, type NeighbourId, type SourceId } from '@dsh-universe/adapter-dsh';
 
 /** `sound`: the square's ambient sound, off by default. */
 /** `toured`: the first-run tour was seen or dismissed on this device. */
@@ -8,16 +8,24 @@ import { PLUGIN_SLUG } from '@dsh-universe/adapter-dsh';
 export type Light = 'auto' | 'day' | 'night';
 export const LIGHTS: readonly Light[] = ['auto', 'day', 'night'];
 /**
- * `neighbours`: the adjacent cities (Claude Code, Codex on this device) the member turned off (false) or on (true).
- * On by default: absent means on, wherever the tool's store is found.
+ * `neighbours`: the sources of the adjacent cities (Claude Code, the Claude app, Codex, WorkBuddy on this device) the
+ * member turned off (false) or on (true). On by default: absent means on, wherever the source's store is found. Keyed
+ * by source as in 0.2 (when Claude Code and Codex were cities of their own), so a choice made then carries over.
  */
-export type NeighbourChoice = Partial<Record<'claude-code' | 'codex', boolean>>;
-/** `noticed`: the tools whose one-line "found" notice was shown on this device. */
-export interface Prefs { legend: boolean; dockMin: boolean; view: 'city' | 'list'; sound: boolean; toured: boolean; light: Light; neighbours: NeighbourChoice; noticed: ('claude-code' | 'codex')[] }
+export type NeighbourChoice = Partial<Record<SourceId, boolean>>;
+/** `noticed`: the cities whose one-line "found" notice was shown on this device. */
+export interface Prefs { legend: boolean; dockMin: boolean; view: 'city' | 'list'; sound: boolean; toured: boolean; light: Light; neighbours: NeighbourChoice; noticed: NeighbourId[] }
 export const PREFS_KEY = PLUGIN_SLUG + '.view';
 export const DEFAULT_PREFS: Prefs = { legend: false, dockMin: false, view: 'city', sound: false, toured: false, light: 'auto', neighbours: {}, noticed: [] };
-/** Whether an adjacent city is shown: unless the member turned it off. */
-export const neighbourOn = (p: Pick<Prefs, 'neighbours'>, id: 'claude-code' | 'codex'): boolean => p.neighbours[id] !== false;
+/** Whether a source is shown: unless the member turned it off. */
+export const neighbourOn = (p: Pick<Prefs, 'neighbours'>, id: SourceId): boolean => p.neighbours[id] !== false;
+/** The sources the member turned off (sent with each request, so the host leaves them out). */
+export const offSources = (p: Pick<Prefs, 'neighbours'>): SourceId[] => SOURCES.filter((s) => p.neighbours[s] === false);
+/** The cities with a source found on this device. */
+export const citiesFound = (present: readonly SourceId[]): NeighbourId[] => NEIGHBOURS.filter((c) => CITY_SOURCES[c].some((s) => present.includes(s)));
+/** The cities shown: with a source found on this device and left on. */
+export const citiesShown = (p: Pick<Prefs, 'neighbours'>, present: readonly SourceId[]): NeighbourId[] =>
+  NEIGHBOURS.filter((c) => CITY_SOURCES[c].some((s) => present.includes(s) && neighbourOn(p, s)));
 
 export function readPrefs(storage: Pick<Storage, 'getItem'> | undefined = globalThis.localStorage): Prefs {
   try {
@@ -30,14 +38,15 @@ export function readPrefs(storage: Pick<Storage, 'getItem'> | undefined = global
       toured: raw.toured === true,
       light: raw.light === 'day' || raw.light === 'night' ? raw.light : 'auto',
       neighbours: readChoice(raw.neighbours),
-      noticed: Array.isArray(raw.noticed) ? (['claude-code', 'codex'] as const).filter((k) => (raw.noticed as unknown[]).includes(k)) : [],
+      // 0.2 noted its cities by source (Claude Code, Codex): those notices count for the city each one is part of.
+      noticed: Array.isArray(raw.noticed) ? NEIGHBOURS.filter((k) => (raw.noticed as unknown[]).some((x) => x === k || (typeof x === 'string' && LEGACY_CITY[x] === k))) : [],
     };
   } catch { return { ...DEFAULT_PREFS }; }
 }
 function readChoice(v: unknown): NeighbourChoice {
   const r = v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
   const out: NeighbourChoice = {};
-  for (const k of ['claude-code', 'codex'] as const) if (typeof r[k] === 'boolean') out[k] = r[k] as boolean;
+  for (const k of SOURCES) if (typeof r[k] === 'boolean') out[k] = r[k] as boolean;
   return out;
 }
 export function writePrefs(p: Prefs, storage: Pick<Storage, 'setItem'> | undefined = globalThis.localStorage): void {

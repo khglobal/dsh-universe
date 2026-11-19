@@ -11,7 +11,7 @@ import { createCodexAdapter, CODEX_TOOLS } from '../src/index.ts';
 const noon = () => { const d = new Date(); d.setHours(12, 0, 0, 0); return d.getTime(); };
 async function withStore(fn: (home: string, now: number) => Promise<void>) {
   const home = mkdtempSync(join(tmpdir(), 'dshu-cx-'));
-  try { const now = noon(); seedLocalStores(home, now, { claude: false }); await fn(home, now); } finally { rmSync(home, { recursive: true, force: true }); }
+  try { const now = noon(); seedLocalStores(home, now, { claude: false, claudeApp: false, workbuddy: false }); await fn(home, now); } finally { rmSync(home, { recursive: true, force: true }); }
 }
 
 test('codex: metadata only; no marker from any content field reaches the output', async () => {

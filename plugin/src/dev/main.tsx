@@ -97,10 +97,10 @@ const env: Env = {
     console.info('[dev] openSession', id);
     document.body.animate?.([{ boxShadow: 'inset 0 0 0 4px #2F6BDE' }, { boxShadow: 'inset 0 0 0 0 #2F6BDE' }], { duration: 600 });
   },
-  // `?local=1`: Claude Code and Codex present with fixed figures, so the tile's "+n local" part can be seen.
+  // `?local=1`: the Claude, ChatGPT and WorkBuddy cities present with fixed figures, so the tile's "+n local" part can be seen.
   ...(q.get('local') === '1' ? { neighbours: {
-    detect: async () => ['claude-code', 'codex'] as const,
-    summary: async () => [{ id: 'claude-code', ready: true, running: 2, errors: 1, tokens: 184_000 }, { id: 'codex', ready: true, running: 1, errors: 0, tokens: 52_000 }] as const,
+    detect: async () => ['claude-code', 'claude-app', 'codex', 'workbuddy'] as const,
+    summary: async () => [{ id: 'claude', ready: true, running: 2, errors: 1, tokens: 184_000 }, { id: 'chatgpt', ready: true, running: 1, errors: 0, tokens: 52_000 }, { id: 'workbuddy', ready: true, running: 1, errors: 2, tokens: 31_000 }] as const,
     feed: () => { throw Error('dev: no neighbour feed'); }, stop: () => {},
   } } as Partial<Env> : {}),
 };

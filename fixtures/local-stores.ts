@@ -3,6 +3,7 @@
 // or the rendered page may contain a marker; the explicit session title (`customTitle`) is the one text that may.
 import { mkdirSync, writeFileSync, appendFileSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
+import { claudeAppDir } from '@dsh-universe/adapter-claude-app';
 
 /** Marker strings, one per content field. */
 export const MARK = {
@@ -14,29 +15,30 @@ export const MARK = {
   history: 'LEAKMARK-history-s9', instructions: 'LEAKMARK-instructions-t0', args: 'LEAKMARK-args-u1', output: 'LEAKMARK-output-v2',
   threadName: 'LEAKMARK-threadname-w3', command: 'LEAKMARK-command-x4', stdout: 'LEAKMARK-stdout-y5', reasoning: 'LEAKMARK-reasoning-z6',
   gitUrl: 'LEAKMARK-giturl-a7', fileContent: 'LEAKMARK-filecontent-b8', cost: 'LEAKMARK-cost-c9',
+  email: 'LEAKMARK-email-d0', systemPrompt: 'LEAKMARK-systemprompt-e1', initialMessage: 'LEAKMARK-initialmessage-f2', audit: 'LEAKMARK-audit-g3',
+  browser: 'LEAKMARK-browserstore-h4', token: 'LEAKMARK-token-i5', appTitle: 'LEAKMARK-apptitle-j6', wbArgs: 'LEAKMARK-wbargs-k7',
+  wbDisplay: 'LEAKMARK-wbdisplay-l8', wbDb: 'LEAKMARK-wbdb-m9', wbTask: 'LEAKMARK-wbtask-n0', wbTrace: 'LEAKMARK-wbtrace-o1',
+  wbTitle: 'LEAKMARK-wbtitle-p2', wbAgent: 'LEAKMARK-wbagentname-q3',
 } as const;
 export const MARKERS: readonly string[] = Object.values(MARK);
 /** The one explicit, member-set title in the fixture (allowed to appear). */
 export const CUSTOM_TITLE = 'Release prep';
-export const PROJECTS = { app: 'demo-app', api: 'billing-api', docs: 'docs-site' };
+export const PROJECTS = { app: 'demo-app', api: 'billing-api', docs: 'docs-site', report: 'market-report' };
+/** The fixture's session ids by source (the Claude app's Code-tab session lives in Claude Code's store). */
+export const IDS = {
+  codeTab: 'c0ffee02-0000-4000-8000-000000000001', adopted: 'c0ffee01-0000-4000-8000-000000000004',
+  cowork: ['c0ffee03-0000-4000-8000-000000000001', 'c0ffee03-0000-4000-8000-000000000002'],
+  workbuddy: ['0b0d0b0d-0000-4000-8000-000000000001', '0b0d0b0d-0000-4000-8000-000000000002', '0b0d0b0d-0000-4000-8000-000000000003'],
+};
 
 const iso = (t: number) => new Date(t).toISOString();
 const line = (o: unknown) => JSON.stringify(o) + '\n';
 
-/**
- * Writes `<home>/.claude/projects/...` and `<home>/.codex/sessions/...` with sessions of today (at `now`) and of
- * two earlier days. Returns the session ids.
- */
-export function seedLocalStores(home: string, now: number, o: { claude?: boolean; codex?: boolean } = {}) {
-  const day0 = new Date(now); day0.setHours(0, 0, 0, 0);
-  const at = (h: number, m = 0) => day0.getTime() + (h * 60 + m) * 60_000;
-  const ids = { cc: [] as string[], cx: [] as string[] };
-  if (o.claude !== false) {
-    const root = join(home, '.claude');
-    const projects = join(root, 'projects');
-    const cwdOf = (p: string) => `/work/${MARK.parentDir}/${p}`;
-    const common = (sid: string, cwd: string) => ({ sessionId: sid, cwd, version: '2.1.0', gitBranch: MARK.branch, userType: 'external', entrypoint: 'cli' });
-    const session = (sid: string, project: string, start: number, steps: { tools: [string, boolean][]; end: 'end_turn' | 'open' | 'apierror'; title?: string; model?: string; sub?: string }) => {
+export interface ClaudeSteps { tools: [string, boolean][]; end: 'end_turn' | 'open' | 'apierror'; title?: string; model?: string; sub?: string }
+
+/** One Claude Code-format session file (and its subagent's) under `projects`, as Claude Code 2.x writes it. */
+export function claudeSession(projects: string, sid: string, project: string, start: number, steps: ClaudeSteps, cwdOf: (p: string) => string = (p) => `/work/${MARK.parentDir}/${p}`): string {
+  const common = (sid: string, cwd: string) => ({ sessionId: sid, cwd, version: '2.1.0', gitBranch: MARK.branch, userType: 'external', entrypoint: 'cli' });
       const cwd = cwdOf(project);
       const dir = join(projects, cwd.replace(/[/.]/g, '-'));
       mkdirSync(dir, { recursive: true });
@@ -91,9 +93,22 @@ export function seedLocalStores(home: string, now: number, o: { claude?: boolean
         s2 += line({ parentUuid: 'x', isSidechain: true, agentId: aid, type: 'assistant', message: { id: `msg_sub_${aid}_end`, role: 'assistant', model: 'claude-haiku-4-5', stop_reason: 'end_turn', usage: { input_tokens: 400, output_tokens: 200 }, content: [{ type: 'text', text: MARK.reply }] }, uuid: 'se', timestamp: iso(t2 += 10_000), ...common(sid, cwd) });
         writeFileSync(join(sdir, `agent-${aid}.jsonl`), s2);
       }
-      ids.cc.push(sid);
       return f;
-    };
+}
+
+
+/**
+ * Writes `<home>/.claude/projects/...` and `<home>/.codex/sessions/...` with sessions of today (at `now`) and of
+ * two earlier days. Returns the session ids.
+ */
+export function seedLocalStores(home: string, now: number, o: { claude?: boolean; codex?: boolean; claudeApp?: boolean; workbuddy?: boolean } = {}) {
+  const day0 = new Date(now); day0.setHours(0, 0, 0, 0);
+  const at = (h: number, m = 0) => day0.getTime() + (h * 60 + m) * 60_000;
+  const ids = { cc: [] as string[], cx: [] as string[], app: [] as string[], wb: [] as string[] };
+  if (o.claude !== false) {
+    const root = join(home, '.claude');
+    const projects = join(root, 'projects');
+    const session = (sid: string, project: string, st: number, steps: ClaudeSteps) => { ids.cc.push(sid); return claudeSession(projects, sid, project, st, steps); };
     const ok = (n: string): [string, boolean] => [n, true];
     session('c0ffee01-0000-4000-8000-000000000001', PROJECTS.app, at(8, 40), { tools: [ok('Read'), ok('Grep'), ok('Edit'), ['Bash', false], ok('Bash'), ok('Edit')], end: 'end_turn', title: CUSTOM_TITLE, sub: '1' });
     session('c0ffee01-0000-4000-8000-000000000002', PROJECTS.app, Math.max(at(0, 5), now - 8 * 60_000), { tools: [ok('Glob'), ok('Read'), ok('WebFetch'), ok('mcp__linear__get_issue'), ok('Write')], end: 'open' });
@@ -152,6 +167,8 @@ export function seedLocalStores(home: string, now: number, o: { claude?: boolean
     writeFileSync(join(root, 'history.jsonl'), line({ session_id: 'x', ts: 1, text: MARK.history }));
     writeFileSync(join(root, 'session_index.jsonl'), line({ id: '0a11ce00-0000-4000-8000-000000000001', thread_name: MARK.threadName, updated_at: iso(now) }));
   }
+  if (o.claudeApp !== false) seedClaudeApp(home, now, at, ids.app);
+  if (o.workbuddy !== false) seedWorkBuddy(home, at, now, ids.wb);
   return ids;
 }
 
@@ -159,4 +176,118 @@ export function seedLocalStores(home: string, now: number, o: { claude?: boolean
 export function appendClaudeTurn(file: string, sid: string, t: number, name: string) {
   const cwd = `/work/${MARK.parentDir}/${PROJECTS.app}`;
   appendFileSync(file, line({ parentUuid: 'x', isSidechain: false, type: 'assistant', message: { id: 'msg_live_' + t, role: 'assistant', model: 'claude-opus-4-5', stop_reason: 'tool_use', usage: { input_tokens: 100, output_tokens: 10 }, content: [{ type: 'tool_use', id: 'toolu_live_' + t, name, input: { x: MARK.toolInput } }] }, uuid: 'l' + t, timestamp: iso(t), sessionId: sid, cwd }));
+}
+
+/**
+ * The Claude desktop app's folder: two Cowork sessions (transcripts in Claude Code's format inside the session's own
+ * folder, beside a metadata file, an audit log, uploads and outputs full of content), a Code-tab session started in
+ * the app (its transcript in Claude Code's own store) and one picked up from a terminal session (stays Claude Code's),
+ * plus browser storage and token files that must never be read.
+ */
+function seedClaudeApp(home: string, now: number, at: (h: number, m?: number) => number, out: string[]) {
+  const app = claudeAppDir(home);
+  const org = join(app, 'local-agent-mode-sessions', 'acc00000-0000-4000-8000-000000000001', 'org00000-0000-4000-8000-000000000001');
+  const sess = (n: number, cli: string, start: number, steps: ClaudeSteps) => {
+    const local = `local_${String(n).padStart(8, '0')}-0000-4000-8000-000000000000`;
+    const dir = join(org, local);
+    mkdirSync(join(dir, 'outputs'), { recursive: true });
+    mkdirSync(join(dir, 'uploads'), { recursive: true });
+    writeFileSync(join(org, local + '.json'), JSON.stringify({ sessionId: local, cliSessionId: cli, title: MARK.appTitle, initialMessage: MARK.initialMessage, systemPrompt: MARK.systemPrompt, emailAddress: MARK.email, accountName: MARK.account, cwd: '/sessions/' + MARK.parentDir, model: 'claude-opus-4-5', createdAt: start, lastActivityAt: now }));
+    writeFileSync(join(dir, 'audit.jsonl'), line({ type: 'user', session_id: cli, message: { content: MARK.audit }, _audit_timestamp: iso(start) }));
+    writeFileSync(join(dir, 'outputs', 'report.md'), MARK.fileContent);
+    claudeSession(join(dir, '.claude', 'projects'), cli, 'outputs', start, steps, () => `/Users/${MARK.parentDir}/Claude/local_${n}/outputs`);
+    out.push(cli);
+  };
+  const ok = (n: string): [string, boolean] => [n, true];
+  sess(1, IDS.cowork[0], at(9, 30), { tools: [ok('Read'), ok('mcp__notion__search'), ok('Write')], end: 'end_turn', sub: '9', model: 'claude-sonnet-4-5' });
+  sess(2, IDS.cowork[1], Math.max(at(0, 3), now - 5 * 60_000), { tools: [ok('WebSearch'), ['Bash', false], ok('Skill')], end: 'open' });
+  const tabs = join(app, 'claude-code-sessions', 'acc00000-0000-4000-8000-000000000001', 'org00000-0000-4000-8000-000000000001');
+  mkdirSync(tabs, { recursive: true });
+  writeFileSync(join(tabs, 'local_tab00001.json'), JSON.stringify({ sessionId: 'local_tab00001', cliSessionId: IDS.codeTab, title: MARK.appTitle, cwd: '/work/' + MARK.parentDir, model: 'claude-opus-4-5', createdAt: at(10), lastActivityAt: at(11), permissionMode: 'default', remoteMcpServersConfig: [{ name: 'x', instructions: MARK.instructions }] }));
+  writeFileSync(join(tabs, 'local_tab00002.json'), JSON.stringify({ sessionId: 'local_tab00002', cliSessionId: IDS.adopted, fromCliTranscript: true, adoptedFromOtherSurface: true, title: MARK.appTitle, createdAt: at(11), lastActivityAt: at(12) }));
+  claudeSession(join(home, '.claude', 'projects'), IDS.codeTab, PROJECTS.app, at(10, 5), { tools: [ok('Read'), ok('Edit'), ['Bash', false], ok('Bash')], end: 'end_turn' });
+  out.push(IDS.codeTab);
+  // Never read: the app's browser storage, cookies and token files.
+  mkdirSync(join(app, 'Local Storage', 'leveldb'), { recursive: true });
+  writeFileSync(join(app, 'Local Storage', 'leveldb', '000003.log'), MARK.browser);
+  mkdirSync(join(app, 'IndexedDB'), { recursive: true });
+  writeFileSync(join(app, 'IndexedDB', 'x.jsonl'), line({ type: 'assistant', timestamp: iso(now), text: MARK.browser }));
+  writeFileSync(join(app, 'Cookies'), MARK.token);
+  writeFileSync(join(app, 'buddy-tokens.json'), JSON.stringify({ token: MARK.token }));
+  writeFileSync(join(app, 'config.json'), JSON.stringify({ oauth: MARK.token }));
+}
+
+/**
+ * WorkBuddy's store (`~/.workbuddy`): three sessions of today and one older, in the agent's own run format (field names
+ * as WorkBuddy writes them, times in milliseconds), a subagent, a failed call, a session that stopped on an error;
+ * and the files beside them (database, tasks, traces, settings) with markers that must never be read.
+ */
+function seedWorkBuddy(home: string, at: (h: number, m?: number) => number, now: number, out: string[]) {
+  const root = join(home, '.workbuddy');
+  const cwdOf = (p: string) => `/Users/${MARK.parentDir}/WorkBuddy/${p}`;
+  const usage = (i: number) => ({ input_tokens: 4000 + i * 500, output_tokens: 300 + i * 20, cache_read_input_tokens: 1000, total_tokens: 4300 + i * 520 });
+  const pd = (o: Record<string, unknown> = {}) => ({ model: 'glm-5.2', requestModelId: 'auto', requestModelName: 'Auto', agent: 'cli', traceId: 'tr', conversationRequestId: 'cr', ...o });
+  const session = (sid: string, project: string, start: number, steps: { tools: [string, 'ok' | 'error' | 'exit' | 'open'][]; end: 'done' | 'open' | 'error'; sub?: boolean; model?: string }) => {
+    const cwd = cwdOf(project);
+    const dir = join(root, 'projects', cwd.replace(/[/.]/g, '-'));
+    mkdirSync(dir, { recursive: true });
+    let t = start, n = 0;
+    const tick = () => (t += 30_000 + (n++ % 4) * 6_000);
+    const base = () => ({ sessionId: sid, cwd, timestamp: t });
+    let s = '';
+    s += line({ type: 'message', role: 'user', id: 'u0', content: [{ type: 'input_text', text: MARK.prompt }], rawContent: [{ type: 'text', text: MARK.prompt }], providerData: { messageId: 'pu0' }, ...base() });
+    s += line({ type: 'file-history-snapshot', id: 'fh', isSnapshotUpdate: false, snapshot: { messageId: 'x', trackedFileBackups: { [MARK.fileContent]: { backupFileName: MARK.fileContent, version: 1, backupTime: iso(t) } } }, timestamp: t });
+    s += line({ type: 'ai-title', aiTitle: MARK.wbTitle, sessionId: sid, timestamp: t });
+    steps.tools.forEach(([name, res], i) => {
+      const mid = `pm_${sid.slice(-4)}_${i}`, cid = `call_${sid.slice(-4)}_${i}`;
+      tick();
+      s += line({ type: 'reasoning', id: 'r' + i, content: [{ type: 'input_text', text: MARK.reasoning }], providerData: pd({ messageId: mid, reasoning: MARK.reasoning }), ...base() });
+      s += line({ type: 'message', role: 'assistant', status: 'completed', id: 'a' + i, content: [{ type: 'output_text', text: MARK.reply }], providerData: pd({ messageId: mid, model: steps.model ?? 'glm-5.2' }), ...base() });
+      s += line({ type: 'function_call', id: 'f' + i, callId: cid, name, arguments: JSON.stringify({ command: MARK.wbArgs }), status: 'completed', message: { usage: usage(i) }, providerData: pd({ messageId: mid, model: steps.model ?? 'glm-5.2', argumentsDisplayText: MARK.wbDisplay, usage: { inputTokens: 4000, outputTokens: 300, requests: 1, totalTokens: 4300, inputTokensDetails: [{ cached_tokens: 1000 }] }, rawUsage: { prompt_tokens: 4000, completion_tokens: 300, credit: 1 } }), ...base() });
+      if (res === 'open') return;
+      tick();
+      const toolResult = res === 'error' ? { error: MARK.errorText, content: MARK.toolResult } : { content: [MARK.toolResult], title: MARK.toolResult, rawResponse: { exitCode: res === 'exit' ? 1 : 0, stdoutBytesTruncated: 0, query: MARK.toolInput }, renderer: { type: 'code', value: MARK.output } };
+      s += line({ type: 'function_call_result', id: 'fr' + i, callId: cid, name, status: 'completed', output: { type: 'text', text: MARK.output }, providerData: pd({ toolResult }), ...base() });
+    });
+    tick();
+    if (steps.end === 'done') s += line({ type: 'message', role: 'assistant', status: 'completed', id: 'end', content: [{ type: 'output_text', text: MARK.reply }], message: { usage: usage(9) }, providerData: pd({ messageId: `pm_${sid.slice(-4)}_end`, model: steps.model ?? 'glm-5.2' }), ...base() });
+    else if (steps.end === 'error') s += line({ type: 'message', role: 'assistant', status: 'incomplete', id: 'err', content: [{ type: 'output_text', text: MARK.errorText }], providerData: { messageId: 'perr', error: { code: 500, status: 500, message: MARK.errorText, requestID: MARK.account } }, ...base() });
+    const f = join(dir, sid + '.jsonl');
+    writeFileSync(f, s);
+    if (steps.sub) {
+      const sdir = join(dir, sid, 'subagents');
+      mkdirSync(sdir, { recursive: true });
+      mkdirSync(join(dir, sid, 'tool-results'), { recursive: true });
+      writeFileSync(join(dir, sid, 'tool-results', 'r.txt'), MARK.toolResult);
+      let t2 = start + 4 * 60_000, s2 = '';
+      const sb = () => ({ sessionId: 'sub-' + sid, cwd, timestamp: t2 });
+      s2 += line({ type: 'message', role: 'user', id: 'su', content: [{ type: 'input_text', text: MARK.subTask }], providerData: { agent: 'Explore', isSubAgent: true }, ...sb() });
+      for (let i = 0; i < 2; i++) {
+        t2 += 15_000;
+        s2 += line({ type: 'function_call', id: 'sf' + i, callId: `sc_${sid.slice(-4)}_${i}`, name: i ? 'Grep' : 'Read', arguments: MARK.wbArgs, message: { usage: usage(i) }, providerData: pd({ agent: 'Explore', isSubAgent: true, messageId: `sm_${sid.slice(-4)}_${i}`, model: 'deepseek-v4-flash' }), ...sb() });
+        t2 += 5_000;
+        s2 += line({ type: 'function_call_result', id: 'sr' + i, callId: `sc_${sid.slice(-4)}_${i}`, status: 'completed', output: { type: 'text', text: MARK.output }, providerData: pd({ agent: 'Explore', isSubAgent: true, toolResult: { content: [MARK.toolResult] } }), ...sb() });
+      }
+      t2 += 10_000;
+      s2 += line({ type: 'message', role: 'assistant', status: 'completed', id: 'se', content: [{ type: 'output_text', text: MARK.reply }], providerData: pd({ agent: 'Explore', isSubAgent: true, messageId: 'sme', model: 'deepseek-v4-flash' }), ...sb() });
+      writeFileSync(join(sdir, `agent-${sid.slice(-8)}.jsonl`), s2);
+    }
+    out.push(sid);
+    return f;
+  };
+  session(IDS.workbuddy[0], PROJECTS.report, at(8, 20), { tools: [['Read', 'ok'], ['WebSearch', 'ok'], ['Bash', 'exit'], ['Write', 'ok'], ['Edit', 'error']], end: 'done', sub: true });
+  session(IDS.workbuddy[1], PROJECTS.report, Math.max(at(0, 4), now - 4 * 60_000), { tools: [['Read', 'ok'], ['mcp__tapd__list', 'ok'], ['Bash', 'open']], end: 'open', model: 'kimi-k3-1' });
+  session(IDS.workbuddy[2], PROJECTS.docs, at(10, 40), { tools: [['Glob', 'ok']], end: 'error' });
+  const old = session('0b0d0b0d-0000-4000-8000-000000000009', PROJECTS.docs, at(-40), { tools: [['Read', 'ok']], end: 'done' });
+  const oldT = new Date(at(-39)); utimesSync(old, oldT, oldT);
+  // Never read: WorkBuddy's database, tasks, traces, settings, memory and sign-in data, and the CodeBuddy extension.
+  writeFileSync(join(root, 'workbuddy.db'), MARK.wbDb);
+  mkdirSync(join(root, 'tasks', 'x'), { recursive: true });
+  writeFileSync(join(root, 'tasks', 'x', '1.json'), JSON.stringify({ id: '1', subject: MARK.wbTask, description: MARK.wbTask, status: 'completed' }));
+  mkdirSync(join(root, 'traces', '1'), { recursive: true });
+  writeFileSync(join(root, 'traces', '1', 't.json'), JSON.stringify({ trace: { sessionId: IDS.workbuddy[0], name: MARK.wbTrace }, spans: [{ toolInput: MARK.wbTrace, toolOutput: MARK.wbTrace }] }));
+  writeFileSync(join(root, 'settings.json'), JSON.stringify({ token: MARK.token }));
+  writeFileSync(join(root, 'USER.md'), MARK.email);
+  mkdirSync(join(home, 'Library', 'Application Support', 'CodeBuddyExtension', 'Data', 'Public', 'auth'), { recursive: true });
+  writeFileSync(join(home, 'Library', 'Application Support', 'CodeBuddyExtension', 'Data', 'Public', 'auth', 'a.json'), JSON.stringify({ token: MARK.token }));
 }

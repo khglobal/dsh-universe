@@ -16,10 +16,11 @@ export const claudeCodeCaps = (): UCapabilities => ({
 /** The folder whose presence means Claude Code is on this device. */
 export const claudeCodeRoot = (home: string) => join(home, '.claude', 'projects');
 
-export function createClaudeCodeAdapter(o: { home: string; now?: () => number; onTitle?: (sessionId: string, title: string) => void; passMs?: number; restore?: AdapterCheckpoint }): LocalAdapter {
+/** `skip`: session ids another source owns (the Claude app's Code tab), left out so each session is counted once. */
+export function createClaudeCodeAdapter(o: { home: string; now?: () => number; onTitle?: (sessionId: string, title: string) => void; passMs?: number; restore?: AdapterCheckpoint; skip?: () => Promise<ReadonlySet<string>> | ReadonlySet<string> }): LocalAdapter {
   return createLocalAdapter({
     platform: { id: 'claude-code', title: 'Claude Code', adapterVersion: CLAUDE_CODE_ADAPTER_VERSION },
-    caps: claudeCodeCaps(), root: claudeCodeRoot(o.home), watch: [claudeCodeRoot(o.home)], reader: claudeCodeReader(o.home),
+    caps: claudeCodeCaps(), root: claudeCodeRoot(o.home), watch: [claudeCodeRoot(o.home)], reader: claudeCodeReader(o.home, o.skip),
     consent: { readsKey: 'nb.reads', changesConfig: false, undoKey: 'nb.undo' },
     now: o.now, onTitle: o.onTitle, passMs: o.passMs, restore: o.restore,
   });

@@ -20,25 +20,37 @@ export interface SnapshotValue {
 export interface SinceValue { day: string; seq: number; events: SeqEvent[]; more: boolean; placement?: PlacementState; placementVersion: number; /** Adjacent cities: whether the first read of the store is still going. */ backfill?: SnapshotValue['backfill'] }
 
 /**
- * The adjacent cities (Claude Code, Codex on this device): shown whenever their store is found, unless the member
- * turned one off. Read only while the panel looks at them.
+ * The adjacent cities, one per vendor: Claude (Claude Code and the Claude desktop app), ChatGPT (Codex) and
+ * WorkBuddy. Each is built from one or more sources on this device, shown whenever a source's store is found unless
+ * the member turned that source off. Read only while the panel looks at them.
  */
-export const NEIGHBOURS = ['claude-code', 'codex'] as const;
+export const NEIGHBOURS = ['claude', 'chatgpt', 'workbuddy'] as const;
 export type NeighbourId = typeof NEIGHBOURS[number];
-export const isNeighbour = (v: unknown): v is NeighbourId => v === 'claude-code' || v === 'codex';
+export const isNeighbour = (v: unknown): v is NeighbourId => (NEIGHBOURS as readonly unknown[]).includes(v);
+/** The session stores on this device, each with its own switch (ids kept from 0.2: a choice made then carries over). */
+export const SOURCES = ['claude-code', 'claude-app', 'codex', 'workbuddy'] as const;
+export type SourceId = typeof SOURCES[number];
+export const isSource = (v: unknown): v is SourceId => (SOURCES as readonly unknown[]).includes(v);
+/** Which sources make up each city, in the order their switches are listed. */
+export const CITY_SOURCES: Readonly<Record<NeighbourId, readonly SourceId[]>> = { claude: ['claude-code', 'claude-app'], chatgpt: ['codex'], workbuddy: ['workbuddy'] };
+export const cityOfSource = (s: SourceId): NeighbourId => (NEIGHBOURS.find((c) => CITY_SOURCES[c].includes(s)))!;
+/** The 0.2 city ids (one per source then): their lots and figures belong to these cities now. */
+export const LEGACY_CITY: Readonly<Record<string, NeighbourId>> = { 'claude-code': 'claude', codex: 'chatgpt' };
+const sourceList = (v: unknown): SourceId[] | undefined => (v === undefined ? [] : Array.isArray(v) && v.length <= SOURCES.length && v.every(isSource) ? [...new Set(v as SourceId[])] : undefined);
 export interface NeighbourRoutes {
-  /** Which tools have a session store on this device (folder presence only; nothing is read). */
-  detect(): { id: NeighbourId; present: boolean }[];
-  snapshot(id: NeighbourId): SnapshotValue | Promise<SnapshotValue>;
-  since(id: NeighbourId, seq: number, limit: number, placementVersion: number): SinceValue | Promise<SinceValue>;
+  /** Which sources have a session store on this device (folder presence only; nothing is read). */
+  detect(): { id: SourceId; present: boolean }[];
+  /** `off`: the sources the member turned off (left out of the city). */
+  snapshot(id: NeighbourId, off?: readonly SourceId[]): SnapshotValue | Promise<SnapshotValue>;
+  since(id: NeighbourId, seq: number, limit: number, placementVersion: number, off?: readonly SourceId[]): SinceValue | Promise<SinceValue>;
   /** Today's figures of each city asked for (this starts its reading; the panel asks only for cities turned on). */
-  summary(ids: readonly NeighbourId[]): NeighbourSummary[] | Promise<NeighbourSummary[]>;
-  /** Turned off: stop reading and forget what was read. */
-  stop(id: NeighbourId): void | Promise<void>;
+  summary(ids: readonly NeighbourId[], off?: readonly SourceId[]): NeighbourSummary[] | Promise<NeighbourSummary[]>;
+  /** A source turned off: stop reading it and forget what was read. */
+  stop(id: SourceId): void | Promise<void>;
 }
 /**
  * An adjacent city's figures now, as its own Today bar counts them: sessions running, failed calls, tokens.
- * `ready`: the first read of its store is done (until then the figures are what was read so far).
+ * `ready`: the first read of its stores is done (until then the figures are what was read so far).
  */
 export interface NeighbourSummary { id: NeighbourId; ready: boolean; running: number; errors: number; tokens: number }
 
@@ -75,22 +87,30 @@ export async function dispatch(deps: RouteDeps, method: string, payload: unknown
     case 'n.summary': {
       if (!deps.neighbours) return ok([]);
       if (!isRec(payload) || !Array.isArray(payload.ids) || payload.ids.length > NEIGHBOURS.length || !payload.ids.every(isNeighbour)) return fail('invalid');
-      return ok(await deps.neighbours.summary([...new Set(payload.ids as NeighbourId[])]));
+      const off = sourceList(payload.off);
+      if (!off) return fail('invalid');
+      return ok(await deps.neighbours.summary([...new Set(payload.ids as NeighbourId[])], off));
     }
     case 'n.snapshot': case 'n.since': case 'n.stop': {
       const nb = deps.neighbours;
       if (!nb) return fail('unsupported');
+      if (method === 'n.stop') {
+        if (!isRec(payload) || !isSource(payload.id)) return fail('invalid');
+        await nb.stop(payload.id);
+        return ok(true);
+      }
       if (!isRec(payload) || !isNeighbour(payload.id)) return fail('invalid');
       const id = payload.id;
-      if (method === 'n.stop') { await nb.stop(id); return ok(true); }
+      const off = sourceList(payload.off);
+      if (!off) return fail('invalid');
       if (method === 'n.snapshot') {
-        const v = await nb.snapshot(id);
+        const v = await nb.snapshot(id, off);
         return ok(v.events.length > LIMITS.snapshotMax ? { ...v, events: v.events.slice(-LIMITS.snapshotMax), truncated: true } : v);
       }
       const { seq, limit, placementVersion } = payload;
       if (typeof seq !== 'number' || !Number.isInteger(seq) || seq < 0) return fail('invalid');
       if (limit !== undefined && (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1)) return fail('invalid');
-      return ok(await nb.since(id, seq, Math.min(typeof limit === 'number' ? limit : LIMITS.sinceMax, LIMITS.sinceMax), typeof placementVersion === 'number' && Number.isInteger(placementVersion) ? placementVersion : -1));
+      return ok(await nb.since(id, seq, Math.min(typeof limit === 'number' ? limit : LIMITS.sinceMax, LIMITS.sinceMax), typeof placementVersion === 'number' && Number.isInteger(placementVersion) ? placementVersion : -1, off));
     }
     default:
       return fail('unsupported');

@@ -67,33 +67,46 @@ city** or `Esc` to leave.
 The AI facilities can be entered too: Skills & Plugins shows what you installed, the Agent Academy your skills and
 experts, the Scheduler the day's scheduled tasks.
 
-## Claude Code and Codex
+## Claude, ChatGPT and WorkBuddy
 
 **Inside DSH.** When a session hands work to Claude Code or Codex (with DSH's Claude Code or Codex subagent plugins),
 the run appears in that session's building as a person in the engine's colours (Claude Code: a terracotta jacket and
 a cream cap; Codex: a dark hoodie with a teal visor), named "Claude Code" or "Codex". You see whether it is still
 working, finished or failed. DSH does not report these runs' tool calls or token use, so their card says so.
 
-**Neighbouring cities.** If Claude Code or Codex is installed on the same computer, its sessions appear as a city
-next to the DSH one automatically, with nothing to click: every session in its store, including the ones you started
-outside DSH, and new sessions show up as you start them. The first time, a one-line notice says so (with a link to
-the settings). The DSH city stays what you see first; a small chip beside the view switch, such as
-"Claude Code · 3 running", shows each neighbour, and clicking it goes to that city. Zoom out past the whole city
-(the `−` button or key, or the **All cities** button) to see the cities side by side, each with its sign; choose one
-to go in. Each city has the same buildings, rooms and data views; views with nothing to show (schedules) are left
-out. A Claude Code session is titled with the name you gave it (`/rename`); other sessions by project folder and
-date. In a cloud workspace there are no such tools, and nothing is shown.
+**Neighbouring cities.** Other agent tools on the same computer get a city each, by vendor, automatically, with
+nothing to click:
+
+| City | Sources | Their people |
+| --- | --- | --- |
+| Claude | Claude Code; the Claude desktop app (Cowork, and sessions started in its Code tab) | Claude Code: terracotta jacket, cream cap. Claude app: cream jacket, terracotta cap |
+| ChatGPT | Codex (the ChatGPT desktop app's agent work goes into the same store) | dark hoodie, teal visor |
+| WorkBuddy | WorkBuddy | violet jacket, green headset |
+
+Every session in those stores is there, including the ones you started outside DSH, and new sessions show up as you
+start them. In the Claude city each session's card and list row says which product it is from ("Claude Code" or
+"Claude app"), and Cowork sessions have a district of their own. A Code-tab session is saved in Claude Code's store as
+well; it is shown once, as the Claude app's.
+
+The first time, a one-line notice says so (with a link to the settings). The DSH city stays what you see first; a small
+chip beside the view switch, such as "Claude · 3 running", shows each neighbour, and clicking it goes to that city.
+Zoom out past the whole city (the `−` button or key, or the **All cities** button) to see the cities side by side, each
+with its sign; choose one to go in. Each city has the same buildings, rooms and data views; views with nothing to show
+(schedules) are left out. A Claude Code session is titled with the name you gave it (`/rename`); other sessions by
+project folder and date. In a cloud workspace there are no such tools, and nothing is shown.
 
 **In the Today bar.** In the DSH city, the running, failed-call and token figures add the neighbours' sessions as
-"+n local" (for example "3 sessions running +2 local"); hover for the breakdown by source. DSH's own figure comes
-first and is what the button steps through. Runs a DSH session delegates to Claude Code or Codex are not saved in
-those tools' session stores, so they are never counted twice.
+"+n local" (for example "3 sessions running +2 local"); hover for the breakdown by city. DSH's own figure comes first
+and is what the button steps through. Runs a DSH session delegates to Claude Code or Codex are not saved in those
+tools' session stores, so they are never counted twice.
 
-**Turning it off.** Open **Nearby cities** (top right) and clear the switch for Claude Code or Codex. Reading stops,
-what was read is dropped, and the choice is remembered on this device; turn it back on the same way. Only metadata is
-read (see below), and nothing leaves your computer. A large store takes a few seconds to read the first time; the
-DSH city is ready at once and the neighbours fill in as they are read. What was read is kept on this device, so the
-next start reads only what changed.
+**Turning it off.** Open **Nearby cities** (top right). Each source has its own switch, under its city: Claude Code
+and Claude app under Claude, Codex under ChatGPT, WorkBuddy under WorkBuddy. Clear one and its reading stops, what was
+read from it is dropped, and the choice is remembered on this device; a city whose sources are all off is no longer
+shown. Turn it back on the same way. If you turned Claude Code or Codex off in an earlier version, it stays off. Only
+metadata is read (see below), and nothing leaves your computer. A large store takes a few seconds to read the first
+time; the DSH city is ready at once and the neighbours fill in as they are read. What was read is kept on this device,
+so the next start reads only what changed.
 
 ## What it reads, and what it never reads
 
@@ -104,9 +117,11 @@ DSH Universe reads **metadata only**, on your own device:
   status, the plugins and skills you installed, scheduled-task names and times.
 
 It **never** reads your messages, the model's replies or thinking, tool arguments or results, file contents, error
-text or file paths. Claude Code and Codex session metadata on this device is shown automatically when those tools are
-installed (the same kinds of fields: times, tool names, token counts, error flags, models, project folder names);
-turn it off under **Nearby cities**. A subagent's title is its prompt, so subagents are shown by their preset name or as "Subagent n".
+text or file paths. Session metadata of Claude Code, the Claude desktop app, Codex and WorkBuddy on this device is
+shown automatically when those tools are installed (the same kinds of fields: times, tool names, token counts, error
+flags, models, project folder names), from their agent session files only: never chats (claude.ai and ChatGPT chats are
+in the vendor's cloud, not on this device), browser storage, cookies, sign-in or token files, or the apps' databases.
+Turn any source off under **Nearby cities**. The README lists exactly which files are read. A subagent's title is its prompt, so subagents are shown by their preset name or as "Subagent n".
 Nothing is uploaded and nothing is put into any prompt. The day's summary is kept in DSH's own storage on this
 device and deleted after 14 days.
 

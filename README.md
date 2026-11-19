@@ -61,19 +61,27 @@ All screenshots and animations use a made-up sample day (`fixtures/dsh-sample.ts
 **Workspace-aware**
 - Each workspace is its own district with a sign; buildings keep their place from day to day.
 
-**Works with Claude Code and Codex**
+**Works with Claude, ChatGPT (Codex) and WorkBuddy**
 - Inside DSH: work a session delegates to Claude Code or Codex (DSH's official `dsh-subagent-claude-code` and
   `dsh-subagent-codex` plugins) shows up as an agent in that session's building, in the engine's own colours and named
   "Claude Code" or "Codex", with its status and whether it failed. Its task and its answer are never read.
-- Neighbouring cities, automatic: when Claude Code or Codex is on the same device, its sessions appear as a city next
-  to the DSH one, with no setup, including sessions started outside DSH; new sessions show up live. The DSH city stays
-  the default view: a small chip such as "Claude Code · 3 running" shows the neighbours, and one click goes there.
-  Zoom out past the whole city to see the cities side by side, each with its sign; go into one for the same
-  buildings, rooms and data views (errors, token use, call volume, waits). A switch for each under **Nearby cities**
-  turns one off, and that choice is remembered. Silent where neither is installed, as in a cloud workspace.
+- Neighbouring cities, one per vendor, automatic: when another agent tool is on the same device, its sessions appear as
+  a city next to the DSH one, with no setup, including sessions started outside DSH; new sessions show up live.
+  - **Claude**: Claude Code sessions and the Claude desktop app's agent sessions (Cowork, and sessions started in its
+    Code tab). Each session's card says which product it is from ("Claude Code" or "Claude app"), its people wear that
+    product's colours, and Cowork has a district of its own.
+  - **ChatGPT**: Codex sessions (the ChatGPT desktop app's agent work goes into the same Codex store).
+  - **WorkBuddy**: WorkBuddy's (Tencent's desktop AI agent) sessions.
+
+  The DSH city stays the default view: a small chip such as "Claude · 3 running" shows each neighbour, and one click
+  goes there. Zoom out past the whole city to see the cities side by side, each with its sign; go into one for the
+  same buildings, rooms and data views (errors, token use, call volume, waits). Under **Nearby cities** each source has
+  its own switch, grouped by city, and that choice is remembered. Silent where none is installed, as in a cloud
+  workspace.
 - The Today bar's running, failed-call and token figures add those local sessions, labelled "+n local", with the
-  breakdown by source (DSH, Claude Code, Codex) on hover. Runs DSH delegates to Claude Code or Codex keep no session of
-  their own in those tools' stores, so nothing is counted twice.
+  breakdown by city (DSH, Claude, ChatGPT, WorkBuddy) on hover. Runs DSH delegates to Claude Code or Codex keep no
+  session of their own in those tools' stores, and a session the Claude app's Code tab runs is counted once, so nothing
+  is counted twice.
 - On the Astero workbench home, the **Today** tile (`@khglobal/dsh-universe#today`; 4×2, 2×2 or 4×1) shows the still
   mini city with what needs you, what is running, failed calls, tokens and the next scheduled task. Running, failed
   calls and tokens carry the same "+n local" part; the tile asks for those figures only while it is on screen, about
@@ -93,8 +101,8 @@ All screenshots and animations use a made-up sample day (`fixtures/dsh-sample.ts
 **Private by design**
 - Metadata only: never your messages, replies, tool arguments or results, or file contents.
 - Nothing leaves your device.
-- Claude Code and Codex cities are shown automatically when those tools are on your device, and read only what is
-  listed under [What it reads](#what-it-reads). Turn either off under **Nearby cities**.
+- The Claude, ChatGPT and WorkBuddy cities are shown automatically when those tools are on your device, and read only
+  what is listed under [What it reads](#what-it-reads). Turn any source off under **Nearby cities**.
 
 ## Gallery
 
@@ -142,16 +150,33 @@ text or file paths. Subagents are shown by their preset name, not their prompt.
 and the delegating call's tool name and time. DSH reports no tool calls or token use for these runs, so none are
 shown. The task description and the run's answer are never read.
 
-**Claude Code and Codex cities** (shown automatically when the tool is on this device, until you turn its city off),
-from their session files on this device (`~/.claude/projects`, `~/.codex/sessions` and `~/.codex/archived_sessions`):
+**Neighbouring cities** (shown automatically when the tool is on this device, until you turn that source off), from
+the agent session files on this device, and nothing else:
+
+| Source (city) | Files read |
+| --- | --- |
+| Claude Code (Claude) | `~/.claude/projects/<project>/<session>.jsonl` and its subagents' files |
+| Claude app (Claude) | Cowork: `<app>/local-agent-mode-sessions/<account>/<org>/local_<id>/.claude/projects/**.jsonl`; Code tab: of `<app>/claude-code-sessions/<account>/<org>/local_<id>.json` only `cliSessionId` and `fromCliTranscript`, then that session's file in `~/.claude/projects`. `<app>` is `~/Library/Application Support/Claude` (macOS) or `%APPDATA%\Claude` (Windows) |
+| Codex (ChatGPT) | `~/.codex/sessions`, `~/.codex/archived_sessions` |
+| WorkBuddy (WorkBuddy) | `~/.workbuddy/projects/<project>/<session>.jsonl` and its subagents' files |
 
 - read: session ids, times, the project folder's name (the full path never leaves the plugin's host side, and only
-  as a hash), model names, token counts, tool names and counts, whether a call failed (an error flag, an exit code),
-  turns starting and ending, retried requests, subagents and their preset names;
+  as a hash), model names, token counts, tool names and counts, whether a call failed (an error flag, an exit code,
+  whether an error field is there), turns starting and ending, retried requests, subagents and their preset names;
 - a session's title only when you set one yourself (Claude Code's `/rename`); otherwise sessions are named by project
-  folder and date;
+  folder and date (Cowork sessions are in a "Cowork" district);
 - **never**: messages, prompts, the model's replies or reasoning, tool input or output, commands, patches, file
-  contents, error text, generated titles or summaries, your prompt history, account ids or links.
+  contents, error text, generated titles or summaries, your prompt history, account ids, e-mail addresses or links;
+  the Claude app's session metadata files beyond the two keys above (they hold the first message, the system prompt
+  and the account's e-mail), its audit log, uploads and outputs; chats with Claude or ChatGPT (kept in the vendor's
+  cloud, not on this device); any app's browser storage (Local Storage, IndexedDB, caches), cookies, token, sign-in
+  or settings files; WorkBuddy's database, tasks, traces, memory, logs and settings; Codex's state databases.
+
+Not supported, and why: plain claude.ai and ChatGPT chats are not on this device (only in the vendor's cloud and the
+apps' private browser caches, which are never read). The ChatGPT desktop app keeps no agent-session records of its own:
+its Codex work is in the Codex store, read as above. A title you give a WorkBuddy session is kept only in WorkBuddy's
+database, which is not read, so WorkBuddy sessions are named by folder and date. The separate CodeBuddy editor
+extension keeps only sign-in data on this device and is not read.
 
 Large stores are read incrementally (only what was added since the last look, from today's first line, at most 14
 days back), in small steps that never hold up DSH: the DSH city is ready first and the neighbours fill in after. What
@@ -160,12 +185,12 @@ on this device, so the next start reads only what changed.
 
 ## Privacy
 
-- **Local Claude Code and Codex sessions are shown automatically.** If Claude Code or Codex is installed on this
-  device, their session metadata (the fields under [What it reads](#what-it-reads), never messages, prompts or tool
-  content) is shown as neighbouring cities and counted in the Today bar, with no click. To turn it off, open
-  **Nearby cities** (top right of the panel) and clear the switch for that tool: reading stops, what was read is
-  dropped, and the choice is remembered on this device. In a cloud workspace there are no such stores, so nothing is
-  shown.
+- **Local agent sessions are shown automatically.** If Claude Code, the Claude desktop app, Codex or WorkBuddy is on
+  this device, its session metadata (the fields under [What it reads](#what-it-reads), never messages, prompts or tool
+  content) is shown in the Claude, ChatGPT or WorkBuddy city and counted in the Today bar, with no click. Each source
+  is on by default. To turn one off, open **Nearby cities** (top right of the panel) and clear its switch: reading
+  stops, what was read is dropped, and the choice is remembered on this device (a choice made in 0.2 for Claude Code
+  or Codex carries over). In a cloud workspace there are no such stores, so nothing is shown.
 - Nothing is uploaded. The plugin makes no network requests of its own; the panel talks only to your own DSH.
 - Nothing is put into any prompt, and it adds no tools for the model.
 - The day's summary is kept in DSH's storage on this device for 14 days. Each device has its own city; nothing is

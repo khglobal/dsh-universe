@@ -46,17 +46,17 @@ export interface UAgent {
   endedAt?: number;
   scheduleId?: string;
   /**
-   * The coding engine that does this agent's work when it is not the platform's own: `claude-code` or `codex` (a
-   * DSH subagent delegated to Claude Code or Codex, or any agent of a Claude Code or Codex city). Drawn with that
-   * engine's look and named after it.
+   * The outside agent product that does this agent's work when it is not the platform's own: `claude-code` or `codex`
+   * (a DSH subagent delegated to Claude Code or Codex, or any agent of a neighbouring city), `claude-app` (the Claude
+   * desktop app's agent sessions) or `workbuddy`. Drawn with that product's look and named after it.
    */
   engine?: Engine;
 }
 
 /** Coding engines with their own look in the city. */
-export type Engine = 'claude-code' | 'codex';
-export const ENGINES: readonly Engine[] = ['claude-code', 'codex'];
-export const isEngine = (v: unknown): v is Engine => v === 'claude-code' || v === 'codex';
+export type Engine = 'claude-code' | 'claude-app' | 'codex' | 'workbuddy';
+export const ENGINES: readonly Engine[] = ['claude-code', 'claude-app', 'codex', 'workbuddy'];
+export const isEngine = (v: unknown): v is Engine => (ENGINES as readonly unknown[]).includes(v);
 
 export interface UActivity {
   /** Opaque call id from the platform, used only to drop duplicates (backfill overlapping live events). */
