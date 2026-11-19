@@ -74,8 +74,9 @@ export function audit(files, { license } = {}) {
         if (only === 'js' && !f.path.endsWith('.js')) continue;
         for (const m of text.matchAll(re)) {
           if (DOCUMENTED.includes(m[0])) continue;
-          // The READMEs and manifest may link the npm page, the badge and the private repository; the code may not.
-          if (why === 'URL' && /\.(md|json)$/u.test(f.path) && /^https:\/\/(www\.npmjs\.com|github\.com\/khglobal\/dsh-universe|dsh-plugin\.org|registry\.npmjs\.org)\b/u.test(m[0])) continue;
+          // The READMEs and manifest may link the npm page, the badge and the repository (and its README GIFs, kept out
+          // of the tarball); the code may not.
+          if (why === 'URL' && /\.(md|json)$/u.test(f.path) && /^https:\/\/(www\.npmjs\.com|github\.com\/khglobal\/dsh-universe|raw\.githubusercontent\.com\/khglobal\/dsh-universe\/|dsh-plugin\.org|registry\.npmjs\.org)\b/u.test(m[0])) continue;
           problems.push(`${f.path}: ${why} "${m[0].slice(0, 60)}"`);
         }
       }
