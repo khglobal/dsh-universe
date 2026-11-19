@@ -12,10 +12,11 @@
 // 127.0.0.1; open DSH Universe from the sidebar (city and list), then its page under Plugins (README and screenshots).
 // Fails on any console error or warning, page error, failed or non-local request, or a host log line about the plugin.
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { stopAndRemove, stopChild } from './stop-and-remove.mjs';
 
 const { values: opt, positionals } = parseArgs({ allowPositionals: true, options: { dsh: { type: 'string', default: '0.2.2-rc.2' }, keep: { type: 'boolean' } } });
 const tgz = positionals[0] && resolve(positionals[0]);
@@ -109,9 +110,9 @@ try {
   for (const line of log.split('\n')) if (/universe|error|warn/iu.test(line) && !line.startsWith('dsh web:')) problems.push(`host log: ${line}`);
   step(`host log:\n${log.trim()}`);
 } finally {
-  server?.kill();
-  if (opt.keep) step(`kept ${T} (screenshots city.png, list.png, detail.png)`);
-  else rmSync(T, { recursive: true, force: true });
+  // Wait for the server to exit before removing the folder it writes to (ENOTEMPTY otherwise).
+  if (opt.keep) { await stopChild(server); step(`kept ${T} (screenshots city.png, list.png, detail.png)`); }
+  else await stopAndRemove(server, T);
 }
 for (const p of problems) console.log(`[official-dsh] problem: ${p}`);
 console.log(problems.length ? `[official-dsh] ${problems.length} problem(s)` : `[official-dsh] ok: official DSH ${opt.dsh} only, installed from ${tgz}`);
