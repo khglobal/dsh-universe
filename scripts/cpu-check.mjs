@@ -4,6 +4,8 @@
 // it in: the city idle, the window blurred, the page hidden, inside a building (agents working, or nobody), the list.
 // For each state: frames painted per second (the city or room view's own count) and CPU of all browser processes
 // (SystemInfo.getProcessInfo) as a share of one core, over --seconds (default 8) after a settling second.
+//   --frozen            the page's clock stays at the sample's moment (by default it runs on, as a member's does: the
+//                       per-second work of a running clock is part of what an open panel costs)
 //   --gpu               the machine's GPU (Metal on macOS) instead of SwiftShader (CPU then means the real cost)
 //   --json <file>       write the figures
 //   --only <name,...>   only these states
@@ -22,10 +24,11 @@ const SECONDS = Number(arg('--seconds') ?? 8);
 const CPU_LIMIT = arg('--cpu-limit') !== undefined ? Number(arg('--cpu-limit')) : undefined;
 const MAIN_LIMIT = arg('--main-limit') !== undefined ? Number(arg('--main-limit')) : undefined;
 /** Must match packages/renderer/src/pace.ts. */
-export const AMBIENT_FPS = 12, CALM_FPS = 4, CALM_AFTER_MS = 10_000, BLURRED_FPS = 1;
+export const AMBIENT_FPS = 12, CALM_FPS = 2, CALM_AFTER_MS = 10_000, BLURRED_FPS = 1;
 
-const SAMPLE = 'panel=1&fixed=1&lang=en';
-const BUSY = 'panel=1&fixed=1&lang=en&stress=many';
+const CLOCK = has('--frozen') ? '' : '&clock=run';
+const SAMPLE = 'panel=1&fixed=1&lang=en' + CLOCK;
+const BUSY = 'panel=1&fixed=1&lang=en&stress=many' + CLOCK;
 /** [name, query, what to do after load, which view counts frames, frame limit [min, max] per second]. */
 export const STATES = [
   ['city-sample', SAMPLE, null, 'city', [1, AMBIENT_FPS + 1.5]],
@@ -96,9 +99,13 @@ async function measure(b, state) {
   // A glide: the camera is sent somewhere new every 300 ms for the whole window (a member moving around).
   let gliding;
   if (act === 'glide') { let k = 0; gliding = setInterval(() => { k++; void page.evaluate((k) => { const v = globalThis.__dshuCity; v.moveTo({ ...v.cam, x: (k % 2 ? 1 : -1) * 120, y: 232 + (k % 3) * 40 }); }, k).catch(() => {}); }, 300); }
+  // The city's text layer is written again only when a sign or a still sprite in front of one changes (view.ts).
+  const signs = () => page.evaluate(() => globalThis.__dshuCity?.signDraws ?? 0);
+  const s0 = await signs();
   const f0 = await frames(), c0 = await cpuTime(cdp), m0 = await busy(), t0 = Date.now();
   await page.waitForTimeout(SECONDS * 1000);
   const f1 = await frames(), c1 = await cpuTime(cdp), m1 = await busy(), t1 = Date.now();
+  const signDraws = which === 'city' ? (await signs()) - s0 : 0;
   if (gliding) clearInterval(gliding);
   await cdp.detach();
   await ctx.close();
@@ -107,9 +114,10 @@ async function measure(b, state) {
   const fps = (f1 - f0) / s, cpu = ((c1 - c0) / s) * 100, main = ((m1[0] - m0[0]) / s) * 100, script = ((m1[1] - m0[1]) / s) * 100;
   const problems = [...errors];
   if (fps < lo || fps > hi) problems.push(`${fps.toFixed(1)} frames/s, expected ${lo} to ${hi}`);
+  if (which === 'city' && /calm|blur/.test(String(act)) && signDraws > 2) problems.push(`the text layer was written ${signDraws} times while nothing but the ambient life moved`);
   if (CPU_LIMIT !== undefined && act !== 'glide' && cpu > CPU_LIMIT) problems.push(`CPU ${cpu.toFixed(1)}% of a core, limit ${CPU_LIMIT}%`);
   if (MAIN_LIMIT !== undefined && /calm|blur|hide|list|nobody/.test(String(act) + name) && main > MAIN_LIMIT) problems.push(`page main thread ${main.toFixed(1)}% busy, limit ${MAIN_LIMIT}%`);
-  return { name, fps: Math.round(fps * 10) / 10, cpu: Math.round(cpu * 10) / 10, main: Math.round(main * 10) / 10, script: Math.round(script * 10) / 10, types, problems };
+  return { name, signDraws, fps: Math.round(fps * 10) / 10, cpu: Math.round(cpu * 10) / 10, main: Math.round(main * 10) / 10, script: Math.round(script * 10) / 10, types, problems };
 }
 
 async function main() {
@@ -134,7 +142,7 @@ async function main() {
     }
   } finally { await b.close(); srv.close(); }
   const json = arg('--json');
-  if (json) writeFileSync(json, JSON.stringify({ at: new Date().toISOString(), gpu: has('--gpu'), seconds: SECONDS, states: out }, null, 2) + '\n');
+  if (json) writeFileSync(json, JSON.stringify({ at: new Date().toISOString(), gpu: has('--gpu'), clock: has('--frozen') ? 'frozen' : 'running', seconds: SECONDS, states: out }, null, 2) + '\n');
   return failed;
 }
 

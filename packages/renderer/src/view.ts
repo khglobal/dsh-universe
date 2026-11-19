@@ -7,10 +7,10 @@ import type { ArtKit, Canvas2D } from './artkit.ts';
 import { deviceRatio, homeCamera, minZoom, scaleOf, toArt, toScreen, wholeCity, zoomStep, pan, type Camera, type Viewport } from './camera.ts';
 import { artXY, ZOOM_LEVELS } from './geometry.ts';
 import { hitTest, type HitArea } from './hit.ts';
-import { StaticLayer, paintCity, setLayerLight, type PaintResult, type SurfaceFactory } from './paint.ts';
+import { StaticLayer, paintCity, setLayerLight, type PaintResult, type Surface, type SurfaceFactory } from './paint.ts';
 import { coloredSet, type LayerId } from '@dsh-universe/model';
 import { buildScene, type Scene, type SceneInput, type Sign } from './scene.ts';
-import { drawTextLayer, type Occluder, type PlacedSign } from './text.ts';
+import { drawSign, drawTextLayer, type Occluder, type PlacedSign } from './text.ts';
 import { Traffic } from './traffic.ts';
 import { AMBIENT_FPS, CALM_AFTER_MS, FrameLoop, documentPage, frameGap, type PageState } from './pace.ts';
 
@@ -149,7 +149,16 @@ export class CityView {
     if (this.goal && this.goal.zi < lo) this.goal = { ...this.goal, zi: lo };
     this.invalidate();
   }
-  setInput(input: ViewInput): void { this.input = input; this.inputAt = this.now(); this.inputVersion++; this.invalidate(); }
+  /**
+   * New data, or (`soft`) only the live clock moved on: then nothing needs painting at once, the next frame of the
+   * ambient life shows it (a running clock otherwise added a full-rate frame every second to a city left alone).
+   */
+  setInput(input: ViewInput, soft = false): void {
+    this.input = input; this.inputAt = this.now();
+    // The scene is built again at the next step of its own clock anyway, with the moment run on to then.
+    if (soft && this.loop.running && this.ambient(this.o.reducedMotion())) this.loop.request(this.gap(this.o.reducedMotion()) ?? 0);
+    else { this.inputVersion++; this.invalidate(); }
+  }
   setDark(dark: boolean): void { if (dark !== this.dark) { this.dark = dark; this.invalidate(); } }
   /** Adds an overlay; returns its removal. */
   addOverlay(o: Overlay): () => void { this.overlays.push(o); this.invalidate(); return () => { const i = this.overlays.indexOf(o); if (i >= 0) this.overlays.splice(i, 1); this.invalidate(); }; }
@@ -223,9 +232,10 @@ export class CityView {
     const gap = this.gap(rm);
     if (gap === undefined) return;
     // The scene's own clock (cranes turn 2.5 times a second, waiting towers blink twice) steps four times a second,
-    // twelve while someone walks across town, twice when the page is left alone or in the background; the cars, the
-    // power lines and the smoke keep moving at the frame rate.
-    this.sceneHz = gap >= 1000 / AMBIENT_FPS + 1 ? 2 : this.scene?.agents.some((a) => a.person.walking) ? 12 : 4;
+    // twelve while someone walks across town; once a second when the page is left alone or in the background (twice
+    // while someone walks); the cars, the power lines and the smoke keep moving at the frame rate.
+    const walking = !!this.scene?.agents.some((a) => a.person.walking);
+    this.sceneHz = gap >= 1000 / AMBIENT_FPS + 1 ? (walking ? 2 : 1) : walking ? 12 : 4;
     if (this.loop.due(ts, gap)) { this.paint(ts); this.loop.lastPaint = ts; this.dirty = false; }
     const next = this.gap(rm);
     if (next !== undefined) this.loop.request(next);
@@ -318,12 +328,13 @@ export class CityView {
       for (const b of this.last.blits) {
         const t0 = offX + b.t[0] * sc, t1 = offY + b.t[1] * sc, t2 = offX + b.t[2] * sc, t3 = offY + b.t[3] * sc;
         if (t2 < -400 || t0 > this.canvas.width + 400 || t3 < -100 || t1 > this.canvas.height + 100 || !covers(t0, t1, t2, t3)) continue;
-        occ.push({ image: b.image, sx: Math.round(offX + b.x * sc), sy: Math.round(offY + b.y * sc), sw: Math.round(b.w * sc), sh: Math.round(b.h * sc), depth: b.depth, t: [t0, t1, t2, t3] });
+        occ.push({ image: b.image, sx: Math.round(offX + b.x * sc), sy: Math.round(offY + b.y * sc), sw: Math.round(b.w * sc), sh: Math.round(b.h * sc), depth: b.depth, t: [t0, t1, t2, t3], ...(b.live ? { live: true } : {}) });
       }
     }
     const tD = this.now();
-    this.signRects = drawTextLayer(c, signs, occ, this.vp.dpr, Math.max(1, Math.round(sc / 2)), this.textBottom > 0 ? Math.round((this.vp.h - this.textBottom) * this.vp.dpr) : undefined,
-      this.textAvoid.map((r) => [r[0], r[1], r[2], r[3]].map((v) => Math.round(v * this.vp.dpr)) as [number, number, number, number]));
+    const u = Math.max(1, Math.round(sc / 2)), clipBottom = this.textBottom > 0 ? Math.round((this.vp.h - this.textBottom) * this.vp.dpr) : undefined;
+    const avoid = this.textAvoid.map((r) => [r[0], r[1], r[2], r[3]].map((v) => Math.round(v * this.vp.dpr)) as [number, number, number, number]);
+    this.signRects = rm || this.o.surfaces ? drawTextLayer(c, signs, occ, this.vp.dpr, u, clipBottom, avoid) : this.cachedSigns(c, signs, occ, u, clipBottom, avoid);
     for (const ov of this.overlays) if (ov.screen) { c.setTransform(1, 0, 0, 1, 0, 0); ov.screen({ ...this.frameOf(c, time), toScreen: toDev }); }
     const tE = this.now();
     this.parts = { scene: tB - tA, art: tC - tB, blit: tD - tC, text: tE - tD };
@@ -333,6 +344,54 @@ export class CityView {
     if (this.times.length > 600) this.times.shift();
     this.o.onFrame?.(this);
   }
+
+  /**
+   * The text layer from its own canvas: written again only when a sign, the controls it keeps clear of, or a still
+   * sprite in front of a sign changed. A moving thing in front of a plate (a car, a crane turning) is cut out of it
+   * again every frame, over the cached layer. Every frame otherwise wrote every sign again (fonts, measuring, the
+   * cut-outs) for the same picture.
+   */
+  private cachedSigns(c: Canvas2D, signs: PlacedSign[], occ: Occluder[], u: number, clipBottom: number | undefined, avoid: [number, number, number, number][]): [number, number, number, number][] {
+    const W = this.canvas.width, H = this.canvas.height, dpr = this.vp.dpr, sc = this.signCache;
+    const sk = JSON.stringify([W, H, dpr, u, clipBottom, avoid, signs]);
+    if (sc.signs !== sk) { sc.signs = sk; sc.dry = signs.map((s) => drawSign(c, s, dpr, u, true)); }
+    // The still sprites that can cut a sign out: deeper than it and over its rectangle (names are never cut).
+    const over = (o: Occluder, r: readonly number[]) => { const t = o.t ?? [o.sx, o.sy, o.sx + o.sw, o.sy + o.sh]; return t[0] < r[2] && t[2] > r[0] && t[1] < r[3] && t[3] > r[1]; };
+    const still = occ.filter((o) => !o.live && signs.some((s, i) => !s.name && o.depth > s.depth && over(o, sc.dry[i])));
+    const key = sk + '|' + still.map((o) => [imageId(o.image), o.sx, o.sy, o.sw, o.sh, o.depth].join(',')).join(';');
+    if (!sc.surface || sc.surface.canvas.width !== W || sc.surface.canvas.height !== H) {
+      const cv = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(W, H) : Object.assign(document.createElement('canvas'), { width: W, height: H });
+      sc.surface = { canvas: cv as unknown as Surface['canvas'], ctx: (cv as HTMLCanvasElement).getContext('2d') as Canvas2D };
+      sc.key = '';
+    }
+    if (sc.key !== key) {
+      const g = sc.surface.ctx;
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.clearRect(0, 0, W, H);
+      sc.plates = [];
+      sc.rects = drawTextLayer(g, signs, still, dpr, u, clipBottom, avoid, sc.plates);
+      sc.key = key;
+      this.signDraws++;
+    }
+    c.save();
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.imageSmoothingEnabled = false;
+    c.drawImage(sc.surface.canvas, 0, 0);
+    // Moving things in front of a plate: drawn again over it, clipped to it (as drawTextLayer cuts out).
+    for (const o of occ) {
+      if (!o.live) continue;
+      for (const p of sc.plates) if (o.depth > p.depth && over(o, p.r)) {
+        c.save(); c.beginPath(); c.rect(p.r[0], p.r[1], p.r[2] - p.r[0], p.r[3] - p.r[1]); c.clip();
+        c.drawImage(o.image, o.sx, o.sy, o.sw, o.sh);
+        c.restore();
+      }
+    }
+    c.restore();
+    return sc.rects.map((r) => Object.assign([...r] as [number, number, number, number], r));
+  }
+  private readonly signCache: { signs: string; key: string; dry: [number, number, number, number][]; rects: [number, number, number, number][]; plates: { r: [number, number, number, number]; depth: number }[]; surface?: Surface } = { signs: '', key: '', dry: [], rects: [], plates: [] };
+  /** How often the text layer was written again (checks: it stays still while only the ambient life moves). */
+  signDraws = 0;
 
   /**
    * What the panel's own elements over the city (name plates, cards, the hover plate) follow: the data, the camera,
@@ -354,4 +413,14 @@ export class CityView {
     return { frames: this.frames, p50: q(0.5), p95: q(0.95), max: a[a.length - 1] ?? 0 };
   }
   resetStats(): void { this.times.length = 0; this.frames = 0; }
+}
+
+/** A stable number for each sprite image (sprites are cached: the same frame is the same image). */
+const imageIds = new WeakMap<object, number>();
+let nextImageId = 1;
+function imageId(img: CanvasImageSource | undefined): number {
+  if (!img) return 0;
+  let n = imageIds.get(img as object);
+  if (n === undefined) imageIds.set(img as object, n = nextImageId++);
+  return n;
 }

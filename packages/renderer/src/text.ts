@@ -8,6 +8,8 @@ export interface PlacedSign { x: number; y: number; text: string; bg: string; fg
 /** A sprite already drawn, in screen pixels, with its depth (for the cut-out). */
 export interface Occluder {
   image: CanvasImageSource; sx: number; sy: number; sw: number; sh: number; depth: number;
+  /** A moving thing (drawn every frame). */
+  live?: boolean;
   /** Where it has pixels (screen pixels); defaults to the whole image. */
   t?: readonly [number, number, number, number];
 }
@@ -60,7 +62,9 @@ function maskOf(img: CanvasImageSource): Mask | null {
  * Draws the signs back to front and cuts out what stands in front of each: an occluder deeper than the sign and
  * overlapping it is drawn again, clipped to the sign. Returns the sign rectangles.
  */
-export function drawTextLayer(ctx: Canvas2D, signs: readonly PlacedSign[], occluders: readonly Occluder[], dpr: number, u: number, clipBottom?: number, avoid: readonly (readonly [number, number, number, number])[] = []): [number, number, number, number][] {
+export function drawTextLayer(ctx: Canvas2D, signs: readonly PlacedSign[], occluders: readonly Occluder[], dpr: number, u: number, clipBottom?: number, avoid: readonly (readonly [number, number, number, number])[] = [],
+  /** Collects each plate drawn (not names) with its depth: what a later frame may cut out again. */
+  plates?: { r: [number, number, number, number]; depth: number }[]): [number, number, number, number][] {
   const out: [number, number, number, number][] = [];
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -113,6 +117,7 @@ export function drawTextLayer(ctx: Canvas2D, signs: readonly PlacedSign[], occlu
     }
     if (hidden / 32 > 0.6) continue;
     drawSign(ctx, s, dpr, u);
+    plates?.push({ r: [r[0], r[1], r[2], r[3]], depth: s.depth });
     // The rectangle carries the sign's colours (checks tell a sign's own pixels from a sprite cut out over it).
     out.push(Object.assign(r, { bg: s.bg, fg: inkOn(s.bg, s.fg), border: s.border ?? '#141A30' }));
     for (const o of front) {

@@ -89,7 +89,8 @@ const env: Env = {
   feed: createFeed(stateApi(fixtureApi(fx), q.get('state'))),
   titles: stress ? { getSnapshot: () => STRESS_TITLES, subscribe: () => () => {} } : { getSnapshot: () => NO_TITLES, subscribe: () => () => {} },
   seen: createSeen({ read: () => localStorage.getItem('dshu.dev.seen'), write: (v) => localStorage.setItem('dshu.dev.seen', v) }),
-  now: () => fx.now,
+  // `?clock=run`: the clock runs on from the sample's moment (what a member sees); otherwise it stays at that moment.
+  now: q.get('clock') === 'run' ? ((t0) => () => fx.now + (Date.now() - t0))(Date.now()) : () => fx.now,
   // A stub: records the request (window.__dshuOpened) and flashes the page edge, so the card buttons can be tried.
   openSession: (id: string) => {
     const w = window as unknown as { __dshuOpened?: string[] };

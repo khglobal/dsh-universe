@@ -14,6 +14,8 @@ export interface Blit {
   id?: string;
   /** The part that actually has pixels (sprites are mostly transparent), art pixels: x0, y0, x1, y1. */
   t: readonly [number, number, number, number];
+  /** Drawn every frame (a moving thing), not part of the static layer. */
+  live?: boolean;
 }
 
 export interface PaintResult {
@@ -239,7 +241,7 @@ export function paintCity(A: Canvas2D, kit: ArtKit, scene: Scene, traffic: Traff
   if (scene.rally) { const q = artXY(14.5, 18.6); kit.balloon(px, q[0], q[1] - (time ? Math.floor(time * 2) & 1 : 0), o.zoom < 1 ? 2 : 1); }
   const shift = (b: Blit): Blit => ({ ...b, x: b.x + ox, y: b.y + oy, t: [b.t[0] + ox, b.t[1] + oy, b.t[2] + ox, b.t[3] + oy] });
   return {
-    blits: [...stillBlits, ...blitsLive.filter((b) => b.image)].map(shift),
+    blits: [...stillBlits.map(shift), ...blitsLive.filter((b) => b.image).map((b) => ({ ...shift(b), live: true }))],
     hits: [...stillHits, ...hitsLive],
     tops: new Map([...stillTops, ...topsLive]),
     heads, draws, rebuilt,

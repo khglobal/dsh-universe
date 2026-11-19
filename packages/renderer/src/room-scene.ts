@@ -260,6 +260,8 @@ export interface RoomSpecOptions {
   T: number;
   /** Tokens in the last five minutes (power station). */
   rate?: number;
+  /** The call tape moves on in steps of this many seconds, all its calls at once (default 1; a few while the room is left alone). */
+  ageStep?: number;
 }
 
 /** The art kit's spec for one floor. The animation clock is zeroed when nothing works here or motion is reduced. */
@@ -269,7 +271,7 @@ export function roomSpecOf(it: Interior, f: InteriorFloor, o: RoomSpecOptions, t
   return {
     id: it.placeId, room: f.room, floor: f.id, place: it.place, colour: f.colour, seed: it.seed,
     act, frame: moving ? Math.max(1, Math.floor(o.time * 10)) : 0, reduced: o.reduced, night: o.night, na: !!f.na,
-    n: f.n, recent: f.recent.map((r) => ({ age: Math.round(r.age), err: r.err })), jobs: f.jobs ?? 0, subs: f.subs ?? [], out: f.out ?? 0,
+    n: f.n, recent: f.recent.map((r) => ({ age: Math.round(r.age - (o.ageStep ? (o.T / 1000) % o.ageStep : 0)), err: r.err })), jobs: f.jobs ?? 0, subs: f.subs ?? [], out: f.out ?? 0,
     queue: it.place === 'town' ? f.n : 0, rate: o.rate ?? 0, hour: clockHours(o.T),
     present: f.people.length, ...(f.tally ? { tally: f.tally } : {}), ...(it.place === 'town' ? { bays: ['approval', 'question', 'plan'].map((id) => it.floors.find((x) => x.id === id)?.tally ?? { yes: 0, no: 0, open: 0 }) } : {}), ...(f.stock ? { stock: f.stock } : {}), ...(it.ended && f.id === 'roof' ? { ended: true } : {}),
     ...(it.place === 'building' && tier !== 'large' ? { tier } : {}),

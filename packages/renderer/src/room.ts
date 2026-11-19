@@ -12,7 +12,7 @@ import { POSE_OF, roomSpecOf, type Interior, type InteriorAgent, type InteriorFl
 import { route, type P } from './room-walk.ts';
 import { shortTool } from './scene.ts';
 import { drawTextLayer, SMALL_FONT, type PlacedSign } from './text.ts';
-import { AMBIENT_FPS, CALM_AFTER_MS, FrameLoop, documentPage, frameGap, type PageState } from './pace.ts';
+import { AMBIENT_FPS, CALM_AFTER_MS, CALM_FPS, FrameLoop, documentPage, frameGap, type PageState } from './pace.ts';
 
 export interface RoomViewOptions {
   kit: ArtKit;
@@ -145,9 +145,19 @@ export class RoomView {
     this.canvas.height = Math.round(h * this.vp.dpr);
     this.invalidate();
   }
-  /** New data or another floor. A different place starts the entry fade (unless motion is reduced). */
+  /**
+   * New data or another floor. A different place starts the entry fade (unless motion is reduced). The same floor of
+   * the same place a moment later (the live clock moving on) while the room moves anyway: shown with its next frame,
+   * not painted at once.
+   */
   setInput(input: RoomInput): void {
     const prev = this.input;
+    if (prev && prev.interior.placeId === input.interior.placeId && prev.floor === input.floor && this.running && this.animated && !this.o.reducedMotion()) {
+      this.input = input;
+      const gap = this.gap(false);
+      if (gap !== undefined) this.loop.request(gap);
+      return;
+    }
     if (!prev || prev.interior.placeId !== input.interior.placeId) { this.walkers.clear(); this.enter(); }
     else if (prev.floor !== input.floor) {
       this.walkers.clear();
@@ -194,7 +204,10 @@ export class RoomView {
     const rm = this.o.reducedMotion();
     const gap = this.gap(rm);
     if (gap === undefined) return;
-    this.roomHz = gap >= 1000 / AMBIENT_FPS + 1 ? 1 : ROOM_HZ;
+    // Left alone (or in the background) the room's machinery steps every other second and its call tape in steps of
+    // a few seconds: each step composes the whole room again, and at a step a second, composed in bands over three
+    // frames at CALM_FPS, the room was always being composed.
+    this.roomHz = gap >= 1000 / CALM_FPS - 1 ? 0.5 : gap >= 1000 / AMBIENT_FPS + 1 ? 1 : ROOM_HZ;
     if (this.loop.due(ts, gap)) { this.paint(ts); this.loop.lastPaint = ts; this.dirty = false; this.urgent = false; }
     const next = this.gap(rm);
     if (next !== undefined) this.loop.request(next);
@@ -239,7 +252,7 @@ export class RoomView {
     // The room's own machinery (screens, gauges, turbines) steps a few times a second: each step composes the whole
     // room again (every prop snapped and outlined), which at ten steps a second was most of an open room's cost. The
     // people keep moving at the frame rate.
-    const spec = roomSpecOf(inp.interior, f, { time: Math.floor(time * this.roomHz) / this.roomHz, reduced: rm, night: this.dark, T: inp.T, rate: inp.rate }, tier);
+    const spec = roomSpecOf(inp.interior, f, { time: Math.floor(time * this.roomHz) / this.roomHz, reduced: rm, night: this.dark, T: inp.T, rate: inp.rate, ageStep: this.roomHz < 1 ? 4 : 1 }, tier);
     const key = JSON.stringify(spec);
     const same = this.shown && this.shown.place === inp.interior.placeId && this.shown.floor === f.id;
     let repainted = false;

@@ -8,8 +8,13 @@
 
 /** Frames a second while only the ambient life moves (the scene's animation clock runs in twelfths of a second). */
 export const AMBIENT_FPS = 12;
-/** Frames a second for the ambient life once nobody has touched the page for CALM_AFTER_MS (left open on a side). */
-export const CALM_FPS = 4;
+/**
+ * Frames a second for the ambient life once nobody has touched the page for CALM_AFTER_MS (left open on a side).
+ * Each frame's step stays what it is at 4 (a car moves at most a tenth of a second's way a frame: view.ts), so the
+ * traffic only moves on more slowly; measured in 0.3.1 (scripts/cpu-check.mjs, busy day, running clock): 4 → 2 took
+ * the city left alone from about 10.6% to (see the CHANGELOG) of a core.
+ */
+export const CALM_FPS = 2;
 export const CALM_AFTER_MS = 10_000;
 /** Frames a second while the window is not focused. */
 export const BLURRED_FPS = 1;

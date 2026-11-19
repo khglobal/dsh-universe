@@ -1,15 +1,41 @@
 import { useEffect, useState, useSyncExternalStore, type CSSProperties, type RefObject } from 'react';
 import type { Feed, FeedState } from './feed.ts';
 import type { Observable } from './types.ts';
+import { documentPage, type PageState } from '@dsh-universe/renderer';
 
 export const useFeed = (feed: Feed): FeedState => useSyncExternalStore(feed.subscribe, feed.get, feed.get);
 export const useObservable = <T,>(o: Observable<T>): T => useSyncExternalStore(o.subscribe, o.getSnapshot, o.getSnapshot);
 
-/** The clock, once a second while mounted (the text of waits and durations follows it; nothing is animated). */
-export function useNow(now: () => number): number {
+/** The clock's step under the list: its durations move on every few seconds (each step recomputes the whole day). */
+export const LIST_TICK_MS = 5000;
+
+/**
+ * The clock, every `every` ms while mounted and the page is shown (the text of waits and durations follows it;
+ * nothing is animated). A hidden page stops it (each tick recomputes the day: 2 to 4% of a core on a busy day for
+ * nobody to see) and catches up at once when it is shown again.
+ */
+export function useNow(now: () => number, every = 1000, page: PageState = documentPage()): number {
   const [t, setT] = useState(now);
-  useEffect(() => { const id = setInterval(() => setT(now()), 1000); return () => clearInterval(id); }, [now]);
+  useEffect(() => clockTimer(() => setT(now()), every, page), [now, every, page]);
   return t;
+}
+
+/**
+ * Calls `fn` every `every` ms while the page is shown; stops while it is hidden and calls it once at once when it
+ * is shown again (then every `every` ms). Returns the stop.
+ */
+export function clockTimer(fn: () => void, every: number, page: PageState,
+  timers: { set: (f: () => void, ms: number) => unknown; clear: (id: unknown) => void } = { set: (f, ms) => setInterval(f, ms), clear: (id) => clearInterval(id as ReturnType<typeof setInterval>) }): () => void {
+  let id: unknown;
+  const arm = (back: boolean) => {
+    if (page.hidden()) { if (id !== undefined) timers.clear(id); id = undefined; return; }
+    if (id !== undefined) return;
+    if (back) fn();
+    id = timers.set(fn, every);
+  };
+  const off = page.subscribe(() => arm(true));
+  arm(false);
+  return () => { off(); if (id !== undefined) timers.clear(id); id = undefined; };
 }
 
 /**

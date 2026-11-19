@@ -3,14 +3,14 @@
 // and a timeline that can be minimised. Titles appear only here, in the DOM, never in the pixels.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type ReactNode } from 'react';
 import { CALLS_PER_CAR, LAYERS, PLACE, buildingOf, cumAt, type Drafts, type LayerId, type PlacementState, type Seen, type Store, type UCapabilities } from '@dsh-universe/model';
-import { CityView, artXY, shortTool } from '@dsh-universe/renderer';
+import { CityView, artXY, documentPage, shortTool } from '@dsh-universe/renderer';
 import { Timeline, type TimeMode } from './Timeline.tsx';
 import { reducedMotion, unlockSound } from './time.ts';
 import { CHROME_CSS, CHROME_ROOT, btn, pressed, px } from './chrome.ts';
 import { overlayFactories, placeViewFor } from './extensions.ts';
 import { centrePick } from './centre.ts';
 import { makeKit } from './kit.ts';
-import { frameNotifier, onRatioChange, useEdgeFade } from './hooks.ts';
+import { clockTimer, frameNotifier, onRatioChange, useEdgeFade } from './hooks.ts';
 import { hostDark, isNight, nextLight, type Prefs } from './prefs.ts';
 import { C, stateColor } from './styles.ts';
 import type { Translate } from './types.ts';
@@ -157,8 +157,8 @@ export function CityPanel(p: CityProps) {
       v.setTextAvoid(rects);
     };
     look();
-    const id = setInterval(look, 500);
-    return () => clearInterval(id);
+    // Not while the page is hidden (nothing is painted then).
+    return clockTimer(look, 500, documentPage());
   }, []);
   // While a place view covers the city, the city keeps its last frame and stops painting.
   useEffect(() => { const v = viewRef.current; if (!v) return; if (inside) v.stop(); else v.start(); }, [inside]);
@@ -221,6 +221,8 @@ export function CityPanel(p: CityProps) {
   /** What the camera was last sent to (Enter opens it; a pan by hand or key forgets it): QA finding 15. */
   const centred = useRef<string | undefined>(undefined);
   const wheel = useRef(0);
+  /** What the city's input was last made from, but the clock (a change of only the clock is a soft update). */
+  const inputDeps = useRef<unknown[]>([]);
 
   useEffect(() => {
     const el = wrap.current, cv = canvas.current;
@@ -247,7 +249,10 @@ export function CityPanel(p: CityProps) {
     if (!view) return;
     view.setDark(isNight(p.prefs.light, hostDark(wrap.current)));
     // Live: T runs on with the clock between data updates (walkers move smoothly); looking back or replaying: it stays.
-    view.setInput({ store, placement, T: cityT, live: p.mode === 'live', city: CITY, seen: p.seen, drafts: p.drafts, templateTags: kit.buildingTags, names: { town: t('pl.town'), station: t('pl.station'), fire: t('pl.fire'), school: t('pl.school'), library: t('pl.library'), defaultWorkspace: t('ws.default') } });
+    // Only the live clock moved on (the same data, once a second): shown with the next frame, not painted at once.
+    const same = inputDeps.current.length === 6 && [p.version, placement, lang, kit, p.drafts, p.mode].every((x, i) => x === inputDeps.current[i]);
+    inputDeps.current = [p.version, placement, lang, kit, p.drafts, p.mode];
+    view.setInput({ store, placement, T: cityT, live: p.mode === 'live', city: CITY, seen: p.seen, drafts: p.drafts, templateTags: kit.buildingTags, names: { town: t('pl.town'), station: t('pl.station'), fire: t('pl.fire'), school: t('pl.school'), library: t('pl.library'), defaultWorkspace: t('ws.default') } }, same && p.mode === 'live');
   }, [p.version, placement, cityT, lang, kit, p.drafts, p.mode]);
 
   useEffect(() => {
