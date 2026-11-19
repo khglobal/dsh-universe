@@ -189,12 +189,33 @@ export function CityPanel(p: CityProps) {
   const layersRef = useRef<HTMLDivElement>(null);
   const layersFade = useEdgeFade(layersRef);
   const [toolbarH, setToolbarH] = useState(40);
-  useLayoutEffect(() => { const h = toolbarRef.current?.getBoundingClientRect().height; if (h && Math.abs(h - toolbarH) > 1) setToolbarH(Math.round(h)); });
+  // The legend's own height (with the toolbar's 8 px gap) and natural height, and how far the panel's header reaches
+  // down over the city: where the zoom group can go (#18).
+  const legendRef = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState({ legend: 0, legendNat: 0, head: 0 });
+  useLayoutEffect(() => {
+    const h = toolbarRef.current?.getBoundingClientRect().height;
+    if (h && Math.abs(h - toolbarH) > 1) setToolbarH(Math.round(h));
+    const lg = legendRef.current, w = wrap.current;
+    const hd = w?.parentElement?.querySelector('[data-dshu-head]')?.getBoundingClientRect();
+    const next = { legend: lg ? Math.round(lg.getBoundingClientRect().height) + 8 : 0, legendNat: lg ? lg.scrollHeight + 8 : 0, head: hd && w ? Math.max(0, Math.round(hd.bottom - w.getBoundingClientRect().top)) : 0 };
+    if (Math.abs(next.legend - fit.legend) > 1 || Math.abs(next.legendNat - fit.legendNat) > 1 || next.head !== fit.head) setFit(next);
+  });
   const drag = useRef<{ x: number; y: number; moved: number; id: number } | null>(null);
   // A short window (a phone on its side, a small split): the zoom group lies down in a row above the toolbar instead of
   // standing up past the top edge (QA finding 10).
-  const zoomBtns = p.onZoomOutFar ? 5 : 4, zoomColH = zoomBtns * 38 + 6, zoomRowW = zoomBtns * 38 + 6;
-  const zoomRow = !!viewRef.current && viewRef.current.vp.h - ((p.prefs.dockMin ? 52 : 112) + toolbarH + 8) - zoomColH < 64;
+  // Small windows (#18): standing up above the toolbar when it fits under the header, else lying down there; with the
+  // legend open and no room above, beside the legend (which then scrolls inside the room left), never past the top.
+  const zoomBtns = p.onZoomOutFar ? 5 : 4, zoomColH = zoomBtns * 38 + 6, zoomRowW = zoomBtns * 38 + 6, ZOOM_ROW_H = 44;
+  const dockH = p.prefs.dockMin ? 52 : 112;
+  const room = viewRef.current ? viewRef.current.vp.h - dockH - Math.max(fit.head, 8) : Infinity;
+  const toolbarBase = toolbarH - fit.legend, toolbarNat = toolbarBase + (p.prefs.legend ? fit.legendNat : 0);
+  const legendCap = Math.max(ZOOM_ROW_H, room - toolbarBase - 16);
+  const zoomAt: 'col' | 'row' | 'besideCol' | 'besideRow' =
+    room - toolbarNat - 8 >= zoomColH + 8 ? 'col'
+      : room - toolbarNat - 8 >= ZOOM_ROW_H + 8 || !p.prefs.legend ? 'row'
+        : Math.min(legendCap, fit.legendNat - 8) >= zoomColH ? 'besideCol' : 'besideRow';
+  const zoomRow = zoomAt === 'row' || zoomAt === 'besideRow', zoomBeside = zoomAt === 'besideCol' || zoomAt === 'besideRow';
   /** What the camera was last sent to (Enter opens it; a pan by hand or key forgets it): QA finding 15. */
   const centred = useRef<string | undefined>(undefined);
   const wheel = useRef(0);
@@ -267,7 +288,7 @@ export function CityPanel(p: CityProps) {
   if (view?.scene && view.last) {
     const z = view.zoomValue(), W = view.vp.w, H = view.vp.h, whole = view.isWhole();
     const toolbarTop = H - (p.prefs.dockMin ? 52 : 112) - toolbarH - 4;
-    const zoomH = zoomRow ? 44 : p.onZoomOutFar ? 214 : 176;
+    const zoomH = zoomBeside ? 0 : zoomRow ? 44 : p.onZoomOutFar ? 214 : 176;
     const blocked = (x: number, y: number) => y > toolbarTop || (x > W - 60 && y > toolbarTop - zoomH + 6);
     const taken: [number, number, number, number][] = [];
     const hits = (bx: readonly number[]) => taken.some((t2) => bx[0] < t2[2] && bx[2] > t2[0] && bx[1] < t2[3] && bx[3] > t2[1]);
@@ -537,7 +558,8 @@ export function CityPanel(p: CityProps) {
         {p.beside && <div style={{ marginLeft: 'auto' }}>{p.beside}</div>}
         {p.prefs.legend && (
           // In a data view the legend is that layer's explanation; clear of the zoom column on a phone.
-          <div style={{ ...px, flexBasis: '100%', display: 'flex', flexWrap: 'wrap', gap: '2px 14px', padding: '6px 12px', fontSize: 11.5, lineHeight: '17px', color: C.muted, maxWidth: 'min(680px, calc(100% - 56px))', boxSizing: 'border-box' }}>
+          <div ref={legendRef} data-dshu-legend="" style={{ ...px, flexBasis: '100%', display: 'flex', flexWrap: 'wrap', gap: '2px 14px', padding: '6px 12px', fontSize: 11.5, lineHeight: '17px', color: C.muted, boxSizing: 'border-box',
+            maxWidth: zoomAt === 'besideRow' ? `calc(100% - ${zoomRowW + 8}px)` : 'min(680px, calc(100% - 56px))', ...(zoomBeside ? { maxHeight: legendCap, overflowY: 'auto' } : {}) }}>
             {layer !== 'all'
               ? <span style={{ color: C.text }}><b>{t(LAYER_KEY[layer])}</b> · {t('ov.' + layer, { n: CALLS_PER_CAR })}</span>
               : ['lg.1', 'lg.2', 'lg.3', 'lg.4', 'lg.5', 'lg.6'].map((k) => <span key={k}>{t(k, { n: CALLS_PER_CAR })}</span>)}
@@ -552,7 +574,7 @@ export function CityPanel(p: CityProps) {
           </div>
         )}
       </div>
-      <div role="group" aria-label={t('zm.label')} data-dshu-ctl="" style={{ ...px, position: 'absolute', right: 12, bottom: (p.prefs.dockMin ? 52 : 112) + toolbarH + 8, display: 'flex', flexDirection: zoomRow ? 'row' : 'column', padding: 2, gap: 2 }}>
+      <div role="group" aria-label={t('zm.label')} data-dshu-ctl="" data-dshu-zoom={zoomAt} style={{ ...px, position: 'absolute', right: 12, bottom: zoomBeside ? dockH : dockH + toolbarH + 8, display: 'flex', flexDirection: zoomRow ? 'row' : 'column', padding: 2, gap: 2 }}>
         {([['zm.in', () => viewRef.current?.zoom(1), 'M8 3v10M3 8h10'], ['zm.out', () => zoomOut(), 'M3 8h10'],
           ['zm.home', () => viewRef.current?.home(), 'M2.5 8.5 8 3l5.5 5.5M4.5 7v6.5h7V7'], ['zm.whole', () => viewRef.current?.whole(), 'M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10'],
           ...(p.onZoomOutFar ? [['nb.region', () => p.onZoomOutFar!(), 'M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z']] as const : [])] as const).map(([k, fn, d]) => (

@@ -27,6 +27,8 @@ function targetBox(root: HTMLElement, i: number): Box | undefined {
 export function Tour({ t, root, step, onStep }: { t: Translate; root: RefObject<HTMLElement | null>; step: number; onStep(next: number | null): void }) {
   const [box, setBox] = useState<Box | undefined>();
   const [note, setNote] = useState<Box | undefined>();
+  // The city's zoom group: the card keeps clear of it on a narrow panel (#18: it covered + and − at 390 px).
+  const [zoomBox, setZoomBox] = useState<Box | undefined>();
   // The card of the place the step opened (a building's), when one is open.
   const [placeCard, setPlaceCard] = useState<Box | undefined>();
   const [size, setSize] = useState({ w: 800, h: 600 });
@@ -43,6 +45,8 @@ export function Tour({ t, root, step, onStep }: { t: Translate; root: RefObject<
       // The panel's own notes (first run, partial history…) stay readable: the card keeps clear of them.
       const n = r.querySelector('[role=status]')?.getBoundingClientRect();
       setNote(n && n.height ? { x: n.left - b.left, y: n.top - b.top, w: n.width, h: n.height } : undefined);
+      const z = r.querySelector('[data-dshu-zoom]')?.getBoundingClientRect();
+      setZoomBox(z && z.height ? { x: Math.round(z.left - b.left), y: Math.round(z.top - b.top), w: Math.round(z.width), h: Math.round(z.height) } : undefined);
     };
     look();
     const id = setInterval(look, 500);
@@ -54,7 +58,9 @@ export function Tour({ t, root, step, onStep }: { t: Translate; root: RefObject<
   // The card sits below its target when the target is in the upper half, above it otherwise; always inside the panel.
   // A building's step: below the building's own card with a 12 px gap, or above the building when
   // there is less than 200 px below that card; never over either.
-  const W = Math.min(300, size.w - 24), H = 150;
+  // On a narrow panel the card is narrower than the room left of the zoom group (down to 220 px) when it would cover it.
+  let W = Math.min(300, size.w - 24);
+  const H = 150;
   let left = 12, top = 12;
   if (box && placeCard && s.id === 'building') {
     // On the building card's side, but never over the building itself.
@@ -68,6 +74,10 @@ export function Tour({ t, root, step, onStep }: { t: Translate; root: RefObject<
     top = Math.max(12, Math.min(size.h - H - 12, top));
   }
   if (s.id !== 'building' && note && left < note.x + note.w && left + W > note.x && top < note.y + note.h && top + H > note.y) top = Math.min(size.h - H - 12, note.y + note.h + 8);
+  if (zoomBox && left + W > zoomBox.x - 8 && top < zoomBox.y + zoomBox.h && top + H + 60 > zoomBox.y) {
+    W = Math.max(Math.min(W, 220), Math.min(W, zoomBox.x - 8 - 12));
+    left = Math.max(12, Math.min(left, zoomBox.x - 8 - W));
+  }
   const ring: CSSProperties | undefined = box && { position: 'absolute', left: box.x - 4, top: box.y - 4, width: box.w + 8, height: box.h + 8, border: '2px solid #F0A020', borderRadius: 6, boxShadow: '0 0 0 2px #141A30', pointerEvents: 'none', zIndex: TOUR_RING_Z };
   const id = 'dshu-tour-' + s.id;
   return (

@@ -70,3 +70,5 @@ jobs:
         run: node scripts/cpu-check.mjs --main-limit 25
       - name: today bar, focus, sound and the nearby cities' settings
         run: node scripts/panel-check.mjs
+      - name: small windows (zoom group, room floor tooltips)
+        run: node scripts/small-check.mjs

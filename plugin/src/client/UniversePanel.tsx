@@ -323,7 +323,7 @@ export function UniversePanel({ env }: { env: Env }) {
         {/* The toolbar sits above the city and the notes under it: the notes hang from its bottom edge (never at a fixed
             height, where a toolbar wrapped onto two lines went under them and its buttons could not be pressed). */}
         <div style={{ position: 'relative', zIndex: 11 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap-reverse', gap: 8, alignItems: 'flex-end', padding: '10px 12px 4px' }}>
+          <div data-dshu-head="" style={{ display: 'flex', flexWrap: 'wrap-reverse', gap: 8, alignItems: 'flex-end', padding: '10px 12px 4px' }}>
             <p style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }} aria-live="polite">{view.empty ? t('h.empty') : view.head}</p>
             <div style={{ flex: '1 1 300px', minWidth: 0 }}>{regionOpen ? <p style={{ ...S.head, margin: '0 0 6px' }}>{t('nb.region')}</p> : <TodayBar buttons={view.buttons} t={t} onPress={press} oneRow active={activeCat} />}</div>
             <div style={{ marginLeft: 'auto', paddingBottom: 6, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>{nbControls}{toggle}</div>
