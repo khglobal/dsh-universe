@@ -35,7 +35,12 @@ export function propLines(id: PropId, f: InteriorFloor, t: Translate, lang: stri
   switch (id) {
     case 'crates': return [t('in.p.out', { n: f.out ?? 0 })];
     case 'reception': return [t('in.people', { n: f.people.length })];
-    case 'racks': { const y = f.tally ?? { yes: 0, no: 0, open: f.n }; return [t('in.p.yes', { n: y.yes }), t('in.p.no', { n: y.no }), t('in.p.open', { n: y.open })]; }
+    case 'racks': {
+      const y = f.tally ?? { yes: 0, no: 0, open: f.n };
+      // Questions are answered, not approved or denied (the Review Centre's Enquiries floor).
+      if (f.id === 'question') return [t('in.p.answered', { n: y.yes + y.no }), t('in.p.open', { n: y.open })];
+      return [t('in.p.yes', { n: y.yes }), t('in.p.no', { n: y.no }), t('in.p.open', { n: y.open })];
+    }
     case 'solar': case 'meter': return [t('in.p.tokens', { n: tokens(f.n, lang) })];
     case 'load': return [t('in.p.rate', { n: tokens(extra.rate ?? 0, lang) })];
     case 'menu': return [t('in.p.calls', { n: f.n }), ...callLines(f, t, lang, 5)];

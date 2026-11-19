@@ -25,6 +25,9 @@ function targetBox(root: HTMLElement, i: number): Box | undefined {
   return { x: Math.round(r.left - o.left), y: Math.round(r.top - o.top), w: Math.round(r.width), h: Math.round(r.height) };
 }
 
+/** A touch screen with no pointer that hovers: "point at a building" does not apply there. */
+const touchOnly = () => typeof matchMedia === 'function' && matchMedia('(hover: none)').matches;
+
 export function Tour({ t, root, step, onStep }: { t: Translate; root: RefObject<HTMLElement | null>; step: number; onStep(next: number | null): void }) {
   const [box, setBox] = useState<Box | undefined>();
   const [note, setNote] = useState<Box | undefined>();
@@ -97,7 +100,7 @@ export function Tour({ t, root, step, onStep }: { t: Translate; root: RefObject<
           <b id={id + '-t'} style={{ fontSize: 14 }}>{t(s.title)}</b>
           <span style={{ fontSize: 11.5, color: C.muted, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{t('tour.count', { i: step + 1, n: TOUR.length })}</span>
         </div>
-        <p id={id + '-x'} style={{ margin: '6px 0 10px', color: C.text }}>{t(s.text)}</p>
+        <p id={id + '-x'} style={{ margin: '6px 0 10px', color: C.text }}>{t(s.id === 'building' && touchOnly() ? s.text + 'Touch' : s.text)}</p>
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
           <button type="button" style={{ ...btn, marginRight: 'auto', color: C.muted }} onClick={() => act('close')}>{t('tour.skip')}</button>
           {step > 0 && <button type="button" style={{ ...btn, ...px, boxShadow: 'none' }} onClick={() => act('back')}>{t('tour.back')}</button>}

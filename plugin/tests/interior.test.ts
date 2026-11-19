@@ -76,7 +76,7 @@ test('data prop cards and the room summary: the same numbers the props draw, met
   assert.ok(propLines('beacon', lib, tz, 'zh-CN')[0].length > 0);
   assert.match(propLines('printers', lib, tz, 'zh-CN')[0], /后台任务在跑/);
   assert.match(propLines('whiteboard', lib, tz, 'zh-CN')[0], /白板上 \d 行/);
-  assert.match(roomSummary(lib, tz), /^图书室 · \S+ · \d+ 个代理在干活 · 最近一分钟 \d+ 次出错$/);
+  assert.match(roomSummary(lib, tz), /^图书室 · \S+ · \d+ 个智能体在干活 · 最近一分钟 \d+ 次出错$/);
   const s7 = store.agents().find((s) => s.agent.sessionId === 's7')!;
   for (const id of ['tape', 'board', 'beacon', 'printers', 'whiteboard'] as const) assert.ok(!propLines(id, lib, tz, 'zh-CN').join().includes(s7.agent.label), 'no titles');
 });
@@ -111,7 +111,7 @@ test('a subagent is never named by its session title (DSH titles it with its pro
   for (const s of subs) {
     const r = rowOf(s, store, fx.now, tz, 'zh-CN', titles, false);
     assert.ok(!r.title.includes('核对资质条款') && !r.title.includes('#run'), r.title);
-    assert.ok(s.agent.role ? r.title === s.agent.role : /^子代理 \d+$/.test(r.title), r.title);
+    assert.ok(s.agent.role ? r.title === s.agent.role : /^子智能体 \d+$/.test(r.title), r.title);
   }
   const all = JSON.stringify(sections(store, fx.now, tz, 'zh-CN', titles));
   assert.ok(!all.includes('核对资质条款'), 'not in the list either');

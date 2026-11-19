@@ -88,7 +88,8 @@ export function placeName(id: string, t: Translate, store: Store): string {
 const floorName = (id: string, t: Translate) => {
   const k = 'fl.' + id;
   const v = t(k);
-  return v === k ? id : v;
+  // A tool's floor: its name without the `mcp__server__` prefix, as everywhere else.
+  return v === k ? shortTool(id) : v;
 };
 
 export function titleOf(s: AgentTrack, store: Store, titles: Record<string, string>, t: Translate): string {

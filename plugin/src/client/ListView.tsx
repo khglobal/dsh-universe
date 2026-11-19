@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { HistoryDay, USchedule, UInventory } from '@dsh-universe/model';
 import { placeViewFor } from './extensions.ts';
-import { clock } from './format.ts';
+import { clock, scheduleText } from './format.ts';
 import { C, S, stateColor } from './styles.ts';
 import type { PlaceRow, Row, Section } from './view.ts';
 import type { Translate } from './types.ts';
@@ -19,6 +19,7 @@ export interface ListProps {
 }
 
 const rowId = (id: string) => 'dshu-row-' + id;
+
 
 function SessionRow({ row, t, focus, onOpen, onSeen, onEnter }: { row: Row; t: Translate; focus?: string; onOpen?(r: Row): void; onSeen(r: Row): void; onEnter?(id: string): void }) {
   const inside = onEnter && !row.sub && placeViewFor('b:' + row.sessionId) ? 'b:' + row.sessionId : undefined;
@@ -65,7 +66,7 @@ export function ListView(p: ListProps) {
         <Group title={p.t('li.auto')} count={p.schedules.length}>
           {p.schedules.length ? p.schedules.map((s) => {
             const ran = s.runs.filter((r) => r.at <= p.T).sort((a, b) => b.at - a.at)[0];
-            const text = s.status === 'paused' ? p.t('sch.paused') : s.nextAt !== undefined && s.nextAt > p.T ? p.t('sch.next', { t: clock(s.nextAt, p.lang) }) : '';
+            const text = scheduleText(s, ran, p.T, p.t, p.lang);
             return (
               <div key={s.id} id={rowId('sch:' + s.id)} role="listitem" style={{ ...S.row, ...(p.focus === 'sch:' + s.id ? { outline: `2px solid ${C.wait}`, outlineOffset: -2 } : {}) }}>
                 <span style={{ fontSize: 12, color: C.muted }}>{ran ? clock(ran.at, p.lang) : ''}</span>

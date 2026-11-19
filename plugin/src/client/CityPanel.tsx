@@ -568,7 +568,7 @@ export function CityPanel(p: CityProps) {
         </div>
         <button ref={legendBtn} type="button" aria-expanded={p.prefs.legend} aria-pressed={p.prefs.legend} style={{ ...btn, ...px, ...(p.prefs.legend ? pressed : {}) }} onClick={() => p.setPrefs({ ...p.prefs, legend: !p.prefs.legend })}>{t('lg.title')}</button>
         {/* Under reduced motion the city is silent: the button says so instead of toggling to a sound that never plays. */}
-        <button type="button" aria-pressed={!soundOff && p.prefs.sound} aria-disabled={soundOff || undefined} aria-describedby="dshu-snd-hint" title={t(soundOff ? 'snd.rm' : 'snd.hint')}
+        <button type="button" aria-pressed={!soundOff && p.prefs.sound} aria-disabled={soundOff || undefined} aria-describedby="dshu-snd-hint" title={t(soundOff ? 'snd.rm' : p.onZoomOutFar ? 'snd.hint' : 'snd.hintOne')}
           style={{ ...btn, ...px, ...(!soundOff && p.prefs.sound ? pressed : {}), ...(soundOff ? { opacity: 0.55, cursor: 'not-allowed' } : {}) }}
           onClick={() => { if (soundOff) return; if (!p.prefs.sound) unlockSound(); p.setPrefs({ ...p.prefs, sound: !p.prefs.sound }); }}>{t('snd.label')}</button>
         {/* Day or night: auto follows the host's theme, then day, then night; kept per device. */}
@@ -583,7 +583,7 @@ export function CityPanel(p: CityProps) {
           {t('dn.' + p.prefs.light)}
         </button>
         <span id="dshu-dn-hint" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>{t('dn.hint')}</span>
-        <span id="dshu-snd-hint" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>{t(soundOff ? 'snd.rm' : 'snd.hint')}</span>
+        <span id="dshu-snd-hint" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>{t(soundOff ? 'snd.rm' : p.onZoomOutFar ? 'snd.hint' : 'snd.hintOne')}</span>
         {p.beside && <div style={{ marginLeft: 'auto' }}>{p.beside}</div>}
         {p.prefs.legend && (
           // In a data view the legend is that layer's explanation; clear of the zoom column on a phone.

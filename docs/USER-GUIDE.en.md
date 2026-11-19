@@ -15,7 +15,7 @@ person, and every tool call shows up as traffic, light and work. Open it from **
 | Cars on the avenues | Calls made in the last five minutes. |
 | Lit windows at night | Only places that are working or waiting stay lit. An idle city stands still. |
 
-The AI facilities stand round Review Square: the **Review Center** (approvals, questions and plans), the **Scheduler**
+The AI facilities stand round Review Square: the **Review Centre** (approvals, questions and plans), the **Scheduler**
 (scheduled tasks), **Error Recovery** (errors and retries), the **Agent Academy** (skill loads and experts), **Skills &
 Plugins** (what you installed) and one **Model Hub** per model. Each MCP server has its own **MCP Gateway**, and
 installed plugins line **Plugin Row**. Workspaces are
@@ -27,7 +27,7 @@ DSH Universe a four-step tour points these out; **Show the tour again** in the l
 
 ## Review Square and the data views
 
-Review Square in front of the Review Center is where agents wait for you. The first button of the Today row along the top shows how many
+Review Square in front of the Review Centre is where agents wait for you. The first button of the Today row along the top shows how many
 things need you, and the `n` key jumps to the next one. The row is ordered by urgency: waiting for you, scheduled,
 running, to review, errors, tokens; a press switches to that layer and goes to the next item.
 
@@ -90,7 +90,7 @@ well; it is shown once, as the Claude app's.
 
 The first time, a one-line notice says so (with a link to the settings). The DSH city stays what you see first; a small
 chip beside the view switch, such as "Claude · 3 running", shows each neighbour, and clicking it goes to that city.
-Zoom out past the whole city (the `−` button or key, or the **All cities** button) to see the cities side by side, each
+Zoom out past the whole city (the `−` button or key, or the **Map of nearby cities** button) to see the cities side by side, each
 with its sign; choose one to go in. Each city has the same buildings, rooms and data views; views with nothing to show
 (schedules) are left out. A Claude Code session is titled with the name you gave it (`/rename`); other sessions by
 project folder and date. In a cloud workspace there are no such tools, and nothing is shown.
