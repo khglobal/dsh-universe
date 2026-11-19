@@ -19,6 +19,7 @@ import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
+import { waitAndMerge } from './catalog-ci.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const { values: opt } = parseArgs({ options: {
@@ -135,23 +136,9 @@ try {
         '--title', `DSH Universe ${version}`, '--body-file', '-'], cap, body);
       out.pr = pr;
       if (opt.merge) {
-        const n = pr.split('/').at(-1);
-        // Wait for every check to finish green (the auto-review routine may merge it first; that is fine too).
-        const view = () => JSON.parse(sh('gh', ['pr', 'view', n, '-R', 'khglobal/astero-capabilities', '--json', 'state,statusCheckRollup']));
-        for (let i = 0; ; i++) {
-          const v = view();
-          if (v.state === 'MERGED') break;
-          const checks = v.statusCheckRollup ?? [];
-          const done = checks.length > 0 && checks.every((c) => (c.status ?? 'COMPLETED') === 'COMPLETED');
-          if (done) {
-            const bad = checks.filter((c) => !['SUCCESS', 'NEUTRAL', 'SKIPPED'].includes(c.conclusion ?? c.state));
-            if (bad.length) throw Error(`checks failed on ${pr}: ${bad.map((c) => c.name ?? c.context).join(', ')}`);
-            run('gh', ['pr', 'merge', n, '-R', 'khglobal/astero-capabilities', '--admin', '--squash', '--delete-branch'], cap);
-            break;
-          }
-          if (i > 120) throw Error(`checks did not finish on ${pr}`);
-          await new Promise((r) => setTimeout(r, 15000));
-        }
+        // Wait for every check to finish green, then merge (the auto-review routine may merge it first; that is fine
+        // too). Read through the Actions API: the fine-grained token cannot read check runs (scripts/catalog-ci.mjs).
+        await waitAndMerge(pr.split('/').at(-1));
         out.merged = true;
       }
     }

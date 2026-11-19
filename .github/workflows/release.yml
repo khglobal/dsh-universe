@@ -6,11 +6,28 @@ on:
   push:
     branches: [dev]
   workflow_dispatch:
+    inputs:
+      probe:
+        description: Only check what CAPABILITIES_TOKEN can read on the catalog (no release)
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency: { group: release, cancel-in-progress: false }
 jobs:
+  # Reports, without a release, whether the token has every permission the release needs (scripts/catalog-ci.mjs).
+  probe:
+    if: inputs.probe
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ secrets.CAPABILITIES_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - run: node scripts/catalog-ci.mjs --probe
   release:
+    if: ${{ !inputs.probe }}
     # Self-hosted only while the repository is private; GitHub-hosted once it is public (see ci.yml).
     runs-on: ${{ github.event.repository.private && 'self-hosted' || 'ubuntu-latest' }}
     timeout-minutes: 60
