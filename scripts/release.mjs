@@ -121,7 +121,9 @@ try {
 
   const out = { released: true, version, commit };
   if (opt.commit || opt.pr || opt.merge) {
-    const branch = `dsh-universe/${version}`;
+    // The source commit in the name keeps it unique: a leftover branch for the same version (for example from an
+    // attempt that never opened its PR) must not block the push.
+    const branch = `dsh-universe/${version}-${commit.slice(0, 7)}`;
     sh('git', ['checkout', '-B', branch], cap);
     sh('git', ['add', '--', DIR, 'catalog/plugins.json', 'pnpm-lock.yaml'], cap);
     const trailers = opt.trailer.length ? `\n\n${opt.trailer.join('\n')}` : '';
