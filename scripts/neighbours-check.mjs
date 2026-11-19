@@ -100,6 +100,8 @@ try {
       // A narrow window hides DSH's sidebar behind its menu button.
       const entry = page.getByText('DSH Universe', { exact: true }).first();
       if (!(await entry.isVisible().catch(() => false))) {
+        // DSH's own first-run dialog can come up a moment late: let it, and close it.
+        await page.waitForTimeout(1500); await notice.click({ timeout: 2000 }).catch(() => {}); await clear();
         const labels = await page.locator('button').evaluateAll((els) => els.map((e) => (e.getAttribute('aria-label') || e.textContent || '').trim()).filter(Boolean).slice(0, 40));
         console.log('[neighbours] sidebar hidden; buttons: ' + JSON.stringify(labels));
         if (opt.shots) await page.screenshot({ path: `${opt.shots}-narrow-start-${lang}.png` });
@@ -178,12 +180,30 @@ try {
           // The Cowork / market-report building, or in a narrow view whichever session building is on screen.
           let plate = page.locator('button[aria-haspopup=dialog]', { hasText: id === 'claude' ? 'Cowork' : 'market-report' }).first();
           if (!(await plate.isVisible().catch(() => false))) plate = page.locator('button[aria-haspopup=dialog]', { hasText: / · \d\d-\d\d/ }).first();
-          await plate.click().catch(() => problems.push(`${lang}: ${id}: no building name plate`));
+          let wentIn = false;
+          if (await plate.isVisible().catch(() => false)) await plate.click();
+          else {
+            // No name plate on screen (a narrow view): tap the city until a session's building answers.
+            const box = await page.locator('[role=application]').first().boundingBox();
+            let found = false;
+            for (let i = 0; box && i < 48 && !found; i++) {
+              // Only the open middle of the city (clear of the toolbar, chips, zoom column and notices).
+              await page.mouse.click(box.x + box.width * (0.08 + 0.7 * ((i % 6) / 5)), box.y + box.height * (0.38 + 0.25 * (Math.floor(i / 6) / 7)));
+              await page.waitForTimeout(250);
+              // A click on a building goes straight inside: back out, and open its card from its name instead.
+              const inside = await page.locator('[data-dshu-card]').count() === 0 && await page.getByRole('button', { name: /Back to the city|回到城市|返回城市/ }).count();
+              const txt = (await page.locator('[data-dshu-card]').count()) ? await page.locator('[data-dshu-card]').first().innerText({ timeout: 1000 }).catch(() => '') : '';
+              if (/\d\d-\d\d/.test(txt) || inside) { found = true; wentIn = !!inside; } else await page.keyboard.press('Escape');
+            }
+            if (!found) problems.push(`${lang}: ${id}: no session building to open`);
+          }
           await page.waitForTimeout(800);
-          const card = await page.locator('[data-dshu-card]').innerText().catch(() => '');
-          if (!(id === 'claude' ? card.includes(W.app) || card.includes(W.cli) : card.includes('WorkBuddy'))) problems.push(`${lang}: ${id}: the card does not say which product (${card.replace(/\s+/g, ' ').slice(0, 80)})`);
-          await shot(page, id + '-card', lang);
-          await page.locator('[data-dshu-card] button', { hasText: lang === 'zh' ? '进楼看看' : 'Go inside' }).click().catch(() => problems.push(`${lang}: ${id}: no way inside`));
+          const card = wentIn ? '' : await page.locator('[data-dshu-card]').first().innerText({ timeout: 3000 }).catch(() => '');
+          if (!wentIn && !(id === 'claude' ? card.includes(W.app) || card.includes(W.cli) : card.includes('WorkBuddy'))) problems.push(`${lang}: ${id}: the card does not say which product (${card.replace(/\s+/g, ' ').slice(0, 80)})`);
+          if (!wentIn) {
+            await shot(page, id + '-card', lang);
+            await page.locator('[data-dshu-card] button', { hasText: lang === 'zh' ? '进楼看看' : 'Go inside' }).click({ timeout: 5000 }).catch(() => problems.push(`${lang}: ${id}: no way inside`));
+          }
           await page.waitForTimeout(2500);
           await shot(page, id + '-inside', lang);
           await page.keyboard.press('Escape');
