@@ -1,17 +1,77 @@
 # DSH Universe
 
-**AI agent data visualization for DeepSeek Harness.** DSH Universe turns your AI agents' activity into a live,
-interactive pixel city: every session is a building and every agent is a person. Errors, token use, call volume,
-schedules and the items waiting on you are all on one screen, so you can read your agents' day at a glance.
+**The all-in-one, real-time agent monitor for DeepSeek Harness.** AI agent data visualization that turns every
+session and task across all your DSH workspaces into a live, interactive pixel city: sessions are buildings, agents
+are people.
 
-- **See** what is running, what failed, where the tokens went and what needs you, live.
-- **Filter** to one kind of data at a time: Errors, Token use, Call volume, Scheduled, Running or To review.
-- **Drill in** to a session's building, rewind the day on the timeline, or jump straight to the session in DSH.
-- **Private by design:** metadata only, read on your own device; nothing is uploaded.
+One glance tells you what is running, what is waiting on you, what failed, where the tokens went and what is
+scheduled next. Errors, token use, call volume, schedules and finished work each have their own view, and one click
+takes you to the session in DSH. It reads metadata only, on your own device.
 
 ![The city on a sample day](docs/screenshots/city-day.png)
 
 All screenshots use a made-up sample day (`fixtures/dsh-sample.ts`). No real sessions or data.
+
+## Features
+
+**Real-time overview**
+- Every session and agent across all workspaces, live, in one city.
+- The **Today** bar counts what needs you, the next scheduled task, what is running, results to review, failed calls
+  and token use. Press one to jump to it; `n` goes to the next thing waiting for you.
+- A **list view** with the same content as text.
+
+**Needs you**
+- Agents waiting for an approval, an answer or a plan to read gather in the town square holding a sign.
+- They stand out more the longer they wait.
+- One click follows the agent; **Open session** takes you to it in DSH.
+
+**Errors**
+- Fire layer: a fire on each building with failed calls, bigger for more failures; recent ones burn, older ones
+  smoulder, and fire engines drive out to them.
+- The fire station counts today's retried model requests and keeps a repair log.
+
+**Token and model use**
+- Power-grid layer: one power plant per model with its load, and a wire to each building from the model it used most.
+- A meter beside each building shows its token use today; the top three get a bolt overhead.
+
+**Call volume**
+- Traffic layer: roads turn yellow, orange and red with the calls of the last 5 minutes, and cars stand for calls.
+
+**Schedules**
+- Scheduled runs arrive as trains at the station.
+- A clock over the station points at the next scheduled task; each building's clock shows when it started.
+
+**To review**
+- Sessions that finished and you have not looked at, sessions with an unsent draft, and delivered files are marked on
+  their roofs until you open them or mark them as seen.
+
+**Inside each session**
+- Each session is a building that grows with its work.
+- Click it to go inside: real rooms themed by the session title, with floor size following the building's size.
+- Agents and subagents sit at their desks, posed by the kind of tool they are using.
+- Data props you can click: the call tape, call log board, error beacon and job printers.
+
+**Timeline**
+- Look back at any minute of today, or replay the whole day.
+- Totals for each of the last 14 days.
+
+**Workspace-aware**
+- Each workspace is its own district with a sign; buildings keep their place from day to day.
+
+**Day and night**
+- Auto (follows the DSH theme), day or night. At night only places that are working or waiting are lit.
+
+**Accessible**
+- Full keyboard control and a screen-reader list view.
+- Respects reduced motion.
+- Light and dark themes; English and Chinese interface.
+
+**Fast**
+- Built for 60 fps frames and checked with 100 buildings; it still draws with no GPU (software rendering).
+
+**Private by design**
+- Metadata only: never your messages, replies, tool arguments or results, or file contents.
+- Nothing leaves your device.
 
 ## Gallery
 
@@ -25,20 +85,6 @@ All screenshots use a made-up sample day (`fixtures/dsh-sample.ts`). No real ses
 | **Inside a building.** One floor for each kind of work, with the agents standing where they work. | Each kind of floor has its own room, and rooms are laid out like the real thing. |
 | ![The list view](docs/screenshots/list.png) | |
 | **List.** Everything in the city as text, for screen readers and small screens. | |
-
-## Features
-
-- **The city.** A building for each session that grows as the session works. Subagents work on the floors of their
-  session's building.
-- **Today.** A row along the top: what needs you, the next scheduled task, what is running, results to review, failed
-  calls and token use. Press one to go to it.
-- **Show.** Scheduled, Running, To review, Errors, Token use or Call volume: one kind at a time.
-- **Inside a building.** One floor for each kind of work (library, workshop, machine room, meeting room, lobby and
-  rooftop), with the agents on the floor where they are working now.
-- **Timeline and replay.** Look back at any minute of today, or replay the whole day.
-- **Day and night.** Follows the DSH theme, or choose day or night.
-- **Open session.** Point at a building and press **Open session** to go to that session in DSH.
-- **List view.** The same content as text, keyboard and screen-reader friendly.
 
 ## Install
 

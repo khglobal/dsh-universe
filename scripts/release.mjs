@@ -86,9 +86,13 @@ try {
 
   // 5. CHANGELOG: the previous one with this release on top, listing the source commits since the last release.
   const prevSource = existsSync(join(target, 'SOURCE.json')) ? json(join(target, 'SOURCE.json')).commit : undefined;
-  const subjects = prevSource
-    ? sh('git', ['log', '--first-parent', '--format=%s', `${prevSource}..${commit}`, '--', 'plugin', 'packages', 'LICENSE']).split('\n').filter(Boolean)
-    : [];
+  // The previous release's source commit may not be in this history (the public repository started from a fresh
+  // history); then list only this release's own commit instead of failing.
+  const known = (c) => spawnSync('git', ['cat-file', '-e', `${c}^{commit}`], { cwd: root, stdio: 'ignore' }).status === 0;
+  const subjects = !prevSource ? []
+    : known(prevSource)
+      ? sh('git', ['log', '--first-parent', '--format=%s', `${prevSource}..${commit}`, '--', 'plugin', 'packages', 'LICENSE']).split('\n').filter(Boolean)
+      : [sh('git', ['log', '-1', '--format=%s', commit])];
   const day = new Date().toISOString().slice(0, 10);
   const head = `## ${version}（${day}）\n\n` + (subjects.length ? subjects.map((s) => `- ${s}`).join('\n') : '- 第一个成员版本。') + `\n\n来源：khglobal/dsh-universe@${commit.slice(0, 12)}\n`;
   const prevLog = existsSync(join(target, 'CHANGELOG.md')) ? readFileSync(join(target, 'CHANGELOG.md'), 'utf8').replace(/^# [^\n]*\n+/u, '') : '';
