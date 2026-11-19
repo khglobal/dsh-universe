@@ -8,6 +8,7 @@ import { LAYER_OF_TODAY, buildingOf, historyWindow, nextIndex, rally, seenKey, i
 import { CityPanel, TOUR_BUILDING, type CityTarget } from './CityPanel.tsx';
 import { LIST_CSS, btn, group, groupBtn, px } from './chrome.ts';
 import { citiesFound, citiesShown, neighbourOn, offSources, readPrefs, writePrefs, type Prefs } from './prefs.ts';
+import { usePopover } from './popover.ts';
 import { useFeed, useNow, useObservable } from './hooks.ts';
 import { clock } from './format.ts';
 import { unlockSound, useTime } from './time.ts';
@@ -78,7 +79,9 @@ export function UniversePanel({ env }: { env: Env }) {
   const [activeChoice, setActive] = useState<CityId>('dsh');
   const active: CityId = activeChoice !== 'dsh' && enabled.includes(activeChoice) && env.neighbours ? activeChoice : 'dsh';
   const [regionOpen, setRegion] = useState(false);
+  // Never stored: a reload always starts with it closed.
   const [settingsOpen, setSettings] = useState(false);
+  const pop = usePopover<HTMLDivElement, HTMLButtonElement>(settingsOpen, setSettings);
   const feed = useFeed(active === 'dsh' ? env.feed : env.neighbours!.feed(active, off));
   const dshTitles = useObservable(env.titles);
   // An adjacent city's sessions carry their own label (a title the member set, or none): never DSH's list.
@@ -215,13 +218,16 @@ export function UniversePanel({ env }: { env: Env }) {
           {t('nb.cityOf', { name: cityName })}
         </span>
       )}
-      <button type="button" aria-expanded={settingsOpen} aria-controls="dshu-nb-settings" style={groupBtn(settingsOpen)} onClick={() => setSettings(!settingsOpen)}>{t('nb.settings')}</button>
+      <button ref={pop.trigger} type="button" aria-expanded={settingsOpen} aria-controls="dshu-nb-settings" style={groupBtn(settingsOpen)} onClick={() => setSettings(!settingsOpen)}>{t('nb.settings')}</button>
       {settingsOpen && (
-        <div id="dshu-nb-settings" role="group" aria-label={t('nb.settings')} data-dshu-nb-settings=""
-          style={{ ...px, position: 'absolute', zIndex: 20, top: 36, right: 0, width: 300, padding: '10px 12px', fontSize: 12.5, lineHeight: '18px' }}>
+        // Closes on its button, a click elsewhere, Esc or ×; a checkbox inside keeps it open.
+        <div ref={pop.panel} id="dshu-nb-settings" role="dialog" aria-modal="false" aria-label={t('nb.settings')} data-dshu-nb-settings=""
+          style={{ ...px, position: 'absolute', zIndex: 20, top: 36, right: 0, width: 300, maxWidth: 'calc(100vw - 24px)', boxSizing: 'border-box', padding: '10px 12px', fontSize: 12.5, lineHeight: '18px' }}>
+          <button type="button" data-dshu-nb-close="" aria-label={t('card.close')} title={t('card.close')} onClick={() => pop.close()}
+            style={{ ...btn, position: 'absolute', top: 4, right: 4, width: 28, height: 28, minHeight: 28, padding: 0, display: 'grid', placeItems: 'center' }}>×</button>
           {found.map((city) => (
             <fieldset key={city} data-dshu-nb-city={city} style={{ border: 0, margin: '0 0 6px', padding: 0, minWidth: 0 }}>
-              <legend style={{ display: 'flex', alignItems: 'center', gap: 6, padding: 0, marginBottom: 4, fontWeight: 700 }}>
+              <legend style={{ display: 'flex', alignItems: 'center', gap: 6, padding: 0, marginBottom: 4, fontWeight: 700, paddingRight: 30 }}>
                 <span aria-hidden="true" style={{ width: 8, height: 8, background: SIGN[city], border: '2px solid #27304F', flex: 'none' }} />
                 {t('nb.cityOf', { name: t('nb.city.' + city) })}
               </legend>
@@ -291,18 +297,26 @@ export function UniversePanel({ env }: { env: Env }) {
           setNIdx(i);
           setTarget({ id: 'agent:' + r[i].agent.id, nonce: Date.now() });
         }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap-reverse', gap: 8, alignItems: 'flex-end', padding: '10px 12px 4px' }}>
-          <p style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }} aria-live="polite">{view.empty ? t('h.empty') : view.head}</p>
-          <div style={{ flex: '1 1 300px', minWidth: 0 }}>{regionOpen ? <p style={{ ...S.head, margin: '0 0 6px' }}>{t('nb.region')}</p> : <TodayBar buttons={view.buttons} t={t} onPress={press} oneRow active={activeCat} />}</div>
-          <div style={{ marginLeft: 'auto', paddingBottom: 6, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>{nbControls}{toggle}</div>
-        </div>
-        {hintBar && <div style={{ position: 'absolute', zIndex: 10, top: 58, left: 12, right: 12 }}>{hintBar}</div>}
-        {notes.length > 0 && !regionOpen && (
-          <div role="status" aria-label={t('e.notes')} style={{ position: 'absolute', zIndex: 9, top: hintBar ? 112 : 58, left: 12, right: 12, display: 'flex', alignItems: 'flex-start', gap: 10, padding: '6px 10px', ...px, boxShadow: 'none', fontSize: 12.5, maxWidth: 640 }}>
-            <div style={{ flex: 1 }}>{notes.map((k) => <div key={k}>{t(k)}</div>)}</div>
-            <button type="button" style={{ ...S.btn, minHeight: 26, padding: '0 8px' }} onClick={() => setDismissed(new Set([...dismissed, ...notes]))}>{t('e.dismiss')}</button>
+        {/* The toolbar sits above the city and the notes under it: the notes hang from its bottom edge (never at a fixed
+            height, where a toolbar wrapped onto two lines went under them and its buttons could not be pressed). */}
+        <div style={{ position: 'relative', zIndex: 11 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap-reverse', gap: 8, alignItems: 'flex-end', padding: '10px 12px 4px' }}>
+            <p style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }} aria-live="polite">{view.empty ? t('h.empty') : view.head}</p>
+            <div style={{ flex: '1 1 300px', minWidth: 0 }}>{regionOpen ? <p style={{ ...S.head, margin: '0 0 6px' }}>{t('nb.region')}</p> : <TodayBar buttons={view.buttons} t={t} onPress={press} oneRow active={activeCat} />}</div>
+            <div style={{ marginLeft: 'auto', paddingBottom: 6, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>{nbControls}{toggle}</div>
           </div>
-        )}
+          {(hintBar || (notes.length > 0 && !regionOpen)) && (
+            <div style={{ position: 'absolute', top: '100%', left: 12, right: 12, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, pointerEvents: 'none' }}>
+              {hintBar && <div style={{ pointerEvents: 'auto', width: '100%', maxWidth: 640 }}>{hintBar}</div>}
+              {notes.length > 0 && !regionOpen && (
+                <div role="status" aria-label={t('e.notes')} style={{ pointerEvents: 'auto', boxSizing: 'border-box', width: '100%', display: 'flex', alignItems: 'flex-start', gap: 10, padding: '6px 10px', ...px, boxShadow: 'none', fontSize: 12.5, maxWidth: 640 }}>
+                  <div style={{ flex: 1 }}>{notes.map((k) => <div key={k}>{t(k)}</div>)}</div>
+                  <button type="button" style={{ ...S.btn, minHeight: 26, padding: '0 8px' }} onClick={() => setDismissed(new Set([...dismissed, ...notes]))}>{t('e.dismiss')}</button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         {regionOpen && enabled.length > 0 && env.neighbours ? (
           <Region t={t} lang={lang} now={live} dark={hostDark(rootRef.current)} active={active}
             cities={[{ id: 'dsh' as CityId, feed: env.feed }, ...enabled.map((id) => ({ id: id as CityId, feed: env.neighbours!.feed(id, off) }))]}

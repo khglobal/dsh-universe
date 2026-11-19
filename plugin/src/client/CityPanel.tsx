@@ -375,6 +375,7 @@ export function CityPanel(p: CityProps) {
 
   // Esc backs out one step: the place view (it handles its own Esc first), the open card, then the hover.
   const cardRef = useRef<HTMLDivElement>(null);
+  const legendBtn = useRef<HTMLButtonElement>(null);
   const returnTo = useRef<HTMLElement | null>(null);
   const closeCard = () => { setSelected(undefined); const r = returnTo.current; returnTo.current = null; (r && r.isConnected ? r : wrap.current?.querySelector<HTMLElement>('[role="application"]'))?.focus(); };
   const onPanelKey = (e: React.KeyboardEvent) => {
@@ -473,7 +474,7 @@ export function CityPanel(p: CityProps) {
           <span style={{ fontSize: 12, color: C.muted, padding: '0 6px', flex: 'none' }}>{t('ly.label')}</span>
           {LAYERS.filter((l) => !p.hideLayers?.includes(l)).map((l) => <button key={l} type="button" aria-pressed={layer === l} style={{ ...btn, flex: 'none', whiteSpace: 'nowrap', ...(layer === l ? pressed : {}) }} onClick={() => setLayer(l)}>{t(LAYER_KEY[l])}</button>)}
         </div>
-        <button type="button" aria-expanded={p.prefs.legend} aria-pressed={p.prefs.legend} style={{ ...btn, ...px, ...(p.prefs.legend ? pressed : {}) }} onClick={() => p.setPrefs({ ...p.prefs, legend: !p.prefs.legend })}>{t('lg.title')}</button>
+        <button ref={legendBtn} type="button" aria-expanded={p.prefs.legend} aria-pressed={p.prefs.legend} style={{ ...btn, ...px, ...(p.prefs.legend ? pressed : {}) }} onClick={() => p.setPrefs({ ...p.prefs, legend: !p.prefs.legend })}>{t('lg.title')}</button>
         <button type="button" aria-pressed={p.prefs.sound} aria-describedby="dshu-snd-hint" title={t('snd.hint')} style={{ ...btn, ...px, ...(p.prefs.sound ? pressed : {}) }}
           onClick={() => { if (!p.prefs.sound) unlockSound(); p.setPrefs({ ...p.prefs, sound: !p.prefs.sound }); }}>{t('snd.label')}</button>
         {/* Day or night: auto follows the host's theme, then day, then night; kept per device. */}
@@ -502,6 +503,8 @@ export function CityPanel(p: CityProps) {
               {TL_KEY.map(([k, sw]) => <span key={k} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span aria-hidden="true" style={sw} />{t(k)}</span>)}
             </span>
             <button type="button" style={{ ...btn, minHeight: 22, padding: '0 6px', fontSize: 11.5, textDecoration: 'underline' }} onClick={() => p.setPrefs({ ...p.prefs, legend: false, toured: false })}>{t('tour.again')}</button>
+            <button type="button" data-dshu-legend-close="" aria-label={t('card.close')} title={t('card.close')} style={{ ...btn, minHeight: 22, padding: '0 6px', fontSize: 13 }}
+              onClick={() => { p.setPrefs({ ...p.prefs, legend: false }); legendBtn.current?.focus({ preventScroll: true }); }}>×</button>
           </div>
         )}
       </div>
