@@ -1,7 +1,8 @@
 // The README GIFs (docs/screenshots/city.gif, docs/screenshots/indoor.gif): the real panel, recorded frame by frame in
 // headless Chromium on the English sample day with a short scripted stretch of made-up work (scripts/gifs/page.tsx).
-// Playwright's fake clock drives the page (timers, animation frames, performance.now), so every run gives the same
-// frames. A drawn cursor shows where the script points and clicks. Frames are 1:1 screen pixels (dpr 1, no scaling),
+// Playwright's fake clock, paused and stepped by the script, drives the page (timers, animation frames,
+// performance.now), so every run plays the same script at the same moments (a car or the train can land a frame
+// apart, as React's renders are not on the fake clock). A drawn cursor shows where the script points and clicks. Frames are 1:1 screen pixels (dpr 1, no scaling),
 // turned into a GIF with one shared palette and no dithering (FFmpeg), then optimised with gifsicle when it is there.
 // Needs playwright-core, a Chromium (CHROME_PATH, e.g. the Playwright cache's chrome-headless-shell) and ffmpeg
 // (FFMPEG, default `ffmpeg`). Mock data only; nothing leaves the machine.
@@ -132,7 +133,10 @@ async function record(b, name, sc) {
   rmSync(dir, { recursive: true, force: true }); mkdirSync(dir, { recursive: true });
   const page = await b.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1, colorScheme: 'light', reducedMotion: 'no-preference' });
   page.on('pageerror', (e) => console.error(name, String(e)));
-  await page.clock.install({ time: new Date(2026, 10, 18, 15, 44, 46) });
+  // Fake time that only moves when the script moves it (installed clocks otherwise also run on with real time).
+  const t0 = new Date(2026, 10, 18, 15, 44, 46).getTime();
+  await page.clock.install({ time: t0 });
+  await page.clock.pauseAt(t0 + 1000);
   // A returning member (no first-run tour) on the day light.
   await page.addInitScript(() => { try { localStorage.setItem('khglobal-dsh-universe.view', JSON.stringify({ toured: true, light: 'day' })); } catch { /* storage off */ } });
   await page.addInitScript(CURSOR);
@@ -141,8 +145,8 @@ async function record(b, name, sc) {
   await page.waitForFunction(() => !!globalThis.__dshuCity?.scene);
   const cues = await sc.setup(page);
   // Warm up to the recording's first moment (the page's clock started at load).
-  const t0 = await page.evaluate(() => performance.now());
-  await page.clock.runFor(Math.max(0, Math.round(sc.lead * 1000 - t0)));
+  const ran = await page.evaluate(() => performance.now());
+  await page.clock.runFor(Math.max(0, Math.round(sc.lead * 1000 - ran)));
   const n = Math.round(sc.seconds * FPS);
   const clicks = cues.filter((c) => c.click).map((c) => ({ ...c })), keys = cues.filter((c) => c.key).map((c) => ({ ...c }));
   for (let i = 0; i < n; i++) {
