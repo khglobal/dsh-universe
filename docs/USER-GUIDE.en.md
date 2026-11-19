@@ -11,22 +11,23 @@ person, and every tool call shows up as traffic, light and work. Open it from **
 | --- | --- |
 | A building | One session. It grows a section for each kind of work it does (reading, editing, running commands, connectors…), with a band in that kind's colour on top. |
 | A person | An agent. The colour under their feet is the state: Running, Needs you, Idle, Done or Failed. Subagents work inside their parent's building. |
-| A sign held up in the square | That agent is waiting for you (an approval, a question, or a plan to read). |
+| A sign held up in Review Square | That agent is waiting for you (an approval, a question, or a plan to read). |
 | Cars on the avenues | Calls made in the last five minutes. |
 | Lit windows at night | Only places that are working or waiting stay lit. An idle city stands still. |
 
-The civic buildings stand round the square: the **town hall** (approvals and plans), the **station** (scheduled
-tasks), the **fire station** (errors), the **skill school** (skills), the **library** (the plugins you installed) and
-one **power plant** per model. Each connector (MCP server) has its own building, and installed plugins line the plugin street. Workspaces are
+The AI facilities stand round Review Square: the **Review Center** (approvals, questions and plans), the **Scheduler**
+(scheduled tasks), **Error Recovery** (errors and retries), the **Agent Academy** (skill loads and experts), **Skills &
+Plugins** (what you installed) and one **Model Hub** per model. Each MCP server has its own **MCP Gateway**, and
+installed plugins line **Plugin Row**. Workspaces are
 districts, each with a sign showing the workspace's name.
 
 Point at a building to see its card: what the session is doing, its calls, token use and time. **Open session**
 on the card takes you to the session in DSH; clicking the building takes you inside. Open **Legend** for a one-page key. The first time you open
 DSH Universe a four-step tour points these out; **Show the tour again** in the legend repeats it.
 
-## The square and the data views
+## Review Square and the data views
 
-The square in front of the town hall is where agents wait for you. The first button of the Today row along the top shows how many
+Review Square in front of the Review Center is where agents wait for you. The first button of the Today row along the top shows how many
 things need you, and the `n` key jumps to the next one. The row is ordered by urgency: waiting for you, scheduled,
 running, to review, errors, tokens; a press switches to that layer and goes to the next item.
 
@@ -63,8 +64,8 @@ city** or `Esc` to leave.
 
 ![Inside a building](img/guide-inside.png)
 
-The civic buildings can be entered too: the library shows your plugins, the skill school your skills, the station
-the day's scheduled tasks.
+The AI facilities can be entered too: Skills & Plugins shows what you installed, the Agent Academy your skills and
+experts, the Scheduler the day's scheduled tasks.
 
 ## What it reads, and what it never reads
 
@@ -88,5 +89,5 @@ each have their own city, and the same session may stand on a different plot in 
 ## Accessibility
 
 Everything in the city is also in the list view. In the city, the arrow keys pan, `+` and `−` zoom, `0` returns to
-the square, `Enter` opens the place in the middle and `Esc` goes back. With reduced motion turned on in your system,
+Review Square, `Enter` opens the place in the middle and `Esc` goes back. With reduced motion turned on in your system,
 the city updates at most twice a second and nothing flashes.

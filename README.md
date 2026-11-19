@@ -21,25 +21,25 @@ All screenshots use a made-up sample day (`fixtures/dsh-sample.ts`). No real ses
 - A **list view** with the same content as text.
 
 **Needs you**
-- Agents waiting for an approval, an answer or a plan to read gather in the town square holding a sign.
+- Agents waiting for an approval, an answer or a plan to read gather in Review Square holding a sign.
 - They stand out more the longer they wait.
 - One click follows the agent; **Open session** takes you to it in DSH.
 
 **Errors**
 - Fire layer: a fire on each building with failed calls, bigger for more failures; recent ones burn, older ones
   smoulder, and fire engines drive out to them.
-- The fire station counts today's retried model requests and keeps a repair log.
+- Error Recovery counts today's retried model requests and keeps a repair log.
 
 **Token and model use**
-- Power-grid layer: one power plant per model with its load, and a wire to each building from the model it used most.
+- Power-grid layer: one Model Hub per model with its load, and a wire to each building from the model it used most.
 - A meter beside each building shows its token use today; the top three get a bolt overhead.
 
 **Call volume**
 - Traffic layer: roads turn yellow, orange and red with the calls of the last 5 minutes, and cars stand for calls.
 
 **Schedules**
-- Scheduled runs arrive as trains at the station.
-- A clock over the station points at the next scheduled task; each building's clock shows when it started.
+- Scheduled runs arrive as trains at the Scheduler.
+- A clock over the Scheduler points at the next scheduled task; each building's clock shows when it started.
 
 **To review**
 - Sessions that finished and you have not looked at, sessions with an unsent draft, and delivered files are marked on
@@ -79,8 +79,8 @@ All screenshots use a made-up sample day (`fixtures/dsh-sample.ts`). No real ses
 | --- | --- |
 | ![The city at night: only places with work in progress are lit](docs/screenshots/city-night.png) | ![The Errors view: failed calls in colour, everything else greyed out](docs/screenshots/layer-errors.png) |
 | **Night.** Only the places with a session in progress are lit. | **Errors.** One kind of data at a time; the rest of the city is greyed out. Token use and call volume work the same way. |
-| ![Agents waiting for you in the square](docs/screenshots/square.png) | ![The timeline replaying the day](docs/screenshots/replay.png) |
-| **The square.** Agents that need you (an approval, a question, a plan to read) wait in the city square with a sign. | **Timeline.** Drag back to any moment of the day, or replay it. |
+| ![Agents waiting for you in Review Square](docs/screenshots/square.png) | ![The timeline replaying the day](docs/screenshots/replay.png) |
+| **Review Square.** Agents that need you (an approval, a question, a plan to read) wait in Review Square with a sign. | **Timeline.** Drag back to any moment of the day, or replay it. |
 | ![Inside a building: the market desk floor](docs/screenshots/room-market.png) | ![Inside a building: the help desk floor](docs/screenshots/room-helpdesk.png) |
 | **Inside a building.** One floor for each kind of work, with the agents standing where they work. | Each kind of floor has its own room, and rooms are laid out like the real thing. |
 | ![The list view](docs/screenshots/list.png) | |

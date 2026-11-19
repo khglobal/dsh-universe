@@ -171,7 +171,7 @@ test('English counts take the singular at 1 (`{n:one|other}`); Chinese never nee
   const { en, zh } = await import('../src/locales/index.ts');
   assert.equal(fill(en['td.err'], { n: 1 }), '1 failed call');
   assert.equal(fill(en['td.err'], { n: 30 }), '30 failed calls');
-  assert.equal(fill(en['h.rw'], { r: 1, w: 2 }), '1 agent is working, 2 waiting for you in the square.');
+  assert.equal(fill(en['h.rw'], { r: 1, w: 2 }), '1 agent is working, 2 waiting for you in Review Square.');
   for (const v of Object.values(zh)) assert.ok(!/\{\w+:/.test(v), v);
 });
 

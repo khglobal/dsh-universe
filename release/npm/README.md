@@ -11,13 +11,13 @@ is scheduled next. Metadata only, read on your own device.
 
 - **Real-time overview.** Every session and agent across all workspaces, live. The Today bar counts what needs you,
   the next scheduled task, what is running, results to review, failed calls and token use; press one to jump to it.
-- **Needs you.** Agents waiting for an approval, an answer or a plan to read gather in the town square, standing out
+- **Needs you.** Agents waiting for an approval, an answer or a plan to read gather in Review Square, standing out
   more the longer they wait. One click opens the session in DSH.
-- **Errors.** Fires on buildings with failed calls, fire engines on the way, and a fire station that counts retries
+- **Errors.** Fires on buildings with failed calls, fire engines on the way, and Error Recovery, which counts retries
   and keeps a repair log.
-- **Token and model use.** A power grid: one plant per model with its load, and each building's token use today.
+- **Token and model use.** A power grid: one Model Hub per model with its load, and each building's token use today.
 - **Call volume.** Roads and cars show the calls of the last 5 minutes.
-- **Schedules.** Scheduled runs arrive as trains at the station; a clock points at the next one.
+- **Schedules.** Scheduled runs arrive as trains at the Scheduler; a clock points at the next one.
 - **To review.** Finished sessions you have not seen, unsent drafts and delivered files are marked until you open them.
 - **Inside each session.** Each building grows with its work. Go inside to rooms themed by the session title, with
   agents and subagents at their desks posed by the tool they use, and clickable data props: call tape, call log
