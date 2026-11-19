@@ -2,7 +2,7 @@
 //
 // The tarball holds the minified bundle and what the DSH plugin page needs, nothing else: release/npm/package.json
 // (the publish manifest; the workspace packages stay private), the two bundle files, the patch, icon, locale tables
-// (with `meta.detail` naming the README of each language), the public READMEs, three screenshots of the sample day and
+// (with `meta.detail` naming the README for each language), the public README, three screenshots of the sample day and
 // LICENSE. No sources, source maps, art package, fixtures or docs. scripts/check-tarball.mjs checks it.
 //
 // Versions follow the capabilities catalog (one source of truth): a public release is a member release that
@@ -36,7 +36,8 @@ if (!opt.local && !(opt.version && opt.capabilities)) {
 
 /** Screenshots of the sample day (fixtures/dsh-sample.ts, no member data): published name → source in this repo. */
 const SCREENSHOTS = { 'screenshots/city.png': 'docs/screenshots/city-day.png', 'screenshots/inside.png': 'docs/screenshots/room-market.png', 'screenshots/list.png': 'docs/screenshots/list.png' };
-const DETAIL = { en: 'README.md', zh: 'README.zh.md' };
+/** The plugin page's README for each interface language: one English README for both. */
+const DETAIL = { en: 'README.md', zh: 'README.md' };
 const BUNDLE = ['index.js', 'client.browser.js'];
 const VENDORED = 'plugins/dsh-universe';
 
@@ -97,7 +98,7 @@ try {
     table.meta = { ...table.meta, detail: doc };
     put(`locale/${lang}.json`, JSON.stringify(table) + '\n');
   }
-  for (const doc of Object.values(DETAIL)) cpSync(join(root, 'release/npm', doc), join(stage, doc));
+  for (const doc of new Set(Object.values(DETAIL))) cpSync(join(root, 'release/npm', doc), join(stage, doc));
   for (const [to, from] of Object.entries(SCREENSHOTS)) put(to, readFileSync(join(root, from)));
   put('screenshots.json', JSON.stringify(Object.keys(SCREENSHOTS), null, 2) + '\n');
   cpSync(join(root, 'LICENSE'), join(stage, 'LICENSE'));

@@ -1,20 +1,22 @@
-# DSH Universe（`@khglobal/dsh-universe`）
+# DSH Universe (`@khglobal/dsh-universe`)
 
-把工作区画成一座小城：会话是楼，代理是城里的人。侧栏有一个入口，打开后是城市面板、清单和今天栏。
+Your workspace drawn as a small city: sessions are buildings and agents are the people in it. One entry in the sidebar
+opens the city panel, the list and the Today bar.
 
-只读宿主的元数据（会话状态、工具名、用量、时间），不读会话正文、计划正文和回答。
+It reads host metadata only (session state, tool names, usage, times), never session content, plan text or replies.
 
-## 桌面与云端
+## Desktop and cloud
 
-- 两端都能用，插件包相同。
-- 城市的落位存在各自宿主的存储里：桌面和云端各是一座城，不同步。
-- 云端插件装好后要等工作区下次启动才加载。
+- Works in both, with the same plugin package.
+- The city's layout is kept in each host's own storage: desktop and cloud each have their own city, not synced.
+- In the cloud, a newly installed plugin loads the next time the workspace starts.
 
-## 安装
+## Install
 
-在 DSH 里：打开 **插件**，点 **添加插件**，输入 `@khglobal/dsh-universe`，点 **安装**。
+In DSH: open **Plugins**, click **Add plugin**, enter `@khglobal/dsh-universe` and click **Install**.
 
-## 来源
+## Source
 
-源码公开在 `khglobal/dsh-universe`，按源码可见许可发布：可以阅读源码，可以安装和使用未修改的插件；复制、修改、
-再分发或在其他作品中使用代码和美术需要 KH 的书面许可。详见 `LICENSE`。
+The source is public at `khglobal/dsh-universe` under a source-available licence: you may read the source and install
+and use the unmodified plugin; copying, modifying, redistributing or using the code and art in other works needs KH's
+written permission. See `LICENSE`.

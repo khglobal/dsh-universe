@@ -38,7 +38,6 @@
     "screenshots",
     "screenshots.json",
     "README.md",
-    "README.zh.md",
     "LICENSE"
   ],
   "engines": { "dsh": ">=0.2.2-rc.2" },

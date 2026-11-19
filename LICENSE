@@ -2,9 +2,6 @@ DSH Universe Source-Available Licence, version 1.0
 
 Copyright (c) 2026 KH. All rights reserved.
 
-The English text below is the binding licence. The Chinese translation after it is provided for convenience only; if
-the two differ, the English text governs.
-
 1. Software. "Software" means everything in this repository and in the published package @khglobal/dsh-universe:
    source code, built code, documentation, and all art, including the palette, sprites, procedural drawing code,
    building, room and city templates, props and screenshots.
@@ -36,36 +33,3 @@ the two differ, the English text governs.
    liable for any claim, damages or other liability arising from the Software or its use.
 
 For permission beyond this licence, open an issue at https://github.com/khglobal/dsh-universe/issues.
-
---------------------------------------------------------------------------------------------------------------------
-
-DSH Universe 源码可见许可，1.0 版（中文译文，仅供参考；以上方英文文本为准）
-
-版权所有 (c) 2026 KH。保留所有权利。
-
-1. 软件。「软件」指本仓库及已发布的 @khglobal/dsh-universe 包中的全部内容：源码、构建产物、文档，以及全部美术，
-   包括调色板、精灵、程序化绘制代码、建筑、房间与城市模板、道具和截图。
-
-2. 阅读。你可以查看和阅读本软件的源码，例如用来核对它做了什么。
-
-3. 使用插件。你可以把 KH 发布的、未经修改的本软件作为 DeepSeek Harness（DSH）或基于 DSH 的产品的插件安装和使用，
-   个人或商业用途均可，免费。
-
-4. 不允许的行为。除第 2、3 条允许的以外，未经 KH 事先书面许可，你不得：
-   (a) 复制、修改、翻译本软件或其任何部分，或以其为基础创作衍生作品；
-   (b) 以源码或构建形式分发、再许可、出售、出租、发布本软件或其任何部分，或以其他方式提供给他人；
-       链接到 KH 自己的仓库或包除外；
-   (c) 在任何其他作品、产品或服务中使用本软件的任何部分，包括其代码、美术、程序化美术和模板。
-
-5. 贡献。你向 KH 提交的贡献（例如拉取请求），即授予 KH 永久、全球、免费、不可撤销的许可，可将其作为本软件的一部分
-   或以其他方式使用、修改、再许可和分发。
-
-6. 所有权。本软件的一切权利、所有权和利益归 KH 所有。除本许可明确授予的以外，不授予任何权利。本许可不授予使用
-   KH 名称、标识或商标的权利。
-
-7. 终止。你违反本许可时，本许可自动终止。终止后你必须停止使用本软件并删除副本。
-
-8. 不提供担保。本软件按「原样」提供，不提供任何明示或默示的担保，包括适销性、特定用途适用性和不侵权。在法律允许的
-   范围内，KH 不对因本软件或其使用而产生的任何索赔、损害或其他责任负责。
-
-如需本许可以外的授权，请在 https://github.com/khglobal/dsh-universe/issues 提交 issue。

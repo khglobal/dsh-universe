@@ -1,7 +1,5 @@
 # DSH Universe
 
-English | [中文](README.zh.md)
-
 Your DeepSeek Harness day as a small pixel city. Every session is a building and every agent is a person, so one look
 tells you what is running, what is waiting for you and what got done today.
 
@@ -83,7 +81,7 @@ npm run check      # typecheck, build, tests, locale checks, npm tarball audit
 ```
 
 How the packages fit together: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). User guide:
-[English](docs/USER-GUIDE.en.md) | [中文](docs/USER-GUIDE.zh.md).
+[docs/USER-GUIDE.en.md](docs/USER-GUIDE.en.md).
 
 ## Security
 
@@ -93,5 +91,4 @@ See [SECURITY.md](SECURITY.md).
 
 **Source-available, not open source.** You may read the code, and install and use the unmodified plugin with DeepSeek
 Harness. Copying, modifying, redistributing or reusing the code or the art (including the procedural art and
-templates) in other works needs KH's written permission. Copyright KH. See [LICENSE](LICENSE); the English text is
-binding.
+templates) in other works needs KH's written permission. Copyright KH. See [LICENSE](LICENSE).

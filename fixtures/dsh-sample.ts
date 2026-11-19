@@ -1,6 +1,8 @@
 // Mock data for dev mode and tests: a sample DSH city as model events.
 // Seeded, so every run gives the same day. Tool names are the real DSH 0.2.2-rc.2 names. Titles are sample session
-// titles (data, not interface text).
+// titles (data, not interface text), in Chinese and English: `dshSample(midnight, 'en')` gives the same day with
+// English titles. Each English title lands on the same room theme as its Chinese one (fixtures test), so the city
+// looks the same in both languages.
 import type { Fixture } from '@dsh-universe/adapter-kit';
 import { cityTemplate, emptyPlacement, freezeTheme, hs, place, rng, themeFromTitle, type PlacementState } from '@dsh-universe/model';
 import type { Category, UEvent } from '@dsh-universe/model';
@@ -10,7 +12,7 @@ const NOW = HM('15:44:46');
 
 type Kind = 'read' | 'search' | 'edit' | 'exec' | 'web' | 'conn' | 'task' | 'skill';
 interface Ses {
-  id: string; ws: string; title: string; start: number; end?: number; final?: 'done' | 'failed'; idleFrom?: number;
+  id: string; ws: string; title: Text; start: number; end?: number; final?: 'done' | 'failed'; idleFrom?: number;
   parent?: string; origin?: string; preset?: string; conn?: string; model: string; out?: number;
   waits?: [number, number | null, 'appr' | 'ask', string | null, string?][]; jobs?: [number, number | null][];
   w: Partial<Record<Kind, number>>; seed: number; pace?: number;
@@ -24,52 +26,57 @@ const CONNS = [
   { id: 'erp', title: 'ERP', tools: ['mcp__erp__execute_read', 'mcp__erp__aggregate_read', 'mcp__erp__search_tools', 'mcp__erp__execute_write'] },
   { id: 'im', title: 'IM', tools: ['mcp__im__read_archive', 'mcp__im__list_chats'] },
 ];
-const WS = [
-  { id: 'fin', title: '财务对账', path: 'finance' }, { id: 'sal', title: '销售跟进', path: 'sales' },
-  { id: 'bid', title: '投标 2026', path: 'bids-2026' }, { id: 'def', title: '默认工作区', path: 'workspace' },
+export type SampleLang = 'zh' | 'en';
+/** A sample text in both languages: [zh, en]. */
+type Text = readonly [string, string];
+const WS: { id: string; title: Text; path: string }[] = [
+  { id: 'fin', title: ['财务对账', 'Finance'], path: 'finance' }, { id: 'sal', title: ['销售跟进', 'Sales'], path: 'sales' },
+  { id: 'bid', title: ['投标 2026', 'Bids 2026'], path: 'bids-2026' }, { id: 'def', title: ['默认工作区', 'Default workspace'], path: 'workspace' },
 ];
-const AUTOS = [
-  { id: 'a1', title: '招标公告日报', at: HM('08:30'), run: 's9' }, { id: 'a2', title: '本周线索跟进提醒', at: HM('09:00'), run: 's5' },
-  { id: 'a3', title: '每日库存预警', at: HM('15:45'), run: null }, { id: 'a4', title: '下班前待办小结', at: HM('18:00'), run: null },
+const AUTOS: { id: string; title: Text; at: number; run: string | null }[] = [
+  { id: 'a1', title: ['招标公告日报', 'Daily research: new tender notices'], at: HM('08:30'), run: 's9' }, { id: 'a2', title: ['本周线索跟进提醒', 'Weekly sales lead follow-up reminder'], at: HM('09:00'), run: 's5' },
+  { id: 'a3', title: ['每日库存预警', 'Daily stock alert'], at: HM('15:45'), run: null }, { id: 'a4', title: ['下班前待办小结', 'End-of-day to-do summary'], at: HM('18:00'), run: null },
 ];
 const PLUGINS: [string, boolean][] = [['pdf-tools', true], ['charts', true], ['ocr', true], ['calendar', true], ['translator', false], ['git-helper', true], ['web-clipper', true], ['sheet-kit', true], ['mail-merge', false]];
-const EXTRA = ['核对银行流水', '整理客户名单', '招标文件目录', '清理下载文件夹', '发票抬头校验', '回复询价邮件草稿', '资质证书到期表', '合并两份表格', '差旅报销核对', '竞品价格摘录', '答疑纪要整理', '会议纪要转待办', '应付账款账龄', '样品寄送清单', '评分办法摘录', '批量重命名文件'];
+const EXTRA: Text[] = [['核对银行流水', 'Reconcile bank statement'], ['整理客户名单', 'Tidy up customer list'], ['招标文件目录', 'Tender document index'], ['清理下载文件夹', 'Clean up downloads folder'], ['发票抬头校验', 'Validate invoice billing names'], ['回复询价邮件草稿', 'Draft replies to customer enquiries'], ['资质证书到期表', 'Licence expiry tracker'], ['合并两份表格', 'Merge two spreadsheets'], ['差旅报销核对', 'Check travel expense claims'], ['竞品价格摘录', 'Competitor price list'], ['答疑纪要整理', 'Clarification meeting notes'], ['会议纪要转待办', 'Turn meeting minutes into todos'], ['应付账款账龄', 'Accounts payable ageing'], ['样品寄送清单', 'Sample shipping sheet'], ['评分办法摘录', 'Bid scoring rules summary'], ['批量重命名文件', 'Batch rename files']];
 
 const SESSIONS: Ses[] = [
-  { id: 's1', ws: 'fin', title: '3 月应收账款对账', start: HM('14:05'), conn: 'erp', model: 'deepseek-v4-pro', w: { read: 3, search: 1, edit: 1.5, exec: 0.8, conn: 5, task: 0.2 }, seed: 11 },
-  { id: 's1a', parent: 's1', ws: 'fin', title: '核对回款流水', start: HM('14:22'), end: HM('14:51'), final: 'done', conn: 'erp', model: 'deepseek-v4', w: { read: 2, conn: 5, edit: 0.5 }, seed: 12 },
-  { id: 's1b', parent: 's1', ws: 'fin', title: '标记逾期客户', start: HM('15:12'), conn: 'erp', model: 'deepseek-v4', w: { read: 2, conn: 4, edit: 1 }, seed: 13 },
-  { id: 's2', ws: 'fin', title: '供应商发票三单匹配', start: HM('15:02'), waits: [[HM('15:31:10'), null, 'appr', 'mcp__erp__execute_write']], preset: 'finance-expert', conn: 'erp', model: 'deepseek-v4-pro', w: { read: 2, conn: 5, edit: 0.6, skill: 0.3 }, seed: 21 },
-  { id: 's3', ws: 'fin', title: '月度费用报销汇总', start: HM('11:20'), end: HM('11:48'), final: 'done', out: 2, waits: [[HM('11:30'), HM('11:32'), 'appr', 'mcp__erp__execute_write', 'rejected']], conn: 'erp', model: 'deepseek-v4', w: { read: 2, conn: 4, edit: 0.6 }, seed: 31 },
-  { id: 's4', ws: 'sal', title: '中东客户报价单更新', start: HM('15:20'), conn: 'erp', model: 'deepseek-v4-pro', w: { read: 2, search: 1, edit: 2.5, web: 1.2, conn: 3, exec: 0.4, skill: 0.3 }, seed: 41 },
-  { id: 's5', ws: 'sal', title: '本周线索跟进提醒', start: HM('09:00'), end: HM('09:06'), final: 'done', origin: 'a2', conn: 'im', model: 'deepseek-v4', w: { read: 1, conn: 4, edit: 1 }, seed: 51 },
-  { id: 's6', ws: 'sal', title: '客户拜访纪要整理', start: HM('12:40'), idleFrom: HM('13:10'), conn: 'im', model: 'deepseek-v4', w: { read: 3, edit: 2, conn: 1 }, seed: 61 },
-  { id: 's7', ws: 'bid', title: '市政管网项目响应矩阵', start: HM('13:40'), waits: [[HM('14:02'), HM('14:09'), 'ask', null]], preset: 'bid-expert', model: 'deepseek-v4-pro', pace: 0.8, w: { read: 5, search: 3, edit: 3, exec: 1, web: 1.4, task: 0.3, skill: 0.4 }, seed: 71 },
-  { id: 's7a', parent: 's7', ws: 'bid', title: '资质条款逐条核对', start: HM('13:52'), end: HM('14:40'), final: 'done', model: 'deepseek-v4', w: { read: 5, search: 3, edit: 1 }, seed: 72 },
-  { id: 's7b', parent: 's7', ws: 'bid', title: '技术偏离表', start: HM('14:10'), model: 'deepseek-v4', w: { read: 4, search: 2, edit: 3 }, seed: 73 },
-  { id: 's7c', parent: 's7', ws: 'bid', title: '报价清单核对', start: HM('15:25'), model: 'deepseek-v4', w: { read: 3, edit: 2, exec: 1 }, seed: 74 },
-  { id: 's8', ws: 'bid', title: '投标保证金条款比对', start: HM('10:12'), end: HM('10:19'), final: 'failed', conn: 'erp', model: 'deepseek-v4', w: { read: 3, conn: 3 }, seed: 81 },
-  { id: 's9', ws: 'bid', title: '招标公告日报', start: HM('08:30'), end: HM('08:41'), final: 'done', origin: 'a1', out: 1, model: 'deepseek-v4', w: { web: 5, read: 1, edit: 1 }, seed: 91 },
-  { id: 's10', ws: 'def', title: '周报草稿', start: HM('09:40'), end: HM('09:52'), final: 'done', out: 1, model: 'deepseek-v4', w: { read: 4, edit: 3 }, seed: 101 },
-  { id: 's11', ws: 'def', jobs: [[HM('15:08'), HM('15:11')], [HM('15:20'), null]], title: '修复导出脚本的编码问题', start: HM('15:05'), model: 'deepseek-v4-pro', w: { read: 3, search: 2, edit: 3, exec: 3 }, seed: 111 },
-  { id: 's12', ws: 'def', title: '库存预警规则梳理', start: HM('12:30'), idleFrom: HM('12:50'), waits: [[HM('12:38'), HM('12:44'), 'appr', 'mcp__erp__execute_write', 'allowed']], conn: 'erp', model: 'deepseek-v4', w: { read: 3, conn: 2, edit: 1 }, seed: 121 },
+  { id: 's1', ws: 'fin', title: ['3 月应收账款对账', 'Reconcile March accounts receivable'], start: HM('14:05'), conn: 'erp', model: 'deepseek-v4-pro', w: { read: 3, search: 1, edit: 1.5, exec: 0.8, conn: 5, task: 0.2 }, seed: 11 },
+  { id: 's1a', parent: 's1', ws: 'fin', title: ['核对回款流水', 'Match incoming payments'], start: HM('14:22'), end: HM('14:51'), final: 'done', conn: 'erp', model: 'deepseek-v4', w: { read: 2, conn: 5, edit: 0.5 }, seed: 12 },
+  { id: 's1b', parent: 's1', ws: 'fin', title: ['标记逾期客户', 'Flag overdue customers'], start: HM('15:12'), conn: 'erp', model: 'deepseek-v4', w: { read: 2, conn: 4, edit: 1 }, seed: 13 },
+  { id: 's2', ws: 'fin', title: ['供应商发票三单匹配', 'Three-way match of supplier invoices'], start: HM('15:02'), waits: [[HM('15:31:10'), null, 'appr', 'mcp__erp__execute_write']], preset: 'finance-expert', conn: 'erp', model: 'deepseek-v4-pro', w: { read: 2, conn: 5, edit: 0.6, skill: 0.3 }, seed: 21 },
+  { id: 's3', ws: 'fin', title: ['月度费用报销汇总', 'Monthly expense claims summary'], start: HM('11:20'), end: HM('11:48'), final: 'done', out: 2, waits: [[HM('11:30'), HM('11:32'), 'appr', 'mcp__erp__execute_write', 'rejected']], conn: 'erp', model: 'deepseek-v4', w: { read: 2, conn: 4, edit: 0.6 }, seed: 31 },
+  { id: 's4', ws: 'sal', title: ['中东客户报价单更新', 'Update quotation for Middle East customer'], start: HM('15:20'), conn: 'erp', model: 'deepseek-v4-pro', w: { read: 2, search: 1, edit: 2.5, web: 1.2, conn: 3, exec: 0.4, skill: 0.3 }, seed: 41 },
+  { id: 's5', ws: 'sal', title: ['本周线索跟进提醒', 'Weekly sales lead follow-up reminder'], start: HM('09:00'), end: HM('09:06'), final: 'done', origin: 'a2', conn: 'im', model: 'deepseek-v4', w: { read: 1, conn: 4, edit: 1 }, seed: 51 },
+  { id: 's6', ws: 'sal', title: ['客户拜访纪要整理', 'Write up customer visit notes'], start: HM('12:40'), idleFrom: HM('13:10'), conn: 'im', model: 'deepseek-v4', w: { read: 3, edit: 2, conn: 1 }, seed: 61 },
+  { id: 's7', ws: 'bid', title: ['市政管网项目响应矩阵', 'Municipal pipeline project response matrix'], start: HM('13:40'), waits: [[HM('14:02'), HM('14:09'), 'ask', null]], preset: 'bid-expert', model: 'deepseek-v4-pro', pace: 0.8, w: { read: 5, search: 3, edit: 3, exec: 1, web: 1.4, task: 0.3, skill: 0.4 }, seed: 71 },
+  { id: 's7a', parent: 's7', ws: 'bid', title: ['资质条款逐条核对', 'Check qualification clauses one by one'], start: HM('13:52'), end: HM('14:40'), final: 'done', model: 'deepseek-v4', w: { read: 5, search: 3, edit: 1 }, seed: 72 },
+  { id: 's7b', parent: 's7', ws: 'bid', title: ['技术偏离表', 'Technical deviation list'], start: HM('14:10'), model: 'deepseek-v4', w: { read: 4, search: 2, edit: 3 }, seed: 73 },
+  { id: 's7c', parent: 's7', ws: 'bid', title: ['报价清单核对', 'Check quoted bill of quantities'], start: HM('15:25'), model: 'deepseek-v4', w: { read: 3, edit: 2, exec: 1 }, seed: 74 },
+  { id: 's8', ws: 'bid', title: ['投标保证金条款比对', 'Compare bid bond clauses'], start: HM('10:12'), end: HM('10:19'), final: 'failed', conn: 'erp', model: 'deepseek-v4', w: { read: 3, conn: 3 }, seed: 81 },
+  { id: 's9', ws: 'bid', title: ['招标公告日报', 'Daily research: new tender notices'], start: HM('08:30'), end: HM('08:41'), final: 'done', origin: 'a1', out: 1, model: 'deepseek-v4', w: { web: 5, read: 1, edit: 1 }, seed: 91 },
+  { id: 's10', ws: 'def', title: ['周报草稿', 'Weekly report draft'], start: HM('09:40'), end: HM('09:52'), final: 'done', out: 1, model: 'deepseek-v4', w: { read: 4, edit: 3 }, seed: 101 },
+  { id: 's11', ws: 'def', jobs: [[HM('15:08'), HM('15:11')], [HM('15:20'), null]], title: ['修复导出脚本的编码问题', 'Fix encoding bug in export script'], start: HM('15:05'), model: 'deepseek-v4-pro', w: { read: 3, search: 2, edit: 3, exec: 3 }, seed: 111 },
+  { id: 's12', ws: 'def', title: ['库存预警规则梳理', 'Review stock alert rules'], start: HM('12:30'), idleFrom: HM('12:50'), waits: [[HM('12:38'), HM('12:44'), 'appr', 'mcp__erp__execute_write', 'allowed']], conn: 'erp', model: 'deepseek-v4', w: { read: 3, conn: 2, edit: 1 }, seed: 121 },
 ];
 
-/** One sample day; `midnight` is the local start of that day in ms. */
-export function dshSample(midnight: number): Fixture {
+/** One sample day; `midnight` is the local start of that day in ms. `lang` picks the titles' language. */
+export function dshSample(midnight: number, lang: SampleLang = 'zh'): Fixture {
+  const L = lang === 'en' ? 1 : 0;
   const at = (ms: number) => midnight + ms;
   const now = at(NOW);
-  const ses = SESSIONS.slice();
-  EXTRA.forEach((title, i) => {
+  const ses: (Omit<Ses, 'title'> & { title: string })[] = SESSIONS.map((x) => ({ ...x, title: x.title[L] }));
+  EXTRA.forEach((tt, i) => {
+    const title = tt[L];
     const t0 = HM('08:05') + i * 1_500_000 + Math.round(hs(i, 3, 3) * 900_000);
     ses.push({ id: 'x' + i, ws: WS[i % WS.length].id, title, start: t0, end: t0 + 240_000 + Math.round(hs(i, 5, 1) * 1_500_000), final: i === 7 || i === 15 ? 'failed' : 'done', model: i % 2 ? 'deepseek-v4' : i % 3 ? 'deepseek-v4' : 'deepseek-v4-pro', w: { read: 3, search: 1, edit: 2, exec: i % 2 ? 1.5 : 0 }, seed: 300 + i * 7, out: i % 3 === 0 ? 1 : 0 });
   });
   const ev: UEvent[] = [];
-  for (const w of WS) ev.push({ type: 'workspace', data: { id: w.id, title: w.title, displayPath: w.path } });
+  for (const w of WS) ev.push({ type: 'workspace', data: { id: w.id, title: w.title[L], displayPath: w.path } });
   for (const c of CONNS) ev.push({ type: 'connector', data: { id: c.id, title: c.title, state: 'connected', tools: c.tools } });
   ev.push({ type: 'inventory', data: { plugins: PLUGINS.map(([id, enabled]) => ({ id, enabled })) } });
   for (const a of AUTOS) {
-    ev.push({ type: 'schedule', data: { id: a.id, title: a.title, status: 'active', ...(a.at > NOW ? { nextAt: at(a.at) } : { nextAt: at(a.at) + 86_400_000 }), runs: a.at <= NOW && a.run ? [{ at: at(a.at), agentId: a.run }] : [] } });
+    ev.push({ type: 'schedule', data: { id: a.id, title: a.title[L], status: 'active', ...(a.at > NOW ? { nextAt: at(a.at) } : { nextAt: at(a.at) + 86_400_000 }), runs: a.at <= NOW && a.run ? [{ at: at(a.at), agentId: a.run }] : [] } });
   }
   for (const s of ses) {
     if (s.start > NOW) continue;

@@ -27,7 +27,7 @@ export async function browser() {
   try { return await chromium.launch({ ...(exe ? { executablePath: exe } : {}), args: gpu }); } catch { return null; }
 }
 
-async function prepare() {
+export async function prepare() {
   const r = spawnSync(process.execPath, [join(root, 'scripts/dev.mjs'), '--build-only'], { stdio: 'inherit' });
   if (r.status !== 0) throw new Error('dev build failed');
   await build({ entryPoints: [join(root, 'scripts/city/bench.ts')], bundle: true, outfile: join(dev, 'bench.js'), format: 'esm', platform: 'browser', target: 'es2022', logLevel: 'warning' });

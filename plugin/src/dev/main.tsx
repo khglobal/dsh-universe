@@ -24,7 +24,7 @@ const table: Record<string, string> = q.get('lang') === 'en' ? en : zh;
 const midnight = q.get('fixed') === '1' ? new Date(2026, 10, 18) : new Date(); midnight.setHours(0, 0, 0, 0);
 // `?stress=one|many|ws8|errors|long|idle`: a stress day instead of the sample (fixtures/stress.ts).
 const stress = q.get('stress') as StressKind | null;
-const full = stress ? stressDay(midnight.getTime(), stress, q.get('lang') === 'en' ? 'en' : 'zh') : dshSample(midnight.getTime());
+const full = stress ? stressDay(midnight.getTime(), stress, q.get('lang') === 'en' ? 'en' : 'zh') : dshSample(midnight.getTime(), q.get('lang') === 'en' ? 'en' : 'zh');
 // Stress views for review (mock data only): `?waits=N` puts N of the sample's own agents in the square (asked 1 to N
 // minutes before the fixed moment); `?sessions=N` adds N short sessions spread over the day, every seventh waiting a
 // while and every eleventh stopping on an error.

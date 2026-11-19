@@ -1,7 +1,5 @@
 # DSH Universe
 
-English | [中文](README.zh.md)
-
 Your DeepSeek Harness day as a small pixel city. Every session is a building and every agent is a person. One look
 tells you what is running, what is waiting for you and what got done today.
 
@@ -65,5 +63,4 @@ text or file paths. Subagents are shown by their preset name, not their prompt.
 
 **Source-available, not open source.** You may read the code, and install and use the unmodified plugin with DeepSeek
 Harness. Copying, modifying, redistributing or reusing the code or the art (including the procedural art and
-templates) in other works needs KH's written permission. Copyright KH. See [LICENSE](LICENSE); the English text is
-binding. Source: https://github.com/khglobal/dsh-universe
+templates) in other works needs KH's written permission. Copyright KH. See [LICENSE](LICENSE). Source: https://github.com/khglobal/dsh-universe

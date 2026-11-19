@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 
 /** Exactly what the package may contain (paths inside the tarball's `package/`). */
 export const ALLOWED = [
-  'package.json', 'LICENSE', 'README.md', 'README.zh.md', 'icon.svg', 'cordis.patch.yml',
+  'package.json', 'LICENSE', 'README.md', 'icon.svg', 'cordis.patch.yml',
   'locale/en.json', 'locale/zh.json', 'dist/index.js', 'dist/client.browser.js',
   'screenshots.json', 'screenshots/city.png', 'screenshots/inside.png', 'screenshots/list.png',
 ];

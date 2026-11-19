@@ -22,6 +22,16 @@ test('fixture: the sample day is model events only, deterministic', () => {
   assert.ok(fx.events.filter((e) => e.type === 'agent').length >= 30);
 });
 
+test('fixture: the English sample day is the same day with English titles, on the same room themes', () => {
+  const zhDay = dshSample(0, 'zh'), enDay = dshSample(0, 'en');
+  const strip = (f: typeof zhDay) => f.events.map((e) => JSON.stringify(e.type === 'agent' ? { ...e.data, label: '' } : e.type === 'workspace' || e.type === 'schedule' ? { ...e.data, title: '' } : e.data));
+  assert.deepEqual(strip(enDay), strip(zhDay));
+  assert.deepEqual(enDay.placement, zhDay.placement);
+  const texts = enDay.events.flatMap((e) => (e.type === 'agent' ? [e.data.label] : e.type === 'workspace' || e.type === 'schedule' ? [e.data.title] : []));
+  for (const x of texts) assert.ok(x && !/[\u3400-\u9fff]/.test(x), `not English: ${x}`);
+  assert.equal(new Set(Object.values(enDay.placement?.themes ?? {})).size >= 8, true);
+});
+
 test('today bar and headline on the sample day', () => {
   const s = store();
   const today = todayAt(s, fx.now, CITY);
