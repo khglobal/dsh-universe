@@ -56,3 +56,17 @@ export function paintTileCity(canvas: HTMLCanvasElement, kit: ArtKit, o: { store
   g.fillRect(0, 0, W, H);
   g.drawImage(art as CanvasImageSource, Math.round(W / 2 - (bw / 2) * sc), Math.round(H / 2 - (bh / 2) * sc), Math.round(bw * sc), Math.round(bh * sc));
 }
+
+/** One adjacent city's figures now (the host's `n.summary`, as the Today bar adds them). */
+export interface TileLocal { id: string; running: number; errors: number; tokens: number }
+/** The tile's figures: DSH's own, and what Claude Code and Codex on this device add (the Today bar's "+n local"). */
+export interface TileFigures { need: number; running: number; errors: number; tokens: number; local: { running: number; errors: number; tokens: number } }
+
+/** Today's DSH figures with the local addition kept apart (never summed into DSH's own figure, as in the Today bar). */
+export function tileFigures(d: { need: number; running: number; errors: number; tokens: number }, local: readonly TileLocal[]): TileFigures {
+  const sum = (k: 'running' | 'errors' | 'tokens') => local.reduce((a, x) => a + (Number.isFinite(x[k]) && x[k] > 0 ? x[k] : 0), 0);
+  return { need: d.need, running: d.running, errors: d.errors, tokens: d.tokens, local: { running: sum('running'), errors: sum('errors'), tokens: sum('tokens') } };
+}
+
+/** How often the tile asks for the local figures while it is on screen (the panel asks every 3 s). */
+export const TILE_LOCAL_MS = 45_000;

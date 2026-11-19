@@ -74,6 +74,10 @@ All screenshots and animations use a made-up sample day (`fixtures/dsh-sample.ts
 - The Today bar's running, failed-call and token figures add those local sessions, labelled "+n local", with the
   breakdown by source (DSH, Claude Code, Codex) on hover. Runs DSH delegates to Claude Code or Codex keep no session of
   their own in those tools' stores, so nothing is counted twice.
+- On the Astero workbench home, the **Today** tile (`@khglobal/dsh-universe#today`; 4×2, 2×2 or 4×1) shows the still
+  mini city with what needs you, what is running, failed calls, tokens and the next scheduled task. Running, failed
+  calls and tokens carry the same "+n local" part; the tile asks for those figures only while it is on screen, about
+  once every 45 seconds. A click opens the city.
 
 **Day and night**
 - Auto (follows the DSH theme), day or night. At night only places that are working or waiting are lit.

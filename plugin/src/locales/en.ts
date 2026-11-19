@@ -314,6 +314,7 @@ export const en: Record<keyof typeof zh, string> = {
   'tile.run': "running",
   'tile.review': "to review",
   'tile.err': "failed calls",
+  'tile.tok': "tokens",
   'tile.next': "Next task {t}",
   'tile.nosched': "No more tasks today",
   'tour.count': "{i} / {n}",

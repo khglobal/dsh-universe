@@ -8,8 +8,9 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { emptyPlacement, type PlacementState, type Store } from '@dsh-universe/model';
 import type { ArtKit } from '@dsh-universe/renderer';
-import { layoutOf, paintTileCity } from './tile-city.ts';
-import { clock } from './format.ts';
+import { layoutOf, paintTileCity, tileFigures, TILE_LOCAL_MS, type TileLocal } from './tile-city.ts';
+import { clock, tokens as fmtTokens } from './format.ts';
+import { neighbourOn, readPrefs } from './prefs.ts';
 import { useFeed, useNow } from './hooks.ts';
 import { makeKit } from './kit.ts';
 import type { Env } from './types.ts';
@@ -25,7 +26,46 @@ const kitOnce = () => (tileKit ??= makeKit());
 const INK = 'var(--awb-ink, currentColor)', MUTED = 'var(--awb-muted, #6B7280)', WARN = 'var(--awb-warn, #B76E00)';
 
 
+/** Whether the element is on screen (always true without an IntersectionObserver). */
+function useOnScreen(el: Element | null): boolean {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    if (!el) return;
+    if (typeof IntersectionObserver === 'undefined') { setOn(true); return; }
+    const io = new IntersectionObserver((es) => setOn(es.some((e) => e.isIntersecting)));
+    io.observe(el);
+    return () => io.disconnect();
+  }, [el]);
+  return on;
+}
+
+/**
+ * What Claude Code and Codex on this device add today (the Today bar's "+n local"), for the cities the member left on.
+ * Asked for only while the tile is on screen, and gently (TILE_LOCAL_MS); nothing when the host has no neighbours.
+ */
+function useLocal(env: Env, on: boolean): readonly TileLocal[] {
+  const [sums, setSums] = useState<readonly TileLocal[]>([]);
+  useEffect(() => {
+    const nb = env.neighbours;
+    if (!nb || !on) return;
+    let gone = false, timer: ReturnType<typeof setTimeout> | undefined;
+    const tick = async () => {
+      const prefs = readPrefs();
+      const ids = (await nb.detect().catch(() => [])).filter((id) => neighbourOn(prefs, id));
+      const s = ids.length ? await nb.summary(ids).catch(() => []) : [];
+      if (gone) return;
+      setSums(s.filter((x) => ids.includes(x.id)));
+      timer = setTimeout(tick, TILE_LOCAL_MS);
+    };
+    timer = setTimeout(tick, 500);
+    return () => { gone = true; if (timer) clearTimeout(timer); };
+  }, [env, on]);
+  return sums;
+}
+
 export function Tile({ env, size, theme, reducedMotion }: { env: Env } & TileProps) {
+  const [el, setEl] = useState<Element | null>(null);
+  const local = useLocal(env, useOnScreen(el));
   const feed = useFeed(env.feed);
   const now = useNow(env.now);
   const { t } = env;
@@ -45,28 +85,31 @@ export function Tile({ env, size, theme, reducedMotion }: { env: Env } & TilePro
   const open = () => env.openPanel?.();
 
   if (!ready || !d) {
-    return <div data-dshu-tile={layout} style={{ ...box, display: 'flex', alignItems: 'center', color: MUTED, fontSize: 13 }}>{feed.phase === 'error' ? t('h.error') : t('h.loading')}</div>;
+    return <div ref={setEl} data-dshu-tile={layout} style={{ ...box, display: 'flex', alignItems: 'center', color: MUTED, fontSize: 13 }}>{feed.phase === 'error' ? t('h.error') : t('h.loading')}</div>;
   }
-  const stat = (n: number | string, label: string, warn = false, big = 22) => (
+  const f = tileFigures(d, local);
+  // `plus`: the local addition ("+2 local"), after the label in the label's colour; DSH's own figure stays the number.
+  const stat = (n: number | string, label: string, warn = false, big = 22, plus = '') => (
     <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
       <b style={{ fontSize: big, lineHeight: `${big + 2}px`, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: warn && Number(n) > 0 ? WARN : INK }}>{n}</b>
-      <span style={{ fontSize: 12, lineHeight: '16px', color: warn && Number(n) > 0 ? WARN : MUTED, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+      <span style={{ fontSize: 12, lineHeight: '16px', color: warn && Number(n) > 0 ? WARN : MUTED, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}{plus && <span data-dshu-local="">{' ' + plus}</span>}</span>
     </span>
   );
+  const plus = (n: number, tok = false) => (n > 0 ? t('td.local', { n: tok ? fmtTokens(n, lang) : String(n) }) : '');
   const city = <TileCity store={feed.store} placement={feed.placement ?? emptyPlacement()} T={T} version={feed.version} dark={theme === 'dark'} />;
   const label = headline(feed.store, now, t);
 
   return (
-    <button type="button" data-dshu-tile={layout} data-reduced-motion={reducedMotion ? '' : undefined} onClick={open} aria-label={t('tile.open') + ' · ' + label} style={box}>
+    <button ref={setEl} type="button" data-dshu-tile={layout} data-reduced-motion={reducedMotion ? '' : undefined} onClick={open} aria-label={t('tile.open') + ' · ' + label} style={box}>
       {layout === 'wide' && <>
         {city}
         <span style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0, paddingTop: 2 }}>
-          {/* No headline over the four numbers (it counted agents, "running" counts sessions); it stays the button's name. */}
+          {/* Need you, running, failed calls, tokens (each with what Claude Code and Codex add), then the next task. No headline: it stays the button's name. */}
           <span style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 10px' }}>
-            {stat(d.need, t('tile.need'), true)}
-            {stat(d.running, t('tile.run'))}
-            {stat(d.review, t('tile.review'))}
-            {stat(d.errors, t('tile.err'))}
+            {stat(f.need, t('tile.need'), true)}
+            {stat(f.running, t('tile.run'), false, 22, plus(f.local.running))}
+            {stat(f.errors, t('tile.err'), false, 22, plus(f.local.errors))}
+            {stat(fmtTokens(f.tokens, lang), t('tile.tok'), false, 22, plus(f.local.tokens, true))}
           </span>
           <span style={{ marginTop: 'auto', fontSize: 12, lineHeight: '16px', color: MUTED, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {d.next ? t('tile.next', { t: clock(d.next.at, lang) }) : t('tile.nosched')}
@@ -77,15 +120,15 @@ export function Tile({ env, size, theme, reducedMotion }: { env: Env } & TilePro
         {city}
         <span style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           {stat(d.need, t('tile.need'), true, 20)}
-          {stat(d.running, t('tile.run'), false, 20)}
+          {stat(f.running, t('tile.run'), false, 20, plus(f.local.running))}
         </span>
       </>}
       {layout === 'strip' && <>
         {city}
         <span style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 8, alignItems: 'center' }}>
           {stat(d.need, t('tile.need'), true, 20)}
-          {stat(d.running, t('tile.run'), false, 20)}
-          {stat(d.errors, t('tile.err'), false, 20)}
+          {stat(f.running, t('tile.run'), false, 20, plus(f.local.running))}
+          {stat(f.errors, t('tile.err'), false, 20, plus(f.local.errors))}
         </span>
       </>}
     </button>

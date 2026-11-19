@@ -312,6 +312,7 @@ export const zh = {
   'tile.run': "运行中",
   'tile.review': "待查看",
   'tile.err': "次出错",
+  'tile.tok': "token",
   'tile.next': "下一个定时任务 {t}",
   'tile.nosched': "今天没有定时任务了",
   'tour.count': "{i} / {n}",

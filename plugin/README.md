@@ -10,7 +10,9 @@ It reads host metadata only (session state, tool names, usage, times), never ses
 Works with Claude Code and Codex: runs a DSH session delegates to them stand in its building, named after the engine.
 When Claude Code or Codex is on the same device, their sessions are shown automatically as neighbouring cities and
 counted in the Today bar as "+n local" (metadata only, read from their session files on this device; each can be
-turned off under Nearby cities).
+turned off under Nearby cities). On the Astero workbench home, the Today tile (`@khglobal/dsh-universe#today`) shows
+what needs you, running sessions, failed calls, tokens and the next scheduled task, with the same "+n local" part, and
+opens the city on a click.
 
 ## Desktop and cloud
 

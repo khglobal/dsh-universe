@@ -49,3 +49,15 @@ test('tile: the 4×1 strip keeps the balloon in the picture, its top 4 px inside
   assert.ok(tileCamY(3, 72, 2) < 250, 'the strip moves the picture up');
   assert.equal(tileCamY(3, 400, 2), 250, 'a tall frame keeps the usual framing');
 });
+
+test('tile: the local figures stay apart from DSH\'s own and only count what was read', async () => {
+  const { tileFigures, TILE_LOCAL_MS } = await import('../src/client/tile-city.ts');
+  const d = { need: 1, running: 2, errors: 3, tokens: 4000 };
+  assert.deepEqual(tileFigures(d, []), { ...d, local: { running: 0, errors: 0, tokens: 0 } });
+  const f = tileFigures(d, [
+    { id: 'claude-code', running: 1, errors: 0, tokens: 1200 },
+    { id: 'codex', running: 2, errors: 1, tokens: Number.NaN },
+  ]);
+  assert.deepEqual(f, { need: 1, running: 2, errors: 3, tokens: 4000, local: { running: 3, errors: 1, tokens: 1200 } });
+  assert.ok(TILE_LOCAL_MS >= 30_000, 'the tile asks gently, not at the panel\'s 3 s');
+});
