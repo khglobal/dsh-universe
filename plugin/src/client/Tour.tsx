@@ -1,5 +1,6 @@
 // The first-run tour's view: a small, still card in the hard-edged chrome beside what each step names, with a plain
-// outline round it. Not modal (the panel stays usable); Esc or × ends it; focus goes to the card's main button. Nothing
+// outline round it. Not modal (the panel stays usable); Esc or × ends it; focus goes to the card's main button, and
+// back to the city when it ends. Nothing
 // moves, with or without reduced motion. Shown once per device (prefs `toured`); the legend has a "show again" button.
 import { useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import { btn, px } from './chrome.ts';
@@ -53,7 +54,13 @@ export function Tour({ t, root, step, onStep }: { t: Translate; root: RefObject<
     return () => clearInterval(id);
   }, [step]);
   useEffect(() => { main.current?.focus({ preventScroll: true }); }, [step]);
-  const act = (a: TourAction) => onStep(tourStep(step, a));
+  // At the end (Got it, Skip, ×, Esc) focus goes back to the city, not to the page's body (#19). The "show again"
+  // button that may have started the tour sits in the legend, which the restart closed.
+  const act = (a: TourAction) => {
+    const next = tourStep(step, a);
+    onStep(next);
+    if (next === null) requestAnimationFrame(() => root.current?.querySelector<HTMLElement>('[role="application"]')?.focus({ preventScroll: true }));
+  };
 
   // The card sits below its target when the target is in the upper half, above it otherwise; always inside the panel.
   // A building's step: below the building's own card with a 12 px gap, or above the building when

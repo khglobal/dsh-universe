@@ -381,7 +381,8 @@ export function UniversePanel({ env }: { env: Env }) {
       {feed.full && <p style={S.note}>{t('e.full')}</p>}
       <TodayBar buttons={view.buttons} t={t} onPress={press} chrome />
       <ListView t={t} lang={lang} T={T} sections={view.sections} places={view.places} schedules={view.schedules}
-        plugins={view.plugins} days={historyWindow(feed.history, feed.store, T, undefined, active !== 'dsh')} focus={focus} onOpen={open} onSeen={markSeen} />
+        plugins={view.plugins} days={historyWindow(feed.history, feed.store, T, undefined, active !== 'dsh')} focus={focus} onOpen={open} onSeen={markSeen}
+        onEnter={(id) => { setTarget({ id, nonce: Date.now(), enter: true }); setPrefs({ ...prefs, view: 'city' }); }} />
     </div>
   );
 }

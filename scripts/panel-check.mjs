@@ -8,6 +8,8 @@
 // The nearby cities' settings: the click on the city that closes it does not also enter the building under it (5).
 // Focus (8): inside a room the city's covered controls are out of the Tab order, Esc gives focus back to the city,
 // and the notice's "Nearby cities" puts focus into the settings. The tour's building card closes with the tour (9).
+// Keyboard (#19): Enter opens the centred place, a centre mark, focus back on the city after the tour, the list's
+// "Go inside".
 // Sound (12): a key press makes the audio context like a click; under reduced motion the button says it is unavailable.
 //   --shots <dir>   save a screenshot of each case
 //   --allow-skip    no Chromium: skip (and pass)
@@ -104,7 +106,7 @@ async function open(b, base, qs, prefs, o = {}) {
   await page.addInitScript(([k, v]) => { try { localStorage.setItem(k, v); } catch { /* storage off */ } }, [PREFS, JSON.stringify(prefs)]);
   if (o.audio) await page.addInitScript(() => { const A = globalThis.AudioContext; globalThis.__made = 0; globalThis.AudioContext = class extends A { constructor(...a) { super(...a); globalThis.__made++; } }; });
   await page.goto(base + 'index.html?panel=1&fixed=1&' + qs);
-  await page.waitForFunction(() => !!globalThis.__dshuCity?.last);
+  if (o.list) await page.waitForSelector('[role="list"]'); else await page.waitForFunction(() => !!globalThis.__dshuCity?.last);
   return page;
 }
 async function enterRunning(page) {
@@ -157,6 +159,63 @@ async function focusChecks(b, base, lang) {
   return out;
 }
 
+// Keyboard (#19): a place centred by the camera opens with Enter (not a tower in front of it), a mark shows the
+// centre, the tour's end gives focus back to the city, and the list's "Go inside" enters a place.
+async function keyboardChecks(b, base, lang) {
+  const out = [];
+  let page = await open(b, base, 'lang=' + lang, { toured: true });
+  const ids = await page.evaluate(() => [...new Set(globalThis.__dshuCity.last.hits.map((h) => h.id).filter((id) => !id.startsWith('agent:') && !id.startsWith('b:')))]);
+  if (ids.length < 3) out.push(`only ${ids.length} public places on screen`);
+  for (const id of ids) {
+    await page.keyboard.press('Escape');
+    await page.evaluate((id) => globalThis.__dshuCity.centreOn(id), id);
+    await page.waitForTimeout(700);
+    // Moved there with the keys: the ring marks what Enter opens, and Enter opens just that. A public building
+    // centred on the mark is the one marked (Agent Academy and Error Recovery opened a tower in front of them);
+    // a small shop may share the middle with a tower, and then the mark decides.
+    await page.locator('[role="application"]').focus();
+    await page.keyboard.press('ArrowLeft'); await page.keyboard.press('ArrowRight');
+    await page.waitForTimeout(150);
+    const ringed = await page.evaluate(() => globalThis.__dshuCity.hover);
+    if (!id.includes(':') && ringed !== id) out.push(`the centred ${id} is not the one marked (${ringed})`);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(150);
+    const got = await page.evaluate(() => globalThis.__dshuCity.hover);
+    if (got !== ringed || !(await page.locator('[data-dshu-card]').count())) out.push(`Enter with ${ringed} marked opened ${got}`);
+  }
+  // Sent there by a today button (the next scheduled task: the station): Enter opens that place.
+  await page.keyboard.press('Escape');
+  await page.locator('[data-dshu-today] button[data-dshu-sched]').click();
+  await page.waitForTimeout(900);
+  await page.locator('[role="application"]').focus();
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(150);
+  const sent = await page.evaluate(() => globalThis.__dshuCity.hover);
+  if (sent !== 'station') out.push(`Enter after the camera went to the station opened ${sent}`);
+  await page.keyboard.press('Escape');
+  await page.locator('[role="application"]').focus();
+  await page.keyboard.press('ArrowLeft');
+  await page.waitForTimeout(100);
+  if (!(await page.locator('[data-dshu-centre]').count())) out.push('no centre mark while moving the city with the keyboard');
+  await page.close();
+  // The tour ended from the keyboard: focus on the city, not on the page's body.
+  page = await open(b, base, 'lang=' + lang, {});
+  for (let i = 0; i < 8 && (await page.locator('[data-dshu-tour]').count()); i++) { await page.keyboard.press('Enter'); await page.waitForTimeout(500); }
+  const where = await page.evaluate(() => document.activeElement?.getAttribute('role') ?? document.activeElement?.tagName);
+  if (where !== 'application') out.push(`after the tour focus is on ${where}`);
+  await page.close();
+  // The list's "Go inside" opens the place in the city.
+  page = await open(b, base, 'lang=' + lang, { toured: true, view: 'list' }, { list: true });
+  const inside = page.getByRole('button', { name: lang === 'en' ? 'Go inside' : '进楼看看' });
+  if (!(await inside.count())) out.push('the list has no "Go inside"');
+  else {
+    await inside.last().click();
+    await page.waitForFunction(() => !!globalThis.__dshuRoom?.geometry?.w, null, { timeout: 5000 }).catch(() => out.push('"Go inside" in the list did not open the place'));
+  }
+  await page.close();
+  return out;
+}
+
 async function soundChecks(b, base, lang) {
   const out = [];
   let page = await open(b, base, 'lang=' + lang, { toured: true, sound: true }, { audio: true });
@@ -191,6 +250,9 @@ async function main() {
       const f = await focusChecks(b, base, lang);
       console.log(`focus: ${lang}: ${f.length ? 'FAIL ' + f.join('; ') : 'room covers the city controls; Esc back to the city; notice into the settings; tour card closes'}`);
       failed += f.length ? 1 : 0;
+      const kb = await keyboardChecks(b, base, lang);
+      console.log(`keyboard: ${lang}: ${kb.length ? 'FAIL ' + kb.join('; ') : 'Enter opens the centred place; centre mark; focus after the tour; list "Go inside"'}`);
+      failed += kb.length ? 1 : 0;
       const sn = await soundChecks(b, base, lang);
       console.log(`sound: ${lang}: ${sn.length ? 'FAIL ' + sn.join('; ') : 'a key starts it; unavailable under reduced motion'}`);
       failed += sn.length ? 1 : 0;

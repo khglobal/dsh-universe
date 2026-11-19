@@ -8,6 +8,7 @@ import { Timeline, type TimeMode } from './Timeline.tsx';
 import { reducedMotion, unlockSound } from './time.ts';
 import { CHROME_CSS, CHROME_ROOT, btn, pressed, px } from './chrome.ts';
 import { overlayFactories, placeViewFor } from './extensions.ts';
+import { centrePick } from './centre.ts';
 import { makeKit } from './kit.ts';
 import { frameNotifier, onRatioChange, useEdgeFade } from './hooks.ts';
 import { hostDark, isNight, nextLight, type Prefs } from './prefs.ts';
@@ -26,7 +27,8 @@ export const REPLAY_CITY_STEP_MS = 15 * 60_000;
  * Centre on this place or agent and open its card. `TOUR_BUILDING` (the tour's last step) instead opens the card of
  * the running building nearest the square among those on screen, without moving the camera.
  */
-export interface CityTarget { id: string; nonce: number }
+/** Where to send the camera; `enter`: also go inside (the list's "Go inside"). */
+export interface CityTarget { id: string; nonce: number; enter?: boolean }
 export const TOUR_BUILDING = 'tour:building';
 /** A name plate's widest (the English waiting line, `13 min · waiting for approval execute_write`). */
 const PLATE_W = 260;
@@ -268,6 +270,7 @@ export function CityPanel(p: CityProps) {
     go();
     const id = p.target.id;
     setSelected(id.startsWith('b:') || id.startsWith('agent:') ? id : undefined);
+    if (p.target.enter && placeViewFor(id)) { setSelected(id); setInside(id); }
     v.setFollow(id.startsWith('agent:') ? id.slice(6) : undefined);
     return () => { if (timer) clearTimeout(timer); };
   }, [p.target?.nonce]);
@@ -369,7 +372,7 @@ export function CityPanel(p: CityProps) {
   }
   void frame;
 
-  const onPointerDown = (e: RPointerEvent) => { if ((e.target as Element).closest('button')) return; drag.current = { x: e.clientX, y: e.clientY, moved: 0, id: e.pointerId }; (e.currentTarget as Element).setPointerCapture?.(e.pointerId); };
+  const onPointerDown = (e: RPointerEvent) => { if ((e.target as Element).closest('button')) return; setKbd(false); drag.current = { x: e.clientX, y: e.clientY, moved: 0, id: e.pointerId }; (e.currentTarget as Element).setPointerCapture?.(e.pointerId); };
   const local = (e: { clientX: number; clientY: number }) => { const r = wrap.current!.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top] as const; };
   const onPointerMove = (e: RPointerEvent) => {
     const v = viewRef.current;
@@ -412,6 +415,24 @@ export function CityPanel(p: CityProps) {
     if (wheel.current < 0) viewRef.current?.zoom(1, x, y); else zoomOut(x, y);
     wheel.current = 0;
   };
+  /**
+   * What Enter opens (#19): the thing the camera was sent to (a today button, a list row), else the place under the
+   * centre mark whose picture is centred nearest to it (not whatever sprite is on top at the exact centre).
+   */
+  const atCentre = (): string | undefined => {
+    const v = viewRef.current;
+    if (!v) return undefined;
+    const c = centred.current;
+    const id = c && c !== TOUR_BUILDING ? c : centrePick((v.last?.hits ?? []).map((h) => {
+      const a = v.screenOf(h.r[0], h.r[1]), b = v.screenOf(h.r[2], h.r[3]);
+      return { id: h.id, r: [a[0], a[1], b[0], b[1]] as const };
+    }), v.vp.w / 2, v.vp.h / 2);
+    const sid = id ? toSession(id) : undefined;
+    return sid ? 'b:' + sid : id;
+  };
+  // While the city is driven from the keyboard a mark shows its centre and the place Enter opens wears the hover ring.
+  const [kbd, setKbd] = useState(false);
+  const ringCentre = () => { setKbd(true); requestAnimationFrame(() => { if (!hover && !selected) viewRef.current?.setHover(atCentre()); }); };
   const onKey = (e: React.KeyboardEvent) => {
     const v = viewRef.current;
     if (!v || e.target !== e.currentTarget) return;
@@ -419,13 +440,13 @@ export function CityPanel(p: CityProps) {
     if (k.startsWith('Arrow') || k === '0') centred.current = undefined;
     if (k === 'ArrowLeft') v.panBy(60, 0); else if (k === 'ArrowRight') v.panBy(-60, 0); else if (k === 'ArrowUp') v.panBy(0, 60); else if (k === 'ArrowDown') v.panBy(0, -60);
     else if (k === '+' || k === '=') v.zoom(1); else if (k === '-') zoomOut(); else if (k === '0') v.home();
-    else if (k === 'Enter' || k === ' ') {   // the thing the camera went to (a today button, a list row), else the thing in the middle, opens its card
-      const c = centred.current;
-      if (c && c !== TOUR_BUILDING) { const sid = toSession(c); openCard(sid ? 'b:' + sid : c, e.currentTarget as HTMLElement); e.preventDefault(); return; }
-      const h = v.hitAt(v.vp.w / 2, v.vp.h / 2);
-      const sid = h ? toSession(h.id) : undefined;
-      if (h) openCard(sid ? 'b:' + sid : h.id, e.currentTarget as HTMLElement);
+    else if (k === 'Enter' || k === ' ') {   // the thing the camera went to, else the place at the centre mark, opens its card
+      const id = atCentre();
+      if (id) openCard(id, e.currentTarget as HTMLElement);
+      e.preventDefault();
+      return;
     } else return;
+    ringCentre();
     e.preventDefault();
   };
 
@@ -488,9 +509,17 @@ export function CityPanel(p: CityProps) {
       <style>{CHROME_CSS}</style>
       <div ref={cityEl} tabIndex={0} role="application" aria-label={t('city.aria')} onKeyDown={onKey}
         onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={() => { drag.current = null; }} onPointerLeave={() => { viewRef.current?.setHover(selected); setHover(undefined); }} onWheel={onWheel}
-        onFocus={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = e.currentTarget.matches(':focus-visible') ? 'inset 0 0 0 3px #2F6BDE' : 'none'; }} onBlur={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = 'none'; }}
+        onFocus={(e) => { const kb = e.currentTarget.matches(':focus-visible'); (e.currentTarget as HTMLElement).style.boxShadow = kb ? 'inset 0 0 0 3px #2F6BDE' : 'none'; if (kb) ringCentre(); }}
+        onBlur={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = 'none'; setKbd(false); }}
         style={{ position: 'absolute', inset: 0, touchAction: 'none', cursor: hover ? 'pointer' : 'grab', outline: 'none' }}>
         <canvas ref={canvas} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', imageRendering: 'pixelated', display: 'block' }} />
+        {kbd && !inside && (
+          <svg aria-hidden="true" data-dshu-centre="" width="24" height="24" viewBox="0 0 24 24" style={{ position: 'absolute', left: '50%', top: '50%', marginLeft: -12, marginTop: -12, pointerEvents: 'none' }}
+            fill="none" strokeLinecap="square">
+            <path d="M12 1v7M12 16v7M1 12h7M16 12h7" stroke="#FFFFFF" strokeWidth="4" />
+            <path d="M12 1v7M12 16v7M1 12h7M16 12h7" stroke="#2F6BDE" strokeWidth="2" />
+          </svg>
+        )}
       </div>
       {/* Places the first-run tour points at (square, a building): empty, invisible, following the camera. */}
       {!p.prefs.toured && tourAnchors().map((a) => <span key={a.id} data-dshu-anchor={a.id} aria-hidden="true" style={{ position: 'absolute', left: a.x, top: a.y, width: a.w, height: a.h, pointerEvents: 'none' }} />)}
