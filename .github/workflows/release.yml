@@ -31,6 +31,11 @@ jobs:
       - name: check
         if: env.GH_TOKEN != ''
         run: npm run check
+      # The catalog's verify-plugin renders the sidebar entry in a headless Chromium (tools/sidebar-render.mjs), found
+      # in the Playwright cache: install it with the pinned playwright-core (and its system libraries on Linux).
+      - name: headless chromium
+        if: env.GH_TOKEN != ''
+        run: npx playwright-core install ${{ runner.os == 'Linux' && '--with-deps' || '' }} chromium-headless-shell
       - name: checkout capabilities catalog
         if: env.GH_TOKEN != ''
         uses: actions/checkout@v4
