@@ -17,7 +17,7 @@
 // Then the stores are moved away (a cloud workspace has none): no notice, no chips, no settings, silent.
 // `--width 390` and `--dark` check a narrow panel and the dark theme. Screenshots: <prefix>-<name>-<lang>.png.
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -122,6 +122,13 @@ try {
       await page.waitForTimeout(800);
     };
     const chipIds = (page) => page.locator('[data-dshu-chip]').evaluateAll((els) => els.map((e) => e.getAttribute('data-dshu-chip')));
+    // axe-core over one part of the page: serious and critical findings are problems.
+    const AXE = readFileSync(new URL('../node_modules/axe-core/axe.min.js', import.meta.url), 'utf8');
+    const axe = async (page, sel, where) => {
+      await page.addScriptTag({ content: AXE }).catch(() => {});
+      const v = await page.evaluate(async (s) => { const el = document.querySelector(s); if (!el) return ['missing']; const r = await window.axe.run(el, { resultTypes: ['violations'] }); return r.violations.filter((x) => x.impact === 'serious' || x.impact === 'critical').map((x) => x.id + ' ×' + x.nodes.length); }, sel);
+      for (const x of v) problems.push(`${where}: axe ${x}`);
+    };
     const leaks = (where, s) => { for (const m of MARKERS) if (s.includes(m)) problems.push(`${where}: marker ${m} leaked`); if (s.includes('/work/')) problems.push(`${where}: a path leaked`); };
 
     for (const lang of ['en', 'zh']) {
@@ -168,11 +175,13 @@ try {
         if (id !== 'chatgpt') {
           // A building's card (with its product tag), then inside: its rooms, then back.
           await clear();
-          const plate = page.locator('button[aria-haspopup=dialog]', { hasText: id === 'claude' ? 'Cowork' : 'market-report' }).first();
+          // The Cowork / market-report building, or in a narrow view whichever session building is on screen.
+          let plate = page.locator('button[aria-haspopup=dialog]', { hasText: id === 'claude' ? 'Cowork' : 'market-report' }).first();
+          if (!(await plate.isVisible().catch(() => false))) plate = page.locator('button[aria-haspopup=dialog]', { hasText: / · \d\d-\d\d/ }).first();
           await plate.click().catch(() => problems.push(`${lang}: ${id}: no building name plate`));
           await page.waitForTimeout(800);
           const card = await page.locator('[data-dshu-card]').innerText().catch(() => '');
-          if (!card.includes(id === 'claude' ? W.app : 'WorkBuddy')) problems.push(`${lang}: ${id}: the card does not say which product (${card.replace(/\s+/g, ' ').slice(0, 80)})`);
+          if (!(id === 'claude' ? card.includes(W.app) || card.includes(W.cli) : card.includes('WorkBuddy'))) problems.push(`${lang}: ${id}: the card does not say which product (${card.replace(/\s+/g, ' ').slice(0, 80)})`);
           await shot(page, id + '-card', lang);
           await page.locator('[data-dshu-card] button', { hasText: lang === 'zh' ? '进楼看看' : 'Go inside' }).click().catch(() => problems.push(`${lang}: ${id}: no way inside`));
           await page.waitForTimeout(2500);
@@ -212,6 +221,7 @@ try {
       const cards = await page.locator('[data-dshu-city]').evaluateAll((els) => els.map((e) => e.getAttribute('data-dshu-city')));
       if (cards.join() !== ['dsh', ...CITIES].join()) problems.push(`${lang}: city cards ${cards.join()}`);
       await shot(page, 'region', lang);
+      await axe(page, '[data-dshu-region]', `${lang} region`);
       await page.keyboard.press('Escape');
       await page.waitForTimeout(800);
 
@@ -222,6 +232,12 @@ try {
       const box = (s) => page.locator(`[data-dshu-nb-source="${s}"] input[type=checkbox]`);
       for (const s of ['claude-code', 'claude-app', 'codex', 'workbuddy']) if (!(await box(s).isChecked())) problems.push(`${lang}: ${s} should be on by default`);
       await shot(page, 'settings', lang);
+      await axe(page, '[data-dshu-nb-settings]', `${lang} settings`);
+      // Keyboard: Tab reaches the switches, Space toggles one (and back).
+      await box('workbuddy').focus();
+      await page.keyboard.press('Space'); await page.waitForTimeout(200);
+      if (await box('workbuddy').isChecked()) problems.push(`${lang}: Space did not toggle a switch`);
+      await page.keyboard.press('Space'); await page.waitForTimeout(200);
       await box('codex').uncheck();
       await box('claude-app').uncheck();
       await page.waitForTimeout(500);

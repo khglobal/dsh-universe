@@ -1,6 +1,6 @@
 // The full-page panel (phase 1: the list view; the city drawing comes in phase 2). The top sentence, the today bar
 // and the list all come from the same data at the same moment.
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CITY_SOURCES, cityOfSource, type NeighbourId, type NeighbourSummary, type SourceId } from '@dsh-universe/adapter-dsh';
 import { Region, SIGN, type CityId } from './Region.tsx';
 import { hostDark } from './prefs.ts';
@@ -82,6 +82,16 @@ export function UniversePanel({ env }: { env: Env }) {
   // Never stored: a reload always starts with it closed.
   const [settingsOpen, setSettings] = useState(false);
   const pop = usePopover<HTMLDivElement, HTMLButtonElement>(settingsOpen, setSettings);
+  // The settings hang from their button's right edge; in a narrow panel (where the button is not at the right edge)
+  // they are moved back inside the window.
+  useLayoutEffect(() => {
+    const el = pop.panel.current;
+    if (!settingsOpen || !el) return;
+    el.style.transform = '';
+    const r = el.getBoundingClientRect(), w = el.ownerDocument.documentElement.clientWidth;
+    const dx = r.left < 12 ? 12 - r.left : r.right > w - 12 ? w - 12 - r.right : 0;
+    if (dx) el.style.transform = `translateX(${Math.round(dx)}px)`;
+  });
   const feed = useFeed(active === 'dsh' ? env.feed : env.neighbours!.feed(active, off));
   const dshTitles = useObservable(env.titles);
   // An adjacent city's sessions carry their own label (a title the member set, or none): never DSH's list.
@@ -305,9 +315,9 @@ export function UniversePanel({ env }: { env: Env }) {
             <div style={{ flex: '1 1 300px', minWidth: 0 }}>{regionOpen ? <p style={{ ...S.head, margin: '0 0 6px' }}>{t('nb.region')}</p> : <TodayBar buttons={view.buttons} t={t} onPress={press} oneRow active={activeCat} />}</div>
             <div style={{ marginLeft: 'auto', paddingBottom: 6, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>{nbControls}{toggle}</div>
           </div>
-          {(hintBar || (notes.length > 0 && !regionOpen)) && (
+          {((hintBar && !regionOpen) || (notes.length > 0 && !regionOpen)) && (
             <div style={{ position: 'absolute', top: '100%', left: 12, right: 12, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, pointerEvents: 'none' }}>
-              {hintBar && <div style={{ pointerEvents: 'auto', width: '100%', maxWidth: 640 }}>{hintBar}</div>}
+              {hintBar && !regionOpen && <div style={{ pointerEvents: 'auto', width: '100%', maxWidth: 640 }}>{hintBar}</div>}
               {notes.length > 0 && !regionOpen && (
                 <div role="status" aria-label={t('e.notes')} style={{ pointerEvents: 'auto', boxSizing: 'border-box', width: '100%', display: 'flex', alignItems: 'flex-start', gap: 10, padding: '6px 10px', ...px, boxShadow: 'none', fontSize: 12.5, maxWidth: 640 }}>
                   <div style={{ flex: 1 }}>{notes.map((k) => <div key={k}>{t(k)}</div>)}</div>
