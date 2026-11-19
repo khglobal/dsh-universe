@@ -1,7 +1,7 @@
 import { useEffect, useState, useSyncExternalStore, type CSSProperties, type RefObject } from 'react';
 import type { Feed, FeedState } from './feed.ts';
 import type { Observable } from './types.ts';
-import { documentPage, type PageState } from '@dsh-universe/renderer';
+import { CALM_AFTER_MS, documentPage, type PageState } from '@dsh-universe/renderer';
 
 export const useFeed = (feed: Feed): FeedState => useSyncExternalStore(feed.subscribe, feed.get, feed.get);
 export const useObservable = <T,>(o: Observable<T>): T => useSyncExternalStore(o.subscribe, o.getSnapshot, o.getSnapshot);
@@ -12,7 +12,8 @@ export const LIST_TICK_MS = 5000;
 /**
  * The clock, every `every` ms while mounted and the page is shown (the text of waits and durations follows it;
  * nothing is animated). A hidden page stops it (each tick recomputes the day: 2 to 4% of a core on a busy day for
- * nobody to see) and catches up at once when it is shown again.
+ * nobody to see) and catches up at once when it is shown again. Left alone (no input for CALM_AFTER_MS) or in a
+ * window without the focus, it steps every CALM_TICK_MS, and catches up at the member's first move.
  */
 export function useNow(now: () => number, every = 1000, page: PageState = documentPage()): number {
   const [t, setT] = useState(now);
@@ -20,21 +21,32 @@ export function useNow(now: () => number, every = 1000, page: PageState = docume
   return t;
 }
 
+/** The clock's step while the page is left alone or in the background (ms). */
+export const CALM_TICK_MS = 2000;
+
 /**
- * Calls `fn` every `every` ms while the page is shown; stops while it is hidden and calls it once at once when it
- * is shown again (then every `every` ms). Returns the stop.
+ * Calls `fn` every `every` ms while the page is shown (every CALM_TICK_MS at least while it is left alone or
+ * blurred); stops while it is hidden and calls it once at once when it is shown again or woken up. Returns the stop.
  */
 export function clockTimer(fn: () => void, every: number, page: PageState,
-  timers: { set: (f: () => void, ms: number) => unknown; clear: (id: unknown) => void } = { set: (f, ms) => setInterval(f, ms), clear: (id) => clearInterval(id as ReturnType<typeof setInterval>) }): () => void {
-  let id: unknown;
-  const arm = (back: boolean) => {
-    if (page.hidden()) { if (id !== undefined) timers.clear(id); id = undefined; return; }
-    if (id !== undefined) return;
-    if (back) fn();
-    id = timers.set(fn, every);
+  timers: { set: (f: () => void, ms: number) => unknown; clear: (id: unknown) => void } = { set: (f, ms) => setInterval(f, ms), clear: (id) => clearInterval(id as ReturnType<typeof setInterval>) },
+  clock: () => number = () => performance.now()): () => void {
+  let id: unknown, last = clock(), calm = false;
+  const call = () => { last = clock(); fn(); };
+  const tick = () => {
+    calm = page.blurred() || page.idleFor() >= CALM_AFTER_MS;
+    if (calm && clock() - last < Math.max(every, CALM_TICK_MS) - 50) return;
+    call();
   };
-  const off = page.subscribe(() => arm(true));
-  arm(false);
+  const arm = () => {
+    if (page.hidden()) { if (id !== undefined) timers.clear(id); id = undefined; return; }
+    // Shown again, or woken up from the calm step: brought up to date at once.
+    if (id === undefined || (calm && clock() - last >= every - 50)) call();
+    calm = false;
+    id ??= timers.set(tick, every);
+  };
+  const off = page.subscribe(arm);
+  if (!page.hidden()) id = timers.set(tick, every);
   return () => { off(); if (id !== undefined) timers.clear(id); id = undefined; };
 }
 

@@ -2,13 +2,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { PageState } from '@dsh-universe/renderer';
-import { LIST_TICK_MS, clockTimer } from '../src/client/hooks.ts';
+import { CALM_TICK_MS, LIST_TICK_MS, clockTimer } from '../src/client/hooks.ts';
 
 function fakePage() {
-  let hidden = false;
+  let hidden = false, idle = 0;
   const subs = new Set<() => void>();
-  const page: PageState = { hidden: () => hidden, blurred: () => false, idleFor: () => 0, subscribe: (f) => { subs.add(f); return () => subs.delete(f); } };
-  return { page, set(h: boolean) { hidden = h; for (const f of subs) f(); }, subs };
+  const page: PageState = { hidden: () => hidden, blurred: () => false, idleFor: () => idle, subscribe: (f) => { subs.add(f); return () => subs.delete(f); } };
+  return { page, set(h: boolean) { hidden = h; for (const f of subs) f(); }, idle(ms: number, emit = false) { idle = ms; if (emit) for (const f of subs) f(); }, subs };
 }
 function fakeTimers() {
   const live = new Map<number, { f: () => void; ms: number }>();
@@ -41,4 +41,19 @@ test('clock: a page that starts hidden starts no timer; the list steps every few
   clockTimer(() => {}, 1000, p.page, tm);
   assert.equal(tm.live.size, 0);
   assert.ok(LIST_TICK_MS >= 5000);
+});
+
+test('clock: left alone it steps every CALM_TICK_MS, and catches up at the first move', () => {
+  const p = fakePage(), tm = fakeTimers();
+  let n = 0, now = 0;
+  clockTimer(() => n++, 1000, p.page, tm, () => now);
+  p.idle(60_000);
+  for (let s = 1; s <= 10; s++) { now = s * 1000; tm.fire(); }
+  assert.equal(n, 10 / (CALM_TICK_MS / 1000), 'one step every two seconds');
+  now = 11_000; tm.fire();
+  assert.equal(n, 5, 'an odd second is skipped');
+  p.idle(0, true);
+  assert.equal(n, 6, 'woken up: brought up to date at once');
+  now = 12_000; tm.fire();
+  assert.equal(n, 7, 'then every second again');
 });
