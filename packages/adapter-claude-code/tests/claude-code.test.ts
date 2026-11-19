@@ -61,6 +61,7 @@ test('claude code: sessions, subagents, calls, errors, tokens, waits and state',
     const ws = st.workspaces();
     assert.deepEqual(ws.map((w) => w.title).sort(), ['billing-api', 'demo-app', 'docs-site']);
     assert.ok(ws.every((w) => /^p:[0-9a-f]{16}$/.test(w.id)));
+    assert.ok(!st.agents().some((s) => s.usage.some((u) => u.model === '<synthetic>')), "Claude Code's own error notices are not a model");
     assert.equal(snap.history?.reduce((n, d) => n + d.sessions, 0), 6);
     assert.equal(snap.history?.find((d) => d.sessions === 5)?.failed, 1);
     await a.stop();

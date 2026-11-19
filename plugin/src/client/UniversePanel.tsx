@@ -207,7 +207,7 @@ export function UniversePanel({ env }: { env: Env }) {
         </div>
         {hintBar && <div style={{ position: 'absolute', zIndex: 10, top: 58, left: 12, right: 12 }}>{hintBar}</div>}
         {notes.length > 0 && !regionOpen && (
-          <div role="status" aria-label={t('e.notes')} style={{ position: 'absolute', zIndex: 9, top: hintBar ? 100 : 58, left: 12, right: 12, display: 'flex', alignItems: 'flex-start', gap: 10, padding: '6px 10px', ...px, boxShadow: 'none', fontSize: 12.5, maxWidth: 640 }}>
+          <div role="status" aria-label={t('e.notes')} style={{ position: 'absolute', zIndex: 9, top: hintBar ? 112 : 58, left: 12, right: 12, display: 'flex', alignItems: 'flex-start', gap: 10, padding: '6px 10px', ...px, boxShadow: 'none', fontSize: 12.5, maxWidth: 640 }}>
             <div style={{ flex: 1 }}>{notes.map((k) => <div key={k}>{t(k)}</div>)}</div>
             <button type="button" style={{ ...S.btn, minHeight: 26, padding: '0 8px' }} onClick={() => setDismissed(new Set([...dismissed, ...notes]))}>{t('e.dismiss')}</button>
           </div>

@@ -159,12 +159,13 @@ function onLine(st: CcFile, o: Rec, ctx: LineCtx) {
   const msg = rec(o.message);
   if (o.type === 'assistant') {
     const id = str(msg.id);
-    const model = str(msg.model);
-    if (model && model !== '<synthetic>' && model !== st.model) { st.model = model; ctx.emit({ type: 'agent', data: { id: agentId, model } }); }
+    // `<synthetic>`: a message Claude Code wrote itself (an API error notice), not a model.
+    const model = str(msg.model) === '<synthetic>' ? undefined : str(msg.model);
+    if (model && model !== st.model) { st.model = model; ctx.emit({ type: 'agent', data: { id: agentId, model } }); }
     if (!st.turnOpen) { st.turnOpen = true; ctx.emit({ type: 'turn', data: { t, agentId, phase: 'start' } }); }
     const u = rec(msg.usage);
     // One API response is written as several lines (one per content block) with the same id and usage: count it once.
-    if (id && !st.usage.has(id) && (num(u.input_tokens) !== undefined || num(u.output_tokens) !== undefined)) {
+    if (id && !st.usage.has(id) && ((num(u.input_tokens) ?? 0) > 0 || (num(u.output_tokens) ?? 0) > 0)) {
       st.usage.add(id);
       ctx.emit({ type: 'usage', data: {
         id, t, agentId, model: model ?? st.model ?? '', input: num(u.input_tokens) ?? 0, output: num(u.output_tokens) ?? 0,

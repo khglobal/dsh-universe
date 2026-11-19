@@ -172,9 +172,11 @@ try {
     await ctx.close();
   } finally { await browser.close(); }
   for (const line of log.split('\n')) if (/universe|neighbour/iu.test(line) && /error|warn/iu.test(line)) problems.push(`host log: ${line}`);
+} catch (e) {
+  problems.push(`stopped: ${e instanceof Error ? e.message : e}`);
 } finally {
-  server?.kill();
-  if (opt.keep) step(`kept ${T}`); else rmSync(T, { recursive: true, force: true });
+  if (server && server.exitCode === null) { const gone = new Promise((r) => server.once('exit', r)); server.kill(); await Promise.race([gone, new Promise((r) => setTimeout(r, 10_000))]); }
+  if (opt.keep) step(`kept ${T}`); else rmSync(T, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
 }
 for (const p of problems) console.log(`[neighbours] problem: ${p}`);
 console.log(problems.length ? `[neighbours] ${problems.length} problem(s)` : `[neighbours] ok: official DSH ${opt.dsh}, adjacent cities in en and zh, nothing leaked`);
