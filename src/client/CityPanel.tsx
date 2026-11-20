@@ -17,7 +17,7 @@ import type { Translate } from './types.ts';
 import { CITY, layerSummary, placeName, rowOf } from './view.ts';
 import { tokens as fmtTokens } from './format.ts';
 
-/** True in the dev page build (scripts/dev.mjs), false in the shipped plugin (plugin/scripts/build.mjs). */
+/** True in the dev page build (scripts/dev.mjs), false in the shipped plugin (scripts/build.mjs). */
 declare const __DSHU_DEV__: boolean | undefined;
 
 /** How far the city moves at once during a replay. */

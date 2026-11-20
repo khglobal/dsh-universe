@@ -141,6 +141,13 @@ Command line, for advanced users:
 dsh plugin --profile web add @khglobal/dsh-universe
 ```
 
+Or straight from this repository (the repository root is the plugin, with the built bundle committed, so nothing is
+built on your machine and no build approval is asked for):
+
+```sh
+dsh plugin --profile web add github:khglobal/dsh-universe
+```
+
 Use the name of your profile in place of `web`, and restart DSH after installing from the command line.
 
 ## What it reads
@@ -208,11 +215,21 @@ on this device, so the next start reads only what changed.
 
 Node 24.21 or newer.
 
+The repository root is the plugin package: `package.json` is the plugin manifest (`dsh.bundle.patch`,
+`cordis.patch.yml`, `exports`), `src/` is the plugin (Host entry `src/index.ts` exporting `apply(ctx)`, client
+`src/client.ts`), and `dist/` is its build, committed so that `github:` installs work without building. The internal
+packages (`model`, `art`, `renderer` and the adapters) are private npm workspaces under `packages/`, bundled into
+`dist/`. See [docs/PLUGIN-REPO-LAYOUT.md](docs/PLUGIN-REPO-LAYOUT.md).
+
 ```sh
 npm ci
 npm run dev        # the panel on the sample day at http://127.0.0.1:5174/ (?lang=en, ?theme=dark)
 npm run check      # typecheck, build, tests, locale checks, npm tarball audit
+npm run build      # rebuild dist/; commit it with the source change (CI fails when dist/ differs from the source)
 ```
+
+`npm publish` from the root is refused: the npm package is packed by `scripts/npm-pack.mjs` and published by the
+npm-publish workflow, and member releases go to the capabilities catalog through `scripts/release.mjs`.
 
 The README animations are recorded from the real panel on the sample day with a fixed clock, so they come out the
 same every time: `CHROME_PATH=<chrome-headless-shell> node scripts/readme-gifs.mjs` (needs FFmpeg; gifsicle is used

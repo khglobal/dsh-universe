@@ -6,8 +6,8 @@ import { createSeen, createStore, FLOOR_OF, idxAt, type FloorKind } from '@dsh-u
 import { ROOMS } from '@dsh-universe/art';
 import { InteriorView } from '../client/Interior.tsx';
 import '../client/interior-view.ts';
-import { dshSample } from '../../../fixtures/dsh-sample.ts';
-import { stressDay, type StressKind } from '../../../fixtures/stress.ts';
+import { dshSample } from '../../fixtures/dsh-sample.ts';
+import { stressDay, type StressKind } from '../../fixtures/stress.ts';
 import { en, zh } from '../locales/index.ts';
 import { createFeed, fixtureApi } from '../client/feed.ts';
 import type { Api } from '../client/api.ts';

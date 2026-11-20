@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { createStore } from '@dsh-universe/model';
 import { ROOMS } from '@dsh-universe/art';
 import { interiorOf } from '@dsh-universe/renderer';
-import { dshSample } from '../../fixtures/dsh-sample.ts';
+import { dshSample } from '../fixtures/dsh-sample.ts';
 import { zh } from '../src/locales/zh.ts';
 import { en } from '../src/locales/en.ts';
 import { fill } from '../src/client/format.ts';

@@ -23,6 +23,10 @@ jobs:
         run: npm run typecheck
       - name: build
         run: npm run build
+      # The repository root is the plugin and a `github:` install builds nothing, so dist/ is committed: it must be
+      # exactly the build of this source (scripts/check-build.mjs).
+      - name: committed build matches the source
+        run: npm run check-build
       - name: test
         run: npm test
       - name: locale tables

@@ -2,6 +2,21 @@
 
 How the packages fit together, and where new work plugs in.
 
+## Layout
+
+The repository root is the plugin package `@khglobal/dsh-universe` (what `dsh plugin add github:khglobal/dsh-universe`
+installs and what the plugin directories read); the internal packages are private npm workspaces bundled into it.
+
+| Path | What |
+| --- | --- |
+| `package.json` | The plugin manifest: name, version, `dsh` (`bundle.patch`, `client`), `exports`, `files`, `engines.dsh`, and the `workspaces` list of the internal packages. Not private; `npm publish` from here is refused (`scripts/no-root-publish.mjs`). |
+| `cordis.patch.yml`, `icon.svg`, `locale/` | The patch that inserts the plugin row, the icon, the plugin's title and description. |
+| `src/`, `tests/` | The plugin: Host entry `src/index.ts` (`name`, `inject`, `apply(ctx)`), client `src/client.ts`, panel `src/client/`, dev page `src/dev/`. |
+| `dist/` | The build (`npm run build`, `scripts/build.mjs`), committed: a `github:` install builds nothing. CI rebuilds and fails when it differs (`scripts/check-build.mjs`). |
+| `packages/*` | The internal packages below (private, never published on their own). |
+| `release/npm/` | The npm publish manifest and README (`scripts/npm-pack.mjs`, `scripts/check-tarball.mjs`). |
+| `release/capabilities/`, `release/vendor/` | The capabilities catalog README and vendored build scripts (`scripts/release.mjs`). |
+
 ## Packages
 
 | Package | Role | Depends on |
@@ -11,9 +26,9 @@ How the packages fit together, and where new work plugs in.
 | `art` | The proprietary art kit (palette, sprites, templates, street, people, cars). Separable. | `model`, `renderer` (types) |
 | `adapter-dsh` | Host aggregator, storage, placement keeper, routes, plugin identity (`identity.ts`). | `model`, `adapter-kit` |
 | `adapter-claude-code`, `adapter-claude-app`, `adapter-codex`, `adapter-workbuddy` | The sources of the neighbouring cities: Claude Code, the Claude desktop app (Cowork and Code-tab transcripts, read with Claude Code's reader), Codex and WorkBuddy session stores on this device, metadata only, built on `adapter-kit/local` (incremental byte-offset reading, a time budget, 14 days, a checkpoint per source the plugin keeps across restarts). | `model`, `adapter-kit` |
-| `plugin` | Host entry, client registration, React panel. `plugin/src/neighbours.ts` merges the sources into one city per vendor (`CITY_SOURCES` in `adapter-dsh/src/routes.ts`: Claude, ChatGPT, WorkBuddy), drops a Claude Code session the Claude app owns, carries 0.2 lots over, and serves each city's figures (`n.summary`) for the DSH Today bar and the chips. Shown by default wherever a source's store is found; each source has its own switch. | all |
+| plugin (root `src/`) | Host entry, client registration, React panel. `src/neighbours.ts` merges the sources into one city per vendor (`CITY_SOURCES` in `adapter-dsh/src/routes.ts`: Claude, ChatGPT, WorkBuddy), drops a Claude Code session the Claude app owns, carries 0.2 lots over, and serves each city's figures (`n.summary`) for the DSH Today bar and the chips. Shown by default wherever a source's store is found; each source has its own switch. | all |
 
-Without the art package the plugin still runs: `plugin/src/client/kit.ts` is the one line that picks the kit
+Without the art package the plugin still runs: `src/client/kit.ts` is the one line that picks the kit
 (`createArtKit()` from `art`, or `createStubKit()` from `renderer`).
 
 ## The frame (renderer)
@@ -70,7 +85,7 @@ floor (`roomsOfSession`: from the frozen theme id and the session seed, never tw
 each floor and their latest tool. `RoomView` draws one floor like `CityView` draws the city: an art buffer scaled
 by a whole number, the floor stack on the left, people at the plan's spots (newcomers from the lift), tool names
 on the text layer, an entry fade, and a loop that stops when nothing moves. The panel's place view is
-`plugin/src/client/Interior.tsx` (registered in `interior-view.ts`).
+`src/client/Interior.tsx` (registered in `interior-view.ts`).
 
 ## Extension point 2: overlays in the frame loop (renderer)
 
@@ -93,7 +108,7 @@ semi-transparent pixels in the art stage; anything that moves must be data-drive
 motion.
 
 **Data views** live in `renderer/src/overlay*.ts`. The panel registers them with
-`registerOverlay(factory)` from `plugin/src/client/extensions.ts`; the factory gets `{ t, lang }` and returns an
+`registerOverlay(factory)` from `src/client/extensions.ts`; the factory gets `{ t, lang }` and returns an
 `Overlay`.
 
 ## Extension point 3: views of a place in the panel (plugin)
@@ -109,9 +124,9 @@ registerPlaceView({
 A click on a place selects it and opens its card. The card shows a "go inside" button when a registered view
 matches, and the view then covers the city until `close()`. Place ids are `b:<root session id>`, `town`, `station`,
 `fire`, `school`, `library`, `conn:<id>`, `model:<name>` and `shop:<plugin id>`. Register at module load, from a
-file that `plugin/src/client/register.ts` imports.
+file that `src/client/register.ts` imports.
 
-## The panel (plugin/src/client)
+## The panel (src/client)
 
 | File | What |
 | --- | --- |
@@ -123,12 +138,15 @@ file that `plugin/src/client/register.ts` imports.
 | `prefs.ts` | Legend open, timeline minimised, city or list (per device). |
 | `kit.ts` | Which art kit. |
 
-Interface text only comes from `plugin/src/locales/{zh,en}.ts` (`npm run check-no-inline-text`); "token" is never
+Interface text only comes from `src/locales/{zh,en}.ts` (`npm run check-no-inline-text`); "token" is never
 translated. Titles appear only in the DOM (name plates, cards, list), never in pixels.
 
 ## Checks
 
-- `npm run check`: type check, build, unit tests, locale tables, no inline text.
+- `npm run check`: type check, build, unit tests, locale tables, no inline text, npm tarball audit.
+- `npm run check-build` (after a build): the committed `dist/` is the build of this source. In CI.
+- `node scripts/official-dsh-check.mjs <package.tgz | github:khglobal/dsh-universe#<ref>>`: installs into official
+  DSH with a temporary HOME the way a member does, and opens the city, the list and the plugin page.
 - `node scripts/city-check.mjs --golden`: fixed-time screenshots (centre, whole city, light and dark, empty
   workspace) against `fixtures/golden/`. Add `--update` to rewrite them. Needs a headless Chromium; set
   `CHROME_PATH` if Playwright's is not installed. It skips cleanly without one.

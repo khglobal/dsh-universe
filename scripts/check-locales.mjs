@@ -1,6 +1,6 @@
 // Every language has the same keys, no empty values, the same {placeholders}; "token" is never translated
-// (no 令牌); English text has no CJK. Checks the interface tables (plugin/src/locales/<lang>.ts, which
-// export `<lang>`) and the plugin metadata (plugin/locale/<lang>.json, `meta.*`).
+// (no 令牌); English text has no CJK. Checks the interface tables (src/locales/<lang>.ts, which
+// export `<lang>`) and the plugin metadata (locale/<lang>.json, `meta.*`).
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -39,7 +39,7 @@ export function compareTables(name, tables) {
 
 export async function check(root = ROOT) {
   const problems = [];
-  const src = join(root, 'plugin', 'src', 'locales');
+  const src = join(root, 'src', 'locales');
   if (existsSync(src)) {
     const tables = {};
     for (const lang of LANGS) {
@@ -56,7 +56,7 @@ export async function check(root = ROOT) {
       problems.push(...compareTables('interface', { [LANGS[0]]: tables[LANGS[0]], [lang]: flatten(mod[lang]) }));
     }
   }
-  const meta = join(root, 'plugin', 'locale');
+  const meta = join(root, 'locale');
   if (existsSync(meta)) {
     const tables = {};
     for (const lang of LANGS) {

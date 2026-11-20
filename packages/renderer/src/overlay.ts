@@ -53,7 +53,7 @@ const seenCache: { key: string; map: Map<string, boolean> } = { key: '', map: ne
 
 // ---------- the leak check (local, with a real canvas) ----------
 
-/** True in the dev page build (scripts/dev.mjs), false in the shipped plugin (plugin/scripts/build.mjs). */
+/** True in the dev page build (scripts/dev.mjs), false in the shipped plugin (scripts/build.mjs). */
 declare const __DSHU_DEV__: boolean | undefined;
 /** On when a check script sets `globalThis.__dshuLeakCheck` on the dev page (never in the shipped plugin: it reads pixels back). */
 const leakCheckOn = () => typeof __DSHU_DEV__ !== 'undefined' && __DSHU_DEV__ && (globalThis as { __dshuLeakCheck?: boolean }).__dshuLeakCheck === true;

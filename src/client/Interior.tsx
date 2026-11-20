@@ -16,7 +16,7 @@ import { placeName, rowOf } from './view.ts';
 const PROP_CARD_OUTER = 248 + 24 + 4, AGENT_CARD_OUTER = 236 + 24 + 4;
 import { floorLabel, floorValue, propLines, roomSummary, type PropId } from './interior-text.ts';
 
-/** True in the dev page build (scripts/dev.mjs), false in the shipped plugin (plugin/scripts/build.mjs). */
+/** True in the dev page build (scripts/dev.mjs), false in the shipped plugin (scripts/build.mjs). */
 declare const __DSHU_DEV__: boolean | undefined;
 
 /** What the host provides when the panel does not say (everything; a missing source then shows zeros, not "—"). */

@@ -80,6 +80,5 @@ test('package: the fields the DSH development client and installer require', () 
   const patch = readFileSync(new URL('../cordis.patch.yml', import.meta.url), 'utf8');
   // The plugin catalog requires that the insert id and the module name both equal the package name.
   assert.match(patch, /^- insert:\n\s+- id: '@khglobal\/dsh-universe'\n\s+name: '@khglobal\/dsh-universe'/m);
-  assert.equal(pkg.private, true);
-  assert.equal(pkg.license, 'SEE LICENSE IN ../LICENSE');
+  assert.equal(pkg.license, 'SEE LICENSE IN LICENSE');
 });

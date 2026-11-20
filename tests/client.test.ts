@@ -4,7 +4,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { conformanceProblems } from '@dsh-universe/adapter-kit';
 import { createStore, createSeen } from '@dsh-universe/model';
-import { dshSample } from '../../fixtures/dsh-sample.ts';
+import { dshSample } from '../fixtures/dsh-sample.ts';
 import { zh } from '../src/locales/zh.ts';
 import { en } from '../src/locales/en.ts';
 import { createFeed, fixtureApi } from '../src/client/feed.ts';

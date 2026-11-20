@@ -6,13 +6,13 @@
 import { createRoot } from 'react-dom/client';
 import { cityTemplate, createSeen, freezeTheme, place, themeFromTitle, type UEvent } from '@dsh-universe/model';
 import { dshSample } from '../../fixtures/dsh-sample.ts';
-import { en } from '../../plugin/src/locales/index.ts';
-import { createFeed } from '../../plugin/src/client/feed.ts';
-import type { Api } from '../../plugin/src/client/api.ts';
-import { fill } from '../../plugin/src/client/format.ts';
-import type { Env } from '../../plugin/src/client/types.ts';
-import { UniversePanel } from '../../plugin/src/client/UniversePanel.tsx';
-import '../../plugin/src/client/interior-view.ts';
+import { en } from '../../src/locales/index.ts';
+import { createFeed } from '../../src/client/feed.ts';
+import type { Api } from '../../src/client/api.ts';
+import { fill } from '../../src/client/format.ts';
+import type { Env } from '../../src/client/types.ts';
+import { UniversePanel } from '../../src/client/UniversePanel.tsx';
+import '../../src/client/interior-view.ts';
 
 const q = new URLSearchParams(location.search);
 const scene = q.get('scene') === 'indoor' ? 'indoor' : 'city';

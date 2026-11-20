@@ -6,4 +6,5 @@ The palette, sprites, building templates, room templates, street furniture, prop
 this package are covered by the repository LICENSE (DSH Universe Source-Available Licence). You may read them, and
 use them only as part of the unmodified DSH Universe plugin published by KH. They may not be copied, modified or used
 in any other work without the written permission of KH. This package is kept separable: nothing outside packages/art
-may contain art data or drawing code.
+may contain art data or drawing code in source form. The built plugin (dist/ at the repository root, and the published
+package) is generated from it and is covered by the same terms.

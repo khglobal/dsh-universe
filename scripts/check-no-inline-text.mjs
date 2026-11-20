@@ -1,5 +1,5 @@
 // Fails when interface text is written into code instead of the locale tables (no hard-coded zh/en text).
-// Checks every .ts/.tsx under packages/*/src and plugin/src, except the locale tables themselves:
+// Checks every .ts/.tsx under packages/*/src and src, except the locale tables themselves:
 //  1. any string, template or JSX text containing CJK characters;
 //  2. in .tsx files: JSX text with letters, and string-literal values of text-bearing attributes
 //     (aria-label, aria-description, title, placeholder, alt, label).
@@ -64,7 +64,7 @@ function walk(dir, out = []) {
 }
 
 export function sourceFiles(root = ROOT) {
-  const dirs = [join(root, 'plugin', 'src')];
+  const dirs = [join(root, 'src')];
   const pk = join(root, 'packages');
   if (existsSync(pk)) for (const p of readdirSync(pk)) dirs.push(join(pk, p, 'src'));
   return dirs.flatMap((d) => walk(d));
