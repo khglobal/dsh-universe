@@ -4,7 +4,7 @@
 // all of them quietly, the one whose card has focus brought forward.
 //
 // Each city's sound follows its own activity:
-// - a low murmur, louder the more sessions run (silent when nothing runs);
+// - a murmur, louder the more sessions run (a quiet hum when nothing runs);
 // - traffic: soft ticks, more of them the more calls in the last five minutes;
 // - errors: a soft falling two-note sign while calls failed in the last half hour;
 // - waits: two soft notes every 2.4 s while someone waits in the square, higher the more are waiting.
@@ -36,6 +36,9 @@ export const FADE_S = 0.8;
 const MASTER = 0.9;
 /** The murmur's level with one session running, and at most (gain on each of its three oscillators' sum). */
 const MURMUR_MIN = 0.022, MURMUR_MAX = 0.04;
+/** With nothing running: a quiet hum, so a city at rest still says the sound is on (0.3.0 was silent then, and a
+ *  member turning Sound on between turns heard nothing at all). */
+const MURMUR_IDLE = 0.017;
 
 interface Bus { base: number; gain: GainLike; murmur: GainLike; oscs: OscLike[]; levels: CityLevels; mix: number; nextErr: number; nextWait: number }
 
@@ -101,7 +104,7 @@ export function createAmbience(a: AudioLike, rand: () => number = Math.random): 
         b.levels = levels[id] ?? b.levels;
         if (m !== b.mix) { b.mix = m; b.gain.gain.setTargetAtTime(m, now, FADE_S / 3); }
         const r = b.levels.running;
-        b.murmur.gain.setTargetAtTime(r > 0 ? Math.min(MURMUR_MAX, MURMUR_MIN + r * 0.006) : 0, now, 0.5);
+        b.murmur.gain.setTargetAtTime(r > 0 ? Math.min(MURMUR_MAX, MURMUR_MIN + r * 0.006) : MURMUR_IDLE, now, 0.5);
       }
     },
     step() {

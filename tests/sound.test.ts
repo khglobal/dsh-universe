@@ -43,7 +43,7 @@ test('ambience: a bus per city, all into the master and out; only the city in vi
   assert.ok(gains().every((g) => g.gain!.targets.length >= 1), 'levels change through setTargetAtTime (a fade)');
 });
 
-test('ambience: each bus follows its own activity; nothing when quiet; stop fades out', () => {
+test('ambience: each bus follows its own activity; only a quiet hum at rest; stop fades out', () => {
   const { a, nodes } = fakeAudio();
   const amb = createAmbience(a, () => 0);
   amb.set({ claude: QUIET, workbuddy: { running: 2, errors: 1, traffic: 40, waiting: 2 } }, { claude: 1, workbuddy: 1 });
@@ -54,7 +54,8 @@ test('ambience: each bus follows its own activity; nothing when quiet; stop fade
   assert.ok(blips.length >= 4, 'traffic tick, error sign and wait notes for the busy city');
   assert.ok(blips.every((o) => o.frequency!.value > CITY_PITCH.workbuddy - 1), 'all on the busy city\'s pitch, none on the quiet one');
   const murmurs = nodes.filter((n) => n.kind === 'gain' && n.to.length === 1 && n.to[0].kind === 'gain' && nodes.some((f) => f.kind === 'filter' && f.to.includes(n)));
-  assert.deepEqual(murmurs.map((m) => m.gain!.value > 0).sort(), [false, true], 'a murmur only where sessions run');
+  const lv = murmurs.map((m) => m.gain!.value).sort((x, y) => x - y);
+  assert.ok(lv.length === 2 && lv[0] > 0 && lv[1] >= lv[0] * 2, 'a quiet hum at rest, a louder murmur where sessions run: ' + lv);
   amb.stop();
   const master = nodes.find((n) => n.kind === 'gain' && n.to.some((x) => x.kind === 'destination'))!;
   assert.equal(master.gain!.value, 0);

@@ -19,7 +19,7 @@ export const CHROME_CSS = [
 ].join('\n');
 
 /** List rows on narrow screens: the actions go under the title, so the title keeps its width. */
-export const LIST_CSS = '@media (max-width: 600px){.dshu-srow{grid-template-columns:64px minmax(0,1fr) auto!important;row-gap:6px!important}.dshu-srow .dshu-acts{grid-column:2/4;grid-row:2;justify-content:flex-start!important}}';
+export const LIST_CSS = '@media (max-width: 600px){.dshu-srow{grid-template-columns:64px minmax(0,1fr) auto!important;row-gap:6px!important}.dshu-srow .dshu-acts{grid-column:2/4;grid-row:2;justify-content:flex-start!important;flex-wrap:wrap}}';
 
 /** A today-bar button in the game chrome: amber first, pressed when its layer is on. */
 export function todayBtn(amber: boolean, on: boolean): CSSProperties {

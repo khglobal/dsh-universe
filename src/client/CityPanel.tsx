@@ -66,6 +66,8 @@ export interface CityProps {
   onZoomOutFar?(): void;
   /** At the end of the toolbar, under the zoom column: the chips of the cities around. */
   beside?: ReactNode;
+  /** Told when a room opens or closes (the panel's notes over the city keep clear of the room's own controls). */
+  onRoom?: (open: boolean) => void;
   /** Data views with nothing to show on this platform (an adjacent city without schedules): not offered. */
   hideLayers?: readonly LayerId[];
 }
@@ -136,6 +138,8 @@ export function CityPanel(p: CityProps) {
   // The tour's building card goes on the side of the building away from the panel's centre.
   const [away, setAway] = useState(false);
   const [inside, setInside] = useState<string | undefined>();
+  useEffect(() => { p.onRoom?.(inside !== undefined); }, [inside]);
+  useEffect(() => () => p.onRoom?.(false), []);
   useEffect(() => { viewRef.current?.setLayer(layer); }, [layer]);
   // No city text under the timeline (its height plus 10 px).
   useEffect(() => { viewRef.current?.setTextBottom(p.prefs.dockMin ? 50 : 110); }, [p.prefs.dockMin, frame === 0]);
