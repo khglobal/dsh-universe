@@ -43,6 +43,8 @@
     "locale/en.json",
     "locale/zh.json",
     "README.md",
+    "docs/screenshots/*.png",
+    "docs/screenshots/*.gif",
     "LICENSE"
   ],
   "engines": { "dsh": ">=0.2.2-rc.2" },

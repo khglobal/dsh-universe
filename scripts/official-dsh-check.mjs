@@ -1,14 +1,18 @@
 // Installs a packed tarball into official DeepSeek Harness the way a public user does, with nothing else, and checks
 // the plugin in a headless browser. Not part of CI (it downloads DSH from npm and needs a Chromium).
 //
-//   node scripts/official-dsh-check.mjs <package.tgz> [--dsh 0.2.2-rc.2] [--keep]
+//   node scripts/official-dsh-check.mjs <package.tgz | install spec> [--dsh 0.2.2-rc.2] [--keep]
+//
+// The install spec may be anything `dsh plugin add` takes, for example `github:khglobal/dsh-universe` (the repository
+// root is the plugin; a branch or commit after `#`). A git install carries the repository README instead of the npm
+// package's README and screenshots, so the plugin page's screenshot check applies to tarballs only.
 //
 // Isolation: DSH runs with a temporary HOME and DSH_HOME, and its Documents directory (where it creates the default
 // workspace; on macOS it otherwise asks the system and ignores HOME) is set to a temporary folder by a --patch overlay.
 // Nothing is read from or written to the real ~/.dsh or ~/Documents/deepseek-harness; no native picker is opened.
 // No optional host service, workbench or other plugin is present: this is the "official DSH only" case.
 //
-// Steps: npm install @deepseek-ai/dsh@<version>; `dsh plugin --profile web add file:<tgz>`; boot the web profile on
+// Steps: npm install @deepseek-ai/dsh@<version>; `dsh plugin --profile web add file:<tgz>` (or the spec); boot the web profile on
 // 127.0.0.1; open DSH Universe from the sidebar (city and list), then its page under Plugins (README and screenshots).
 // Fails on any console error or warning, page error, failed or non-local request, or a host log line about the plugin.
 import { spawn, spawnSync } from 'node:child_process';
@@ -19,8 +23,10 @@ import { parseArgs } from 'node:util';
 import { cleanupTemp } from './official-dsh-cleanup.mjs';
 
 const { values: opt, positionals } = parseArgs({ allowPositionals: true, options: { dsh: { type: 'string', default: '0.2.2-rc.2' }, keep: { type: 'boolean' } } });
-const tgz = positionals[0] && resolve(positionals[0]);
-if (!tgz) throw Error('usage: official-dsh-check.mjs <package.tgz> [--dsh <version>] [--keep]');
+const arg = positionals[0];
+if (!arg) throw Error('usage: official-dsh-check.mjs <package.tgz | install spec> [--dsh <version>] [--keep]');
+const isTarball = /\.t(?:ar\.)?gz$/u.test(arg) && !/^[a-z]+:/u.test(arg);
+const spec = isTarball ? `file:${resolve(arg)}` : arg;
 
 const T = realpathSync(mkdtempSync(join(tmpdir(), 'dsh-official-')));
 const home = join(T, 'home'), docs = join(T, 'Documents'), app = join(T, 'app');
@@ -39,8 +45,8 @@ try {
   const overlay = join(T, 'isolate.yml');
   writeFileSync(overlay, `- id: workspace-controller\n  config:\n    documentsDirectory: ${JSON.stringify(docs)}\n`);
 
-  step(`dsh plugin --profile web add file:${tgz}`);
-  const add = spawnSync(dsh, ['plugin', '--profile', 'web', 'add', `file:${tgz}`], { cwd: T, env, stdio: 'inherit' });
+  step(`dsh plugin --profile web add ${spec}`);
+  const add = spawnSync(dsh, ['plugin', '--profile', 'web', 'add', spec], { cwd: T, env, stdio: 'inherit' });
   if (add.status !== 0) throw Error('dsh plugin add failed');
 
   step('booting the web profile');
@@ -98,7 +104,7 @@ try {
     await page.getByText('DSH Universe').last().click();
     await page.waitForTimeout(4000);
     const images = await page.evaluate(() => [...document.images].filter((i) => i.src.includes('screenshots')).map((i) => ({ src: i.src, w: i.naturalWidth })));
-    if (images.length !== 3 || images.some((i) => i.w === 0)) problems.push(`README screenshots: ${JSON.stringify(images)}`);
+    if (isTarball && (images.length !== 3 || images.some((i) => i.w === 0))) problems.push(`README screenshots: ${JSON.stringify(images)}`);
     await page.screenshot({ path: join(T, 'detail.png'), fullPage: true });
   } finally {
     await browser.close();
@@ -115,5 +121,5 @@ try {
   else if (!cleaned) console.error(`[official-dsh] could not remove temp folder ${T}; leaving it in place`);
 }
 for (const p of problems) console.log(`[official-dsh] problem: ${p}`);
-console.log(problems.length ? `[official-dsh] ${problems.length} problem(s)` : `[official-dsh] ok: official DSH ${opt.dsh} only, installed from ${tgz}`);
+console.log(problems.length ? `[official-dsh] ${problems.length} problem(s)` : `[official-dsh] ok: official DSH ${opt.dsh} only, installed from ${spec}`);
 process.exit(problems.length ? 1 : 0);

@@ -44,8 +44,14 @@ test('the root is the plugin; the internal packages stay private', () => {
   assert.equal(root.dsh.bundle.patch, './cordis.patch.yml');
   assert.ok(existsSync(new URL('cordis.patch.yml', rootUrl)));
   assert.equal(root.main, root.exports['.'].default);
-  // What a git install ships: the same files as the npm package's bundle, patch, icon and locale tables.
-  for (const f of root.files as string[]) assert.ok(!/[*]/u.test(f) && (f === 'README.md' || f === 'LICENSE' || (ALLOWED as string[]).includes(f)), `root files: ${f}`);
+  // What a git install ships: the npm package's bundle, patch, icon and locale tables, plus the repository README and
+  // the screenshots it shows (the plugin page under Plugins reads README.md and its images from the installed files).
+  const extra = ['README.md', 'LICENSE', 'docs/screenshots/*.png', 'docs/screenshots/*.gif'];
+  for (const f of root.files as string[]) assert.ok(extra.includes(f) || (ALLOWED as string[]).includes(f), `root files: ${f}`);
+  for (const f of ALLOWED as string[]) if (/^(dist|locale)\/|^(cordis\.patch\.yml|icon\.svg)$/u.test(f)) assert.ok(root.files.includes(f), `root files lacks ${f}`);
+  for (const m of readFileSync(new URL('README.md', rootUrl), 'utf8').matchAll(/!\[[^\]]*\]\(([^)\s]+)\)/gu)) {
+    if (!/^https?:/u.test(m[1])) assert.match(m[1], /^docs\/screenshots\/[^/]+\.(png|gif)$/u, `README image ${m[1]} is not shipped by a git install`);
+  }
   assert.ok(!root.workspaces.some((w: string) => !w.startsWith('packages/')), 'workspaces are the internal packages only');
   for (const p of ['model', 'art', 'renderer', 'adapter-kit', 'adapter-dsh']) assert.equal(json(`packages/${p}/package.json`).private, true, p);
 });
