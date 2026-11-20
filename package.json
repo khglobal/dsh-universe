@@ -83,7 +83,8 @@
     "check-crisp": "node scripts/city-check.mjs --crisp && node scripts/room-check.mjs --crisp",
     "release": "node scripts/release.mjs",
     "pack:npm": "node scripts/npm-pack.mjs",
-    "official-dsh-check": "node scripts/official-dsh-check.mjs"
+    "official-dsh-check": "node scripts/official-dsh-check.mjs",
+    "sound-check": "node scripts/sound-check.mjs"
   },
   "devDependencies": {
     "@types/node": "22.19.0",

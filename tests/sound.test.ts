@@ -32,7 +32,7 @@ test('ambience: a bus per city, all into the master and out; only the city in vi
   assert.deepEqual(amb.buses().sort(), ['chatgpt', 'claude', 'dsh', 'workbuddy']);
   const oscs = nodes.filter((n) => n.kind === 'osc' && n.started !== undefined);
   for (const id of ['claude', 'chatgpt', 'workbuddy']) {
-    const mine = oscs.filter((o) => Math.abs((o.frequency!.value) - CITY_PITCH[id] / 2) < 1);
+    const mine = oscs.filter((o) => Math.abs((o.frequency!.value) - CITY_PITCH[id]) < 1);
     assert.ok(mine.length >= 1 && mine.every((o) => reaches(o, destination)), `${id}: its murmur reaches the speakers`);
   }
   // Moving into ChatGPT: its bus up, the others down (a crossfade: targets, not jumps).
