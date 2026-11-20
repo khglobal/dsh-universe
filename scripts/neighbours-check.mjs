@@ -230,7 +230,7 @@ try {
         if (before) problems.push(`${lang}: sound before the member turned it on`);
         await soundBtn.click();
         const PITCH = { dsh: 170, claude: 150, chatgpt: 190, workbuddy: 210 };
-        const heard = async (city) => page.evaluate((f) => window.__dshuOsc.some((o) => Math.abs(o.f - f) < 1 && o.state === 'running'), PITCH[city] / 2);
+        const heard = async (city) => page.evaluate((f) => window.__dshuOsc.some((o) => Math.abs(o.f - f) < 1 && o.state === 'running'), PITCH[city]);
         await page.waitForTimeout(1500);
         if (!(await heard('dsh'))) problems.push(`${lang}: no DSH ambience`);
         for (const id of CITIES) {
