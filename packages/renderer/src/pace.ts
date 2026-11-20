@@ -17,6 +17,14 @@ export const AMBIENT_FPS = 12;
  */
 export const CALM_FPS = 2;
 export const CALM_AFTER_MS = 10_000;
+/**
+ * Left alone for longer (a panel kept open on a side, #29): the ambient life at one frame a second, like a window
+ * without the focus. Any input brings the full rate back at once.
+ */
+export const STILL_FPS = 1;
+// With the stepped scene (view.ts retimeScene), the opaque canvas and the slower clock (#29), medians of 3 alternating
+// runs (scripts/cpu-check.mjs --gpu, running clock): busy day left alone 6.7% → 4.0% (calm) and 5.5% → 2.0% (still).
+export const STILL_AFTER_MS = 60_000;
 /** Frames a second while the window is not focused. */
 export const BLURRED_FPS = 1;
 /** Least time between two paints under reduced motion (ms). */
@@ -78,6 +86,8 @@ export interface PaceInput {
   blurred: boolean;
   /** Nobody has touched the page for a while (CALM_AFTER_MS). */
   calm?: boolean;
+  /** Nobody has touched the page for a minute (STILL_AFTER_MS). */
+  still?: boolean;
   /** Reduced motion, but the member's own hand (a drag): paint at once anyway. */
   hand?: boolean;
 }
@@ -90,7 +100,7 @@ export function frameGap(p: PaceInput): number | undefined {
   if (p.reducedMotion) return p.urgent ? (p.hand ? 0 : REDUCED_GAP_MS) : undefined;
   if (p.urgent) return 0;
   if (!p.ambient) return undefined;
-  return 1000 / (p.blurred ? BLURRED_FPS : p.calm ? CALM_FPS : AMBIENT_FPS);
+  return 1000 / (p.blurred ? BLURRED_FPS : p.still ? STILL_FPS : p.calm ? CALM_FPS : AMBIENT_FPS);
 }
 
 /** Display frames are about 16.7 ms apart: a paint this much early still counts as on time. */

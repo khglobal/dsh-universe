@@ -9,10 +9,10 @@ import { artXY, ZOOM_LEVELS } from './geometry.ts';
 import { hitTest, type HitArea } from './hit.ts';
 import { StaticLayer, paintCity, setLayerLight, type PaintResult, type Surface, type SurfaceFactory } from './paint.ts';
 import { coloredSet, type LayerId } from '@dsh-universe/model';
-import { buildScene, type Scene, type SceneInput, type Sign } from './scene.ts';
+import { buildScene, retimeScene, type Scene, type SceneInput, type Sign } from './scene.ts';
 import { drawSign, drawTextLayer, type Occluder, type PlacedSign } from './text.ts';
 import { Traffic } from './traffic.ts';
-import { AMBIENT_FPS, CALM_AFTER_MS, FrameLoop, documentPage, frameGap, type PageState } from './pace.ts';
+import { AMBIENT_FPS, CALM_AFTER_MS, STILL_AFTER_MS, FrameLoop, documentPage, frameGap, type PageState } from './pace.ts';
 
 export interface CityViewOptions {
   kit: ArtKit;
@@ -92,6 +92,11 @@ export class CityView {
   private inputVersion = 0;
   private inputAt = 0;
   private sceneKey = '';
+  /** The scene key without the animation clock, and the moment, of the last scene built in full. */
+  private sceneBase = '';
+  private sceneBuiltT = Number.NEGATIVE_INFINITY;
+  /** How often the scene was built in full (checks: a city left alone rarely builds it). */
+  sceneBuilds = 0;
   private keepKey = '';
   private keep: Set<string> | null = null;
   scene: Scene | undefined;
@@ -119,7 +124,8 @@ export class CityView {
 
   constructor(o: CityViewOptions) {
     this.o = o; this.kit = o.kit; this.canvas = o.canvas;
-    this.ctx = o.canvas.getContext('2d') as Canvas2D;
+    // Opaque: every frame covers the whole canvas, so the compositor need not blend it with the page (#29).
+    this.ctx = (o.canvas.getContext('2d', { alpha: false }) ?? o.canvas.getContext('2d')) as Canvas2D;
     if (o.artBuffer) { const b = o.artBuffer(); this.art = b.canvas as OffscreenCanvas; this.actx = b.ctx; }
     else {
       this.art = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(2, 2) : document.createElement('canvas');
@@ -223,7 +229,7 @@ export class CityView {
   }
   /** The least time to the next paint (ms), or undefined when nothing needs one. */
   private gap(rm: boolean): number | undefined {
-    return frameGap({ urgent: this.dirty || !!this.goal, ambient: this.ambient(rm), reducedMotion: rm, blurred: this.page.blurred(), calm: this.page.idleFor() >= CALM_AFTER_MS });
+    return frameGap({ urgent: this.dirty || !!this.goal, ambient: this.ambient(rm), reducedMotion: rm, blurred: this.page.blurred(), calm: this.page.idleFor() >= CALM_AFTER_MS, still: this.page.idleFor() >= STILL_AFTER_MS });
   }
 
   private tick(ts: number): void {
@@ -265,7 +271,14 @@ export class CityView {
     const tq = Math.floor(time * this.sceneHz) / this.sceneHz;
     const sk = this.inputVersion + '|' + this.hover + '|' + this.follow + '|' + this.dark + '|' + tq;
     const T = this.input.live && !rm ? this.input.T + Math.min(1500, this.now() - this.inputAt) : this.input.T;
-    const scene = this.scene = sk === this.sceneKey && this.scene ? this.scene : buildScene({ ...this.input, T, time: tq, night: this.dark, hover: this.hover, follow: this.follow });
+    // Only the animation clock moved (the same data, hover and light, the moment less than RETIME_MS on): the last
+    // scene's sprites are stepped instead of building the whole scene again (#29: on a busy day left alone the
+    // rebuild was most of the page's own work).
+    const base = sk.slice(0, sk.lastIndexOf('|'));
+    let scene = sk === this.sceneKey && this.scene ? this.scene : undefined;
+    if (!scene && this.scene && base === this.sceneBase && Math.abs(T - this.sceneBuiltT) < RETIME_MS) scene = retimeScene(this.scene, tq);
+    if (!scene) { scene = buildScene({ ...this.input, T, time: tq, night: this.dark, hover: this.hover, follow: this.follow }); this.sceneBase = base; this.sceneBuiltT = T; this.sceneBuilds++; }
+    this.scene = scene;
     this.sceneKey = sk;
     const tB = this.now();
     for (const ov of this.overlays) ov.scene?.({ scene, dt, time, reducedMotion: rm });
@@ -287,8 +300,11 @@ export class CityView {
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.imageSmoothingEnabled = false;
     const offX = Math.round(this.canvas.width / 2 - (bw / 2) * sc), offY = Math.round(this.canvas.height / 2 - (bh / 2) * sc);
-    c.fillStyle = this.kit.sky();
-    c.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    // The sky only where the scaled art does not reach (it is two art pixels wider than the canvas: normally nowhere).
+    if (offX > 0 || offY > 0 || offX + Math.round(bw * sc) < this.canvas.width || offY + Math.round(bh * sc) < this.canvas.height) {
+      c.fillStyle = this.kit.sky();
+      c.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    }
     c.drawImage(this.art as CanvasImageSource, offX, offY, Math.round(bw * sc), Math.round(bh * sc));
     this.blit = { sc, x: offX, y: offY, w: Math.round(bw * sc), h: Math.round(bh * sc), bw, bh, smoothing: !!c.imageSmoothingEnabled };
     // The text layer: screen resolution, whole pixels, after the pixel art; hidden parts cut out.
@@ -424,3 +440,7 @@ function imageId(img: CanvasImageSource | undefined): number {
   if (n === undefined) imageIds.set(img as object, n = nextImageId++);
   return n;
 }
+
+/** How far the moment may move on before a scene only stepped in its animation is built again (ms): the clock-driven
+ *  changes (a stop on an error leaving the square after 90 minutes, the town hall's clock) wait at most this long. */
+export const RETIME_MS = 5000;

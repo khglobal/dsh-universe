@@ -244,16 +244,19 @@ export function CityPanel(p: CityProps) {
     return () => { for (const off of offs) off(); ro?.disconnect(); offRatio(); view.stop(); notify.dispose(); viewRef.current = null; };
   }, [kit]);
 
+  // Marking a result seen is a change of the city's data (its review marks follow at once).
+  const seenN = p.seen?.version?.() ?? p.seen?.size() ?? 0;
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
     view.setDark(isNight(p.prefs.light, hostDark(wrap.current)));
     // Live: T runs on with the clock between data updates (walkers move smoothly); looking back or replaying: it stays.
     // Only the live clock moved on (the same data, once a second): shown with the next frame, not painted at once.
-    const same = inputDeps.current.length === 6 && [p.version, placement, lang, kit, p.drafts, p.mode].every((x, i) => x === inputDeps.current[i]);
-    inputDeps.current = [p.version, placement, lang, kit, p.drafts, p.mode];
+    // (What was seen counts as data: the scene's review marks follow it at once.)
+    const same = inputDeps.current.length === 7 && [p.version, placement, lang, kit, p.drafts, p.mode, seenN].every((x, i) => x === inputDeps.current[i]);
+    inputDeps.current = [p.version, placement, lang, kit, p.drafts, p.mode, seenN];
     view.setInput({ store, placement, T: cityT, live: p.mode === 'live', city: CITY, seen: p.seen, drafts: p.drafts, templateTags: kit.buildingTags, names: { town: t('pl.town'), station: t('pl.station'), fire: t('pl.fire'), school: t('pl.school'), library: t('pl.library'), defaultWorkspace: t('ws.default'), lang } }, same && p.mode === 'live');
-  }, [p.version, placement, cityT, lang, kit, p.drafts, p.mode]);
+  }, [p.version, placement, cityT, lang, kit, p.drafts, p.mode, seenN]);
 
   useEffect(() => {
     const v = viewRef.current;

@@ -18,6 +18,8 @@ export interface Seen {
   /** Returns whether the key was new. */
   mark(key: string): boolean;
   size(): number;
+  /** Counts the marks made (a change signal: `size` stops growing at SEEN_MAX). */
+  version?(): number;
 }
 
 export function createSeen(storage?: SeenStorage): Seen {
@@ -28,16 +30,19 @@ export function createSeen(storage?: SeenStorage): Seen {
     if (Array.isArray(parsed)) keys = parsed.filter((x): x is string => typeof x === 'string').slice(-SEEN_MAX);
   } catch { keys = []; }
   const set = new Set(keys);
+  let marks = 0;
   return {
     has: (k) => set.has(k),
     mark(k) {
       if (set.has(k)) return false;
       set.add(k);
       keys.push(k);
+      marks++;
       while (keys.length > SEEN_MAX) set.delete(keys.shift()!);
       try { storage?.write(JSON.stringify(keys)); } catch { /* kept in memory for this run */ }
       return true;
     },
     size: () => set.size,
+    version: () => marks,
   };
 }

@@ -11,7 +11,8 @@
 //   --only <name,...>   only these states
 //   --cpu-limit <pct>   fail when an idle state's CPU is over this share of one core (default: none; frames always)
 //   --main-limit <pct>  fail when a calm, blurred or hidden state keeps the page's main thread busier than this
-// Frame limits (they hold on any machine): an idle city or room paints at most AMBIENT_FPS (+ slack), a blurred
+// Frame limits (they hold on any machine): an idle city or room paints at most AMBIENT_FPS (+ slack), left alone at
+// most CALM_FPS and after a minute STILL_FPS, a blurred
 // window at most BLURRED_FPS (+ slack), a hidden page and the list nothing; a camera glide runs at full rate.
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -24,7 +25,7 @@ const SECONDS = Number(arg('--seconds') ?? 8);
 const CPU_LIMIT = arg('--cpu-limit') !== undefined ? Number(arg('--cpu-limit')) : undefined;
 const MAIN_LIMIT = arg('--main-limit') !== undefined ? Number(arg('--main-limit')) : undefined;
 /** Must match packages/renderer/src/pace.ts. */
-export const AMBIENT_FPS = 12, CALM_FPS = 2, CALM_AFTER_MS = 10_000, BLURRED_FPS = 1;
+export const AMBIENT_FPS = 12, CALM_FPS = 2, CALM_AFTER_MS = 10_000, BLURRED_FPS = 1, STILL_FPS = 1, STILL_AFTER_MS = 60_000;
 
 const CLOCK = has('--frozen') ? '' : '&clock=run';
 const SAMPLE = 'panel=1&fixed=1&lang=en' + CLOCK;
@@ -37,11 +38,14 @@ export const STATES = [
   ['city-busy', BUSY, null, 'city', [1, AMBIENT_FPS + 1.5]],
   ['city-busy-calm', BUSY, 'calm', 'city', [1, CALM_FPS + 1]],
   ['city-busy-blurred', BUSY, 'blur', 'city', [0, BLURRED_FPS + 0.5]],
+  // Left alone for over a minute (a panel kept open on a side): one frame a second.
+  ['city-busy-still', BUSY, 'still', 'city', [0.5, STILL_FPS + 0.5]],
   ['city-busy-hidden', BUSY, 'hide', 'city', [0, 0]],
   // Moving the camera runs at the display's rate: well above the ambient cap (software rendering on a CI runner is slower).
   ['city-busy-glide', BUSY, 'glide', 'city', [has('--gpu') ? 25 : AMBIENT_FPS + 4, 1000]],
   ['room-sample-working', SAMPLE, 'room-running', 'room', [1, AMBIENT_FPS + 1.5]],
   ['room-sample-calm', SAMPLE, 'room-running+calm', 'room', [1, CALM_FPS + 1]],
+  ['room-sample-still', SAMPLE, 'room-running+still', 'room', [0.5, STILL_FPS + 0.5]],
   ['room-sample-nobody', SAMPLE, 'room-done', 'room', [0, AMBIENT_FPS + 1.5]],
   ['room-sample-blurred', SAMPLE, 'room-running+blur', 'room', [0, BLURRED_FPS + 0.5]],
   ['city-busy-stopped', BUSY, 'stopped', 'city', [0, 0]],
@@ -84,13 +88,14 @@ async function measure(b, state) {
   if (act?.startsWith('room-')) await enter(page, act.includes('running') ? 'running' : 'done');
   // Left alone: no pointer, wheel or key for CALM_AFTER_MS.
   if (act?.endsWith('calm')) await page.waitForTimeout(CALM_AFTER_MS + 500);
+  if (act?.endsWith('still')) await page.waitForTimeout(STILL_AFTER_MS + 500);
   if (act?.endsWith('blur')) await page.evaluate(() => globalThis.dispatchEvent(new Event('blur')));
   if (act === 'hide') await page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' }); Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }); document.dispatchEvent(new Event('visibilitychange')); });
   if (act === 'stopped') await page.evaluate(() => globalThis.__dshuCity.stop());
   if (act === 'list') await page.getByRole('button', { name: 'List', exact: true }).click();
   await page.waitForTimeout(1200);
   // A member just moved the pointer (the ambient life at its full rate), unless the state is about being left alone.
-  if (!act?.endsWith('calm') && !act?.endsWith('blur') && act !== 'hide') await page.mouse.move(700, 450);
+  if (!act?.endsWith('calm') && !act?.endsWith('still') && !act?.endsWith('blur') && act !== 'hide') await page.mouse.move(700, 450);
   const frames = () => page.evaluate((which) => { const v = which === 'room' ? globalThis.__dshuRoom : globalThis.__dshuCity; return v ? v.stats().frames : 0; }, which);
   const cdp = await b.newBrowserCDPSession();
   const pc = await ctx.newCDPSession(page);
@@ -101,11 +106,15 @@ async function measure(b, state) {
   if (act === 'glide') { let k = 0; gliding = setInterval(() => { k++; void page.evaluate((k) => { const v = globalThis.__dshuCity; v.moveTo({ ...v.cam, x: (k % 2 ? 1 : -1) * 120, y: 232 + (k % 3) * 40 }); }, k).catch(() => {}); }, 300); }
   // The city's text layer is written again only when a sign or a still sprite in front of one changes (view.ts).
   const signs = () => page.evaluate(() => globalThis.__dshuCity?.signDraws ?? 0);
-  const s0 = await signs();
+  // The scene is built in full only for new data or every few seconds of the clock; otherwise stepped (view.ts RETIME_MS).
+  // (Checked on the busy day: the sample's clock runs into a train arriving, which moves with the clock itself.)
+  const builds = () => page.evaluate(() => globalThis.__dshuCity?.sceneBuilds ?? 0);
+  const s0 = await signs(), b0 = await builds();
   const f0 = await frames(), c0 = await cpuTime(cdp), m0 = await busy(), t0 = Date.now();
   await page.waitForTimeout(SECONDS * 1000);
   const f1 = await frames(), c1 = await cpuTime(cdp), m1 = await busy(), t1 = Date.now();
   const signDraws = which === 'city' ? (await signs()) - s0 : 0;
+  const sceneBuilds = which === 'city' ? (await builds()) - b0 : 0;
   if (gliding) clearInterval(gliding);
   await cdp.detach();
   await ctx.close();
@@ -114,10 +123,11 @@ async function measure(b, state) {
   const fps = (f1 - f0) / s, cpu = ((c1 - c0) / s) * 100, main = ((m1[0] - m0[0]) / s) * 100, script = ((m1[1] - m0[1]) / s) * 100;
   const problems = [...errors];
   if (fps < lo || fps > hi) problems.push(`${fps.toFixed(1)} frames/s, expected ${lo} to ${hi}`);
-  if (which === 'city' && /calm|blur/.test(String(act)) && signDraws > 2) problems.push(`the text layer was written ${signDraws} times while nothing but the ambient life moved`);
+  if (which === 'city' && name.includes('busy') && /calm|still|blur/.test(String(act)) && sceneBuilds > SECONDS / 4 + 2) problems.push(`the scene was built ${sceneBuilds} times in ${SECONDS} s with only the clock moving`);
+  if (which === 'city' && /calm|still|blur/.test(String(act)) && signDraws > 2) problems.push(`the text layer was written ${signDraws} times while nothing but the ambient life moved`);
   if (CPU_LIMIT !== undefined && act !== 'glide' && cpu > CPU_LIMIT) problems.push(`CPU ${cpu.toFixed(1)}% of a core, limit ${CPU_LIMIT}%`);
-  if (MAIN_LIMIT !== undefined && /calm|blur|hide|list|nobody/.test(String(act) + name) && main > MAIN_LIMIT) problems.push(`page main thread ${main.toFixed(1)}% busy, limit ${MAIN_LIMIT}%`);
-  return { name, signDraws, fps: Math.round(fps * 10) / 10, cpu: Math.round(cpu * 10) / 10, main: Math.round(main * 10) / 10, script: Math.round(script * 10) / 10, types, problems };
+  if (MAIN_LIMIT !== undefined && /calm|still|blur|hide|list|nobody/.test(String(act) + name) && main > MAIN_LIMIT) problems.push(`page main thread ${main.toFixed(1)}% busy, limit ${MAIN_LIMIT}%`);
+  return { name, signDraws, sceneBuilds, fps: Math.round(fps * 10) / 10, cpu: Math.round(cpu * 10) / 10, main: Math.round(main * 10) / 10, script: Math.round(script * 10) / 10, types, problems };
 }
 
 async function main() {
@@ -137,7 +147,7 @@ async function main() {
       if (only && !only.includes(st[0])) continue;
       const r = await measure(b, st);
       out.push(r);
-      console.log(`cpu: ${r.name.padEnd(20)} ${String(r.fps).padStart(5)} frames/s  ${String(r.cpu).padStart(5)}% of a core (page main thread ${r.main}%, script ${r.script}%; ${Object.entries(r.types).map(([k, v]) => k + ' ' + v + '%').join(', ')})${r.problems.length ? '  FAIL: ' + r.problems.join('; ') : ''}`);
+      console.log(`cpu: ${r.name.padEnd(20)} ${String(r.fps).padStart(5)} frames/s ${String(r.sceneBuilds).padStart(3)} builds  ${String(r.cpu).padStart(5)}% of a core (page main thread ${r.main}%, script ${r.script}%; ${Object.entries(r.types).map(([k, v]) => k + ' ' + v + '%').join(', ')})${r.problems.length ? '  FAIL: ' + r.problems.join('; ') : ''}`);
       failed += r.problems.length ? 1 : 0;
     }
   } finally { await b.close(); srv.close(); }
