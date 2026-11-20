@@ -26,7 +26,8 @@ session takes the lot of the oldest finished building of an earlier day, so toda
 a day with more sessions than the city holds, a calm note over the city says how many have no building; they are all in
 the list.
 
-Point at a building to see its card: what the session is doing, its calls, token use and time. **Open session**
+Point at a building to see its card: what the session is doing, when it started (the time on its door plate),
+its calls, token use and time. **Open session**
 on the card takes you to the session in DSH; clicking the building takes you inside. Open **Legend** for a one-page key. The first time you open
 DSH Universe a four-step tour points these out; **Show the tour again** in the legend repeats it.
 
