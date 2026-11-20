@@ -15,7 +15,7 @@ import { hostDark, isNight, nextLight, type Prefs } from './prefs.ts';
 import { C, stateColor } from './styles.ts';
 import type { Translate } from './types.ts';
 import { CITY, layerSummary, placeName, rowOf } from './view.ts';
-import { tokens as fmtTokens } from './format.ts';
+import { clock, tokens as fmtTokens } from './format.ts';
 
 /** True in the dev page build (scripts/dev.mjs), false in the shipped plugin (scripts/build.mjs). */
 declare const __DSHU_DEV__: boolean | undefined;
@@ -502,7 +502,9 @@ export function CityPanel(p: CityProps) {
       pos.x = Math.round(crowdBox[0] - 14 - W >= 8 ? crowdBox[0] - 14 - W : Math.min(view.vp.w - 8 - W, crowdBox[2] + 14));
       pos.y = Math.round(Math.max(8, Math.min(view.vp.h - bottom - H, crowdBox[1])));
     }
-    if (r) return { ...pos, r, place: undefined };
+    // A building's card says when it started: the time on its door plate (QA 0.3.2: the plate alone said nothing).
+    const root = sid && !id.startsWith('agent:') ? store.agent(sid) : undefined;
+    if (r) return { ...pos, r, place: undefined, started: root ? t('card.started', { time: clock(root.agent.startedAt, lang) }) : '' };
     if (sid && placement.sizes?.[sid]) {   // a building of an earlier day: its title (read live) and how it ended
       const z = placement.sizes[sid];
       const date = z.started !== undefined ? new Intl.DateTimeFormat(lang, { month: '2-digit', day: '2-digit' }).format(new Date(z.started)) : '';
@@ -563,6 +565,7 @@ export function CityPanel(p: CityProps) {
           <span style={{ color: stateColor(card.r.state), fontWeight: 600 }}>{card.r.stateText}</span>
           {card.r.detail && <div style={{ color: C.muted }}>{card.r.detail}</div>}
           {card.r.context && <div style={{ color: C.muted }}>{card.r.context}</div>}
+          {card.started && <div data-dshu-started="" style={{ color: C.muted }}>{card.started}</div>}
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}><span>{card.r.tokens}</span><span>{card.r.duration}</span></div>
           {card.sticky && (
             <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>

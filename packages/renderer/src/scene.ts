@@ -12,6 +12,8 @@ import { along, gatesOf, route } from './walk.ts';
 import type { BuildingShape, BuildingSpec, CivicKind, CivicSpec, Frames, GroundSpec, PersonSpec } from './artkit.ts';
 
 export const RECENT_MS = 5 * 60 * 1000;
+/** Added to the hall's and the station's painter depth (at[0] + at[1]); art/footprints.ts holds the same. */
+export const TOWN_DEPTH_ADD = 0.1, STATION_DEPTH_ADD = -0.35;
 const CONNECTOR_AT: readonly [number, number][] = [[14.5, 26.8], [14.5, 9.8], [14.5, 31.5]];
 const DOOR: Record<string, [number, number]> = { town: [13.3, 17.6], station: [11.3, 13.5], fire: [14.5, 24.5], school: [14.5, 5.4], library: [3.5, 27.3] };
 
@@ -300,7 +302,7 @@ export function buildScene(o: SceneInput): Scene {
     mine.push([tpl % 4, (hueOf(seed) + hueShift) % 9]); blockLooks.set(bk, mine);
     const b: BuildingSpec = {
       id, seed, template: tpl, ...(hueShift ? { hueShift } : {}), at, segments, footprint, stage, state,
-      heads, resting, annexes, scheduled: !!root && (root.agent.kind === 'scheduled' || !!root.agent.scheduleId), preset: !!root?.agent.role,
+      heads, resting, annexes, ...(lot.slot & 1 ? { podsWest: true } : {}), scheduled: !!root && (root.agent.kind === 'scheduled' || !!root.agent.scheduleId), preset: !!root?.agent.role,
       hover: o.hover === id, frames: framesFor(state, time, seed),
     };
     if (state === 'running' || state === 'waiting') animated = true;
@@ -323,9 +325,11 @@ export function buildScene(o: SceneInput): Scene {
     return spec;
   };
   const tw = template.civic.find((c) => c.id === 'town')!.at;
-  civic(PLACE.town, 'town', tw, 0, { active: rallyList.length > 0 || (inside.get(PLACE.town) ?? 0) > 0 }, 1.2);
+  // Painter depths that agree with the ground (art/footprints.ts, tests/ground.test.ts): after everything behind the
+  // hall and the station, before everything in front of them (0.3.1 drew the hall over furniture in front of it).
+  civic(PLACE.town, 'town', tw, 0, { active: rallyList.length > 0 || (inside.get(PLACE.town) ?? 0) > 0 }, TOWN_DEPTH_ADD);
   signs.push({ x: 14.5, y: 16.25, z: 66, text: o.names.town, bg: '#FFC928', fg: '#141A30', minZoom: 0.25, small: false, depth: 30.9, name: true, place: PLACE.town });
-  civic(PLACE.station, 'station', template.civic.find((c) => c.id === 'station')!.at, 0, {}, 1.6);
+  civic(PLACE.station, 'station', template.civic.find((c) => c.id === 'station')!.at, 0, {}, STATION_DEPTH_ADD);
   signs.push({ x: 8.5, y: 13.85, z: 24, text: o.names.station, bg: '#2F6BDE', fg: '#FFFFFF', minZoom: 1, small: false, depth: 24.1, name: true, place: PLACE.station });
   const fire = template.civic.find((c) => c.id === 'fire')!.at;
   civic(PLACE.fire, 'fire', fire, 0);
