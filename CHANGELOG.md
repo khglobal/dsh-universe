@@ -3,6 +3,42 @@
 Member releases of `@khglobal/dsh-universe`. `scripts/release.mjs` uses the section for the version it cuts as the
 release notes; without one, it lists the source commits since the last release.
 
+## 0.3.1
+
+- **Install straight from GitHub.** The repository is now the plugin itself:
+  `dsh plugin --profile web add github:khglobal/dsh-universe` installs it with nothing to build or approve, and the
+  plugin page shows the README with its screenshots. The npm package is unchanged.
+- **Much less CPU when left open.** After 10 seconds without input the city paints twice a second, after a minute
+  once a second. It no longer rebuilds the whole city just because the clock moved, and the clock steps more slowly
+  while nobody is looking. A busy 300-session day left alone went from about 7% of a core to about 4%, and to about
+  2% after a minute.
+- **Ambient sound you can actually hear.** 环境音 / Sound was nearly silent in 0.3.0, most of all in the nearby
+  cities: it played below what laptop speakers reproduce. Every city now sounds in the audible range, a city at rest
+  hums quietly, and the button has a speaker icon. A rendered-audio check guards it.
+- **Real names on the map.** MCP Gateways show the connection's name (for example 海星ERP / Astero ERP) instead of
+  the server id. Plugin Row and the list show plugin titles instead of package names. Base plugins that are running
+  no longer show as disabled.
+- **A full city keeps building.** Once the city has grown to its largest, a new session takes the lot of the oldest
+  finished building from an earlier day. Before, new sessions got no building at all once about 150 had been placed.
+  On a day with more sessions than the city holds, a calm note says how many are only in the list.
+- **Review Centre counts agree.** The card, the Today bar and the desks inside give one figure. Sessions stopped on
+  an error have their own floor.
+- **Today means today.** Just after midnight, failed calls, tokens and "finished" count only what happened since
+  midnight. Sessions carried over keep their buildings.
+- **Time zones.** The timeline, clock and hour labels follow the host's day, so a browser in another time zone sees
+  the right hours (with a zone label).
+- **Small screens.** The zoom buttons, tour card, legend and room tooltips stay on screen and clear of each other at
+  390 and 320 px. The timeline's hour labels no longer overlap at 320 px, and the list's buttons stay inside the
+  window. Notes over the city no longer cover a room's back button.
+- **Keyboard.** Enter opens the place the camera was sent to, marked with a crosshair. The list has "Go inside" for
+  places and sessions. Focus returns to the city after the tour.
+- **Today bar.** No more gap after a long scheduled-task title. The "+n local" breakdown can be read with the
+  keyboard and by touch.
+- **Nearby cities.** A running session looks running. A session whose process stopped no longer shows "Running" for
+  half an hour.
+- **Wording.** Consistent names in both languages. Scheduled tasks name the day of their next run. Notes say only
+  what is true.
+
 ## 0.3.0
 
 - Neighbouring cities, one per vendor: **Claude** (Claude Code and the Claude desktop app's agent sessions),
