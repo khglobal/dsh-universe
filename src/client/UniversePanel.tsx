@@ -131,6 +131,7 @@ export function UniversePanel({ env }: { env: Env }) {
   const [tourAt, setTourAt] = useState(0);
   const [nIdx, setNIdx] = useState(-1);
   const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
+  const [inRoom, setInRoom] = useState(false);
   const { t } = env;
   const lang = env.lang();
 
@@ -224,6 +225,8 @@ export function UniversePanel({ env }: { env: Env }) {
     : undefined;
 
   const city = prefs.view === 'city';
+  // Inside a room the notes over the city wait: they covered the room's back button and floor names.
+  const covered = regionOpen || inRoom;
   // A very busy city: the sessions that found no lot are only in the list (one calm note, dismissed like the others).
   const unbuilt = feed.placement ? unbuiltAt(feed.store, feed.placement, T) : 0;
   // Calm notes over the city (the list shows them in its own place): first run, partial history, storage, services.
@@ -335,10 +338,10 @@ export function UniversePanel({ env }: { env: Env }) {
             <div style={{ flex: '1 1 300px', minWidth: 0 }}>{regionOpen ? <p style={{ ...S.head, margin: '0 0 6px' }}>{t('nb.region')}</p> : <TodayBar buttons={view.buttons} t={t} onPress={press} oneRow active={activeCat} />}</div>
             <div style={{ marginLeft: 'auto', paddingBottom: 6, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>{nbControls}{toggle}</div>
           </div>
-          {((hintBar && !regionOpen) || (notes.length > 0 && !regionOpen)) && (
+          {((hintBar && !covered) || (notes.length > 0 && !covered)) && (
             <div style={{ position: 'absolute', top: '100%', left: 12, right: 12, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, pointerEvents: 'none' }}>
-              {hintBar && !regionOpen && <div style={{ pointerEvents: 'auto', width: '100%', maxWidth: 640 }}>{hintBar}</div>}
-              {notes.length > 0 && !regionOpen && (
+              {hintBar && !covered && <div style={{ pointerEvents: 'auto', width: '100%', maxWidth: 640 }}>{hintBar}</div>}
+              {notes.length > 0 && !covered && (
                 <div role="status" aria-label={t('e.notes')} style={{ pointerEvents: 'auto', boxSizing: 'border-box', width: '100%', display: 'flex', alignItems: 'flex-start', gap: 10, padding: '6px 10px', ...px, boxShadow: 'none', fontSize: 12.5, maxWidth: 640 }}>
                   <div style={{ flex: 1 }}>{notes.map((k) => <div key={k}>{t(k, { m: unbuilt })}</div>)}</div>
                   <button type="button" style={{ ...S.btn, minHeight: 26, padding: '0 8px' }} onClick={() => setDismissed(new Set([...dismissed, ...notes]))}>{t('e.dismiss')}</button>
@@ -351,7 +354,7 @@ export function UniversePanel({ env }: { env: Env }) {
           <Region t={t} lang={lang} now={live} dark={hostDark(rootRef.current)} active={active}
             cities={[{ id: 'dsh' as CityId, feed: env.feed }, ...enabled.map((id) => ({ id: id as CityId, feed: env.neighbours!.feed(id, off) }))]}
             onEnter={go} onClose={() => { setRegion(false); setRegionFocus(undefined); }} onFocusCity={setRegionFocus} />
-        ) : <CityPanel key={active} onZoomOutFar={enabled.length > 0 ? () => setRegion(true) : undefined} beside={chips || undefined}
+        ) : <CityPanel key={active} onRoom={setInRoom} onZoomOutFar={enabled.length > 0 ? () => setRegion(true) : undefined} beside={chips || undefined}
           hideLayers={active === 'dsh' ? undefined : [...(feed.platform?.caps.schedules ? [] : ['scheduled' as const]), ...(feed.platform?.caps.tokens ? [] : ['tokens' as const])]}
           t={t} lang={lang} T={T} utcOffset={feed.utcOffset} store={feed.store} placement={feed.placement ?? EMPTY_PLACEMENT} titles={titles} version={feed.version}
           prefs={prefs} setPrefs={setPrefs} target={target} layer={layer} setLayer={setLayer} seen={env.seen} drafts={drafts}

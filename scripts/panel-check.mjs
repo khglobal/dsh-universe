@@ -141,6 +141,14 @@ async function focusChecks(b, base, lang) {
   const where = await page.evaluate(() => [!!globalThis.__dshuRoom?.geometry && !!document.querySelector('[role="img"][aria-label]'), document.activeElement?.getAttribute('role') ?? document.activeElement?.tagName]);
   if (where[1] !== 'application') out.push(`after Esc out of the room focus is on ${where[1]}, not the city`);
   await page.close();
+  // With the first-run notice and a calm note up (nearby cities found, storage in memory), a room's own controls are
+  // not under them: the notes wait while a room is open.
+  page = await open(b, base, 'local=1&state=memory&lang=' + lang, { toured: true });
+  await enterRunning(page);
+  await page.waitForTimeout(500);
+  const hidden = await page.evaluate(() => [...document.querySelectorAll('nav[aria-label] button')].map((el) => { const r = el.getBoundingClientRect(); const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return top && (top === el || el.contains(top)) ? '' : (el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 30); }).filter(Boolean));
+  if (hidden.length) out.push(`in a room, the notes cover ${hidden.join(', ')}`);
+  await page.close();
   page = await open(b, base, 'local=1&lang=' + lang, { toured: true });
   const nb = page.locator('[data-dshu-notice] button').first();
   if (!(await nb.count())) out.push('no first-run notice');
@@ -248,7 +256,7 @@ async function main() {
     }
     for (const lang of LANGS) {
       const f = await focusChecks(b, base, lang);
-      console.log(`focus: ${lang}: ${f.length ? 'FAIL ' + f.join('; ') : 'room covers the city controls; Esc back to the city; notice into the settings; tour card closes'}`);
+      console.log(`focus: ${lang}: ${f.length ? 'FAIL ' + f.join('; ') : 'room covers the city controls and the notes wait; Esc back to the city; notice into the settings; tour card closes'}`);
       failed += f.length ? 1 : 0;
       const kb = await keyboardChecks(b, base, lang);
       console.log(`keyboard: ${lang}: ${kb.length ? 'FAIL ' + kb.join('; ') : 'Enter opens the centred place; centre mark; focus after the tour; list "Go inside"'}`);

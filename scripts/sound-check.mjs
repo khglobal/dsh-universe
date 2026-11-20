@@ -1,6 +1,6 @@
 // The ambient sound, rendered (not just started): each city's graph is rendered offline in a headless Chromium and its
-// loudness measured, overall and above 200 Hz (what a laptop speaker plays). Fails when a city that is busy, with the
-// Sound switch on, is too quiet to hear, or when a quiet city is not quieter than a busy one. Then the real panel (the
+// loudness measured, overall and above 200 Hz (what a laptop speaker plays). Fails when a city, with the Sound switch
+// on, is too quiet to hear (a city at rest included), or when a city at rest is not quieter than one at work. Then the real panel (the
 // dev page, the sample day): with the switch on and a key pressed, what reaches the speakers is measured with an
 // analyser on the audio output, and must be audible too.
 //   --allow-skip    no Chromium: skip (and pass)
@@ -24,7 +24,7 @@ const CASES = [
   ['workbuddy city, sessions running', { workbuddy: BUSY }, { workbuddy: 1 }, true],
   ['dsh city, running and waiting', { dsh: { ...BUSY, waiting: 2 } }, { dsh: 1 }, true],
   ['dsh city, running only', { dsh: { running: 2, errors: 0, traffic: 5, waiting: 0 } }, { dsh: 1 }, true],
-  ['claude city, nothing running', { claude: { running: 0, errors: 0, traffic: 0, waiting: 0 } }, { claude: 1 }, false],
+  ['claude city, nothing running (quieter)', { claude: { running: 0, errors: 0, traffic: 0, waiting: 0 } }, { claude: 1 }, 'quiet'],
 ];
 
 async function main() {
@@ -45,8 +45,9 @@ async function main() {
     for (const [name, levels, mix, audible] of CASES) {
       const r = await page.evaluate(([l, m]) => globalThis.__render(l, m), [levels, mix]);
       res[name] = r;
-      const ok = audible ? r.hpDb >= AUDIBLE_DB : r.hpDb < AUDIBLE_DB - 6;
-      console.log(`sound: ${name.padEnd(44)} ${r.db.toFixed(1).padStart(6)} dBFS, above 200 Hz ${r.hpDb.toFixed(1).padStart(6)} dBFS: ${ok ? 'ok' : 'FAIL (' + (audible ? 'too quiet to hear' : 'should be near silent') + ')'}`);
+      const busy = res['claude city, running only (no calls lately)'];
+      const ok = audible === 'quiet' ? r.hpDb >= AUDIBLE_DB && busy && r.hpDb <= busy.hpDb - 4 : r.hpDb >= AUDIBLE_DB;
+      console.log(`sound: ${name.padEnd(44)} ${r.db.toFixed(1).padStart(6)} dBFS, above 200 Hz ${r.hpDb.toFixed(1).padStart(6)} dBFS: ${ok ? 'ok' : 'FAIL (' + (audible === 'quiet' ? 'a city at rest: audible, and quieter than one at work' : 'too quiet to hear') + ')'}`);
       failed += ok ? 0 : 1;
     }
     failed += await live(b);

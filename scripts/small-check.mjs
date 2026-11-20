@@ -2,7 +2,7 @@
 // in Chinese and English, first run (tour) and after it, legend open and closed, every zoom button is inside the window
 // and under no other control (the tour's card excepted at 320x480, where the city is under 200 px tall). In a room at 390 and 320 px, a floor's tooltip does not stay open over the room once
 // the floor was tapped, nor cover the floor's "On this floor now" list. The timeline's hour labels at 320, 360 and 390 px
-// wide (#23): drawn inside the dock, at least 4 px apart, none over another.
+// wide (#23): drawn inside the dock, at least 4 px apart, none over another. The list's buttons at 320 and 390 px.
 //   --shots <dir>   save a screenshot of each case
 //   --allow-skip    no Chromium: skip (and pass)
 import { mkdirSync } from 'node:fs';
@@ -62,6 +62,18 @@ async function main() {
       const out = await page.evaluate(zoomProblems);
       if (shots) await page.screenshot({ path: join(shots, `small-${lang}-${size.join('x')}-${what.replace(/\W+/g, '-')}.png`) });
       console.log(`zoom: ${lang} ${size.join('x')} ${what}: ${out.length ? 'FAIL ' + out.join('; ') : 'ok'}`);
+      failed += out.length ? 1 : 0;
+      await page.close();
+    }
+    // The list at 320 and 390 px: every row's buttons inside the window (a session row's three buttons wrap).
+    for (const lang of ['en', 'zh']) for (const w of [320, 390]) {
+      const page = await b.newPage({ viewport: { width: w, height: 700 } });
+      await page.addInitScript(() => { try { localStorage.setItem('khglobal-dsh-universe.view', JSON.stringify({ toured: true, view: 'list' })); } catch { /* storage off */ } });
+      await page.goto(base + 'index.html?panel=1&fixed=1&lang=' + lang);
+      await page.waitForSelector('[role="list"]');
+      await page.waitForTimeout(500);
+      const out = await page.evaluate(() => [...new Set([...document.querySelectorAll('button')].filter((e) => { const r = e.getBoundingClientRect(); return r.width && (r.right > innerWidth + 1 || r.left < -1); }).map((e) => e.textContent.trim()))]);
+      console.log(`list: ${lang} ${w}px: ${out.length ? 'FAIL leaves the window: ' + out.join(', ') : 'ok'}`);
       failed += out.length ? 1 : 0;
       await page.close();
     }
