@@ -246,4 +246,4 @@ See [SECURITY.md](SECURITY.md).
 
 **Source-available, not open source.** You may read the code, and install and use the unmodified plugin with DeepSeek
 Harness. Copying, modifying, redistributing or reusing the code or the art (including the procedural art and
-templates) in other works needs KH's written permission. Copyright KH. See [LICENSE](LICENSE).
+templates) in other works needs KH's written permission. Copyright K&H Investment Global Limited. See [LICENSE](LICENSE).
