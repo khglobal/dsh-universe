@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { HistoryDay, USchedule, UInventory } from '@dsh-universe/model';
+import { displayName, type HistoryDay, type USchedule, type UInventory } from '@dsh-universe/model';
 import { placeViewFor } from './extensions.ts';
 import { clock, scheduleText } from './format.ts';
 import { C, S, stateColor } from './styles.ts';
@@ -94,7 +94,7 @@ export function ListView(p: ListProps) {
           {p.plugins.length ? p.plugins.map((pl) => (
             <div key={pl.id} role="listitem" style={S.row}>
               <span style={{ fontSize: 12, color: pl.enabled ? C.done : C.idle }}>{pl.enabled ? p.t('pg.on') : p.t('pg.off')}</span>
-              <span style={S.title}>{pl.id}</span><span />
+              <span style={S.title}>{displayName(pl, p.lang)}</span><span />
             </div>
           )) : none}
         </Group>

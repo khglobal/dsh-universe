@@ -2,7 +2,7 @@
 // (focusable, readable) DOM over it, a toolbar with the layer buttons, a legend that starts closed, zoom buttons
 // and a timeline that can be minimised. Titles appear only here, in the DOM, never in the pixels.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type ReactNode } from 'react';
-import { CALLS_PER_CAR, LAYERS, PLACE, buildingOf, cumAt, type Drafts, type LayerId, type PlacementState, type Seen, type Store, type UCapabilities } from '@dsh-universe/model';
+import { CALLS_PER_CAR, LAYERS, PLACE, buildingOf, cumAt, displayName, type Drafts, type LayerId, type PlacementState, type Seen, type Store, type UCapabilities } from '@dsh-universe/model';
 import { CityView, artXY, documentPage, shortTool } from '@dsh-universe/renderer';
 import { Timeline, type TimeMode } from './Timeline.tsx';
 import { reducedMotion, unlockSound } from './time.ts';
@@ -252,7 +252,7 @@ export function CityPanel(p: CityProps) {
     // Only the live clock moved on (the same data, once a second): shown with the next frame, not painted at once.
     const same = inputDeps.current.length === 6 && [p.version, placement, lang, kit, p.drafts, p.mode].every((x, i) => x === inputDeps.current[i]);
     inputDeps.current = [p.version, placement, lang, kit, p.drafts, p.mode];
-    view.setInput({ store, placement, T: cityT, live: p.mode === 'live', city: CITY, seen: p.seen, drafts: p.drafts, templateTags: kit.buildingTags, names: { town: t('pl.town'), station: t('pl.station'), fire: t('pl.fire'), school: t('pl.school'), library: t('pl.library'), defaultWorkspace: t('ws.default') } }, same && p.mode === 'live');
+    view.setInput({ store, placement, T: cityT, live: p.mode === 'live', city: CITY, seen: p.seen, drafts: p.drafts, templateTags: kit.buildingTags, names: { town: t('pl.town'), station: t('pl.station'), fire: t('pl.fire'), school: t('pl.school'), library: t('pl.library'), defaultWorkspace: t('ws.default'), lang } }, same && p.mode === 'live');
   }, [p.version, placement, cityT, lang, kit, p.drafts, p.mode]);
 
   useEffect(() => {
@@ -503,7 +503,8 @@ export function CityPanel(p: CityProps) {
     }
     const pl = view.scene?.places.find((x) => x.id === id);
     if (!pl || pl.tier === 'building') return undefined;
-    const name = id.startsWith('shop:') ? id.slice(5) : placeName(id, t, store);
+    const shop = id.startsWith('shop:') ? store.inventory().plugins?.find((x) => x.id === id.slice(5)) : undefined;
+    const name = id.startsWith('shop:') ? (shop ? displayName(shop, lang) : id.slice(5)) : placeName(id, t, store, lang);
     // The town hall holds no one: its card says how many wait in the square, as the balloon does.
     const sub = id === PLACE.town ? t('td.need', { n: view.scene?.rally ?? 0 }) : t('pl.in', { n: pl.inside });
     return { ...pos, r: undefined, place: { id, name, inside: pl.inside, sub } };

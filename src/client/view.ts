@@ -1,6 +1,6 @@
 // What the panel and the tile show, computed from the feed at time T. Pure (tested without React).
 import {
-  FLOOR_KINDS, PLACE, cumAt, floorsOf, idxAt, listGroups, stateAt, todayAt, waitAt, failedAt, whereabouts, workspaceName,
+  FLOOR_KINDS, PLACE, cumAt, displayName, floorsOf, idxAt, listGroups, stateAt, todayAt, waitAt, failedAt, whereabouts, workspaceName,
   deliverablesAt, BURN_MS, metricsAt, type LayerId, hasDraft, planModeAt, rallyAt, type AgentTrack, type Drafts, type ListGroupId, type Seen, type Store, type Today, type UCapabilities,
 } from '@dsh-universe/model';
 import { shortTool } from '@dsh-universe/renderer';
@@ -74,13 +74,13 @@ export interface Row {
 }
 
 /** A place name for "where" text. */
-export function placeName(id: string, t: Translate, store: Store): string {
+export function placeName(id: string, t: Translate, store: Store, lang = ''): string {
   if (id === PLACE.town) return t('pl.town');
   if (id === PLACE.station) return t('pl.station');
   if (id === PLACE.school) return t('pl.school');
   if (id === PLACE.library) return t('pl.library');
   if (id === PLACE.fire) return t('pl.fire');
-  if (id.startsWith('conn:')) { const c = store.connectors().find((x) => x.id === id.slice(5)); return t('pl.conn', { n: c?.title ?? id.slice(5) }); }
+  if (id.startsWith('conn:')) { const c = store.connectors().find((x) => x.id === id.slice(5)); return t('pl.conn', { n: c ? displayName(c, lang) : id.slice(5) }); }
   if (id.startsWith('model:')) return t('pl.power', { n: id.slice(6) });
   return t('pl.home');
 }
@@ -132,7 +132,7 @@ export function rowOf(s: AgentTrack, store: Store, T: number, t: Translate, lang
     const where = whereabouts(store, s, T);
     const k = idxAt(s, T);
     const tool = k ? s.ev[k - 1].tool : '';
-    detail = [where ? placeName(where.place, t, store) + ' · ' + floorName(where.floor, t) : '', tool].filter(Boolean).join(' · ');
+    detail = [where ? placeName(where.place, t, store, lang) + ' · ' + floorName(where.floor, t) : '', tool].filter(Boolean).join(' · ');
   } else {
     detail = t('row.calls', { n: idxAt(s, T) });
   }
@@ -180,7 +180,7 @@ export function places(store: Store, T: number, t: Translate, lang: string, caps
   return ids.map((id) => {
     const fl = floorsOf(store, id, T, caps);
     return {
-      id, name: placeName(id, t, store),
+      id, name: placeName(id, t, store, lang),
       floors: fl.map((f) => floorName(f.id, t) + ' ' + (f.na ? t('na') : f.unit === 'tokens' ? tokens(f.n, lang) : f.unit === 'ms' ? duration(f.n, t) : String(f.n))).join(' · '),
       inside: fl.reduce((a, f) => a + f.agents.length, 0),
     };

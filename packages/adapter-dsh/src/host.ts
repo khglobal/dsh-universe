@@ -17,7 +17,7 @@ import { carryOver, STANDING } from './rollover.ts';
 export interface HostDeps {
   /** cordis `ctx.on`: returns a disposer. */
   on(name: string, listener: (...args: unknown[]) => void): () => void;
-  /** Optional services by name (`workspaceRegistry`, `schedule`, `mcpManager`, `pluginInventory`, `pluginManager`, `sessionQuery`). */
+  /** Optional services by name (`workspaceRegistry`, `schedule`, `mcpManager`, `pluginInventory`, `pluginManager`, `sessionQuery`, `workdshConnectors`). */
   service(name: string): unknown;
   events: KvLike;
   places: KvLike;
@@ -60,6 +60,7 @@ export async function startDshHost(deps: HostDeps): Promise<DshHost> {
     mcpManager: svc('mcpManager') as SourceServices['mcpManager'],
     pluginInventory: svc('pluginInventory') as SourceServices['pluginInventory'],
     pluginManager: svc('pluginManager') as SourceServices['pluginManager'],
+    workdshConnectors: svc('workdshConnectors') as SourceServices['workdshConnectors'],
   }), log);
   // 14-day totals of the stored earlier days (today's are counted live; a day that ends while DSH runs is added).
   const earlier = new Map<string, ReturnType<typeof dayTotals>>();

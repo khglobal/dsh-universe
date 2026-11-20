@@ -3,7 +3,7 @@
 // an empty workspace shows the civic baseline only. No titles reach this file: signs are place names and start
 // times only.
 import {
-  workspaceName,
+  workspaceName, displayName,
   FAILED_IN_SQUARE_MS, FLOOR_OF, GROWTH, PLACE, buildingId, chooseTemplate, cityTemplate, cumAt, failedAt, footprintOf, growthAt,
   hueOf, idxAt, lotOf, placardOf, rallyAt, rootOf, seedOf, segmentsOf, sessionStateAt, stageOf, stateAt, themeIdOf, themeOf, waitAt, whereabouts,
   type AgentTrack, type CityTemplate, type Drafts, type Seen, type FloorKind, type PlacementState, type StateAt, type Store,
@@ -66,7 +66,8 @@ export interface Scene {
 export interface SceneNames {
   town: string; station: string; fire: string; school: string; library: string;
   /** Shop signs on the street furniture of the quay plaza (optional). */
-  cafe?: string; truck?: string; news?: string; bus?: string; /** DSH's name for its first-use workspace, in the member's language. */ defaultWorkspace?: string }
+  cafe?: string; truck?: string; news?: string; bus?: string;
+  /** The member's language, for connector and plugin display names (`displayName`). */ lang?: string; /** DSH's name for its first-use workspace, in the member's language. */ defaultWorkspace?: string }
 export interface SceneInput {
   store: Store;
   placement: PlacementState;
@@ -348,7 +349,7 @@ export function buildScene(o: SceneInput): Scene {
   conns.forEach((c, i) => {
     const at = CONNECTOR_AT[i];
     civic('conn:' + c.id, 'connector', at, i, { level: busy.get(c.id) ?? 0 });
-    signs.push({ x: at[0] - (i === 1 ? 1 : 0.1), y: at[1] + 1.3, z: 8, text: c.title, bg: '#19B8A0', fg: '#FFFFFF', minZoom: 1, small: false, depth: at[0] + at[1] + 1.4, name: true, place: 'conn:' + c.id });
+    signs.push({ x: at[0] - (i === 1 ? 1 : 0.1), y: at[1] + 1.3, z: 8, text: displayName(c, o.names.lang ?? ''), bg: '#19B8A0', fg: '#FFFFFF', minZoom: 1, small: false, depth: at[0] + at[1] + 1.4, name: true, place: 'conn:' + c.id });
   });
   // Plugin street: one shop per installed plugin; a disabled one has its shutters down.
   (store.inventory().plugins ?? []).slice(0, 8).forEach((pl, i) => {
@@ -356,7 +357,7 @@ export function buildScene(o: SceneInput): Scene {
     const at: [number, number] = [23 + (sl & 1) * 3 + 1, by + (sl >> 1) * 3 + 1];
     const v = seedOf(pl.id) & 4095;
     civic('shop:' + pl.id, 'shop', at, v, { on: pl.enabled });
-    signs.push({ x: at[0], y: at[1] + 0.7, z: 34, text: pl.id, bg: pl.enabled ? SHOP_COLOURS[v % 8] : '#8A93A3', fg: '#141A30', minZoom: 3, small: true, depth: at[0] + at[1] + 0.8 });
+    signs.push({ x: at[0], y: at[1] + 0.7, z: 34, text: displayName(pl, o.names.lang ?? ''), bg: pl.enabled ? SHOP_COLOURS[v % 8] : '#8A93A3', fg: '#141A30', minZoom: 3, small: true, depth: at[0] + at[1] + 0.8 });
   });
   // Workspace name plates at the corner of the first block each workspace claimed.
   for (const [wsId, blockKey] of wsFirstBlock) {

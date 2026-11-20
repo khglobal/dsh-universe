@@ -23,7 +23,7 @@ const TOOLS: Record<Exclude<Kind, 'conn'>, string[]> = {
 };
 const CAT: Record<Kind, Category> = { read: 'read', search: 'search', edit: 'edit', exec: 'exec', web: 'web', conn: 'connector', task: 'delegate', skill: 'skill' };
 const CONNS = [
-  { id: 'erp', title: 'ERP', tools: ['mcp__erp__execute_read', 'mcp__erp__aggregate_read', 'mcp__erp__search_tools', 'mcp__erp__execute_write'] },
+  { id: 'erp', title: 'Astero ERP', titleZh: '海星ERP', tools: ['mcp__erp__execute_read', 'mcp__erp__aggregate_read', 'mcp__erp__search_tools', 'mcp__erp__execute_write'] },
   { id: 'im', title: 'IM', tools: ['mcp__im__read_archive', 'mcp__im__list_chats'] },
 ];
 export type SampleLang = 'zh' | 'en';
@@ -37,7 +37,8 @@ const AUTOS: { id: string; title: Text; at: number; run: string | null }[] = [
   { id: 'a1', title: ['招标公告日报', 'Daily research: new tender notices'], at: HM('08:30'), run: 's9' }, { id: 'a2', title: ['本周线索跟进提醒', 'Weekly sales lead follow-up reminder'], at: HM('09:00'), run: 's5' },
   { id: 'a3', title: ['每日库存预警', 'Daily stock alert'], at: HM('15:45'), run: null }, { id: 'a4', title: ['下班前待办小结', 'End-of-day to-do summary'], at: HM('18:00'), run: null },
 ];
-const PLUGINS: [string, boolean][] = [['pdf-tools', true], ['charts', true], ['ocr', true], ['calendar', true], ['translator', false], ['git-helper', true], ['web-clipper', true], ['sheet-kit', true], ['mail-merge', false]];
+// Package names with the display titles DSH's plugin list shows (one without a title shows its package name).
+const PLUGINS: [string, boolean, Text?][] = [['@acme/dsh-pdf-tools', true, ['PDF 工具', 'PDF tools']], ['@acme/dsh-charts', true, ['图表', 'Charts']], ['ocr', true], ['@acme/dsh-calendar', true, ['日历', 'Calendar']], ['@acme/dsh-translator', false, ['翻译', 'Translator']], ['git-helper', true], ['@acme/dsh-web-clipper', true, ['网页剪藏', 'Web clipper']], ['@acme/dsh-sheet-kit', true, ['表格工具', 'Sheet kit']], ['@acme/dsh-mail-merge', false, ['邮件合并', 'Mail merge']]];
 const EXTRA: Text[] = [['核对银行流水', 'Reconcile bank statement'], ['整理客户名单', 'Tidy up customer list'], ['招标文件目录', 'Tender document index'], ['清理下载文件夹', 'Clean up downloads folder'], ['发票抬头校验', 'Validate invoice billing names'], ['回复询价邮件草稿', 'Draft replies to customer enquiries'], ['资质证书到期表', 'Licence expiry tracker'], ['合并两份表格', 'Merge two spreadsheets'], ['差旅报销核对', 'Check travel expense claims'], ['竞品价格摘录', 'Competitor price list'], ['答疑纪要整理', 'Clarification meeting notes'], ['会议纪要转待办', 'Turn meeting minutes into todos'], ['应付账款账龄', 'Accounts payable ageing'], ['样品寄送清单', 'Sample shipping sheet'], ['评分办法摘录', 'Bid scoring rules summary'], ['批量重命名文件', 'Batch rename files']];
 
 const SESSIONS: Ses[] = [
@@ -73,8 +74,8 @@ export function dshSample(midnight: number, lang: SampleLang = 'zh'): Fixture {
   });
   const ev: UEvent[] = [];
   for (const w of WS) ev.push({ type: 'workspace', data: { id: w.id, title: w.title[L], displayPath: w.path } });
-  for (const c of CONNS) ev.push({ type: 'connector', data: { id: c.id, title: c.title, state: 'connected', tools: c.tools } });
-  ev.push({ type: 'inventory', data: { plugins: PLUGINS.map(([id, enabled]) => ({ id, enabled })) } });
+  for (const c of CONNS) ev.push({ type: 'connector', data: { id: c.id, title: c.title, ...(c.titleZh ? { titleZh: c.titleZh } : {}), state: 'connected', tools: c.tools } });
+  ev.push({ type: 'inventory', data: { plugins: PLUGINS.map(([id, enabled, title]) => ({ id, enabled, ...(title ? { title: title[1], titleZh: title[0] } : {}) })) } });
   for (const a of AUTOS) {
     ev.push({ type: 'schedule', data: { id: a.id, title: a.title[L], status: 'active', ...(a.at > NOW ? { nextAt: at(a.at) } : { nextAt: at(a.at) + 86_400_000 }), runs: a.at <= NOW && a.run ? [{ at: at(a.at), agentId: a.run }] : [] } });
   }

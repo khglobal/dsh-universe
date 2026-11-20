@@ -16,7 +16,7 @@ export const MODEL_FIELDS: Readonly<Record<UEventType, Spec>> = {
   job: { id: 'string', agentId: 'string', kind: 'string', startedAt: 'number', endedAt: 'number', outcome: 'string' },
   deliverable: { t: 'number', agentId: 'string', count: 'number' },
   schedule: { id: 'string', title: 'string', status: 'string', nextAt: 'number', runs: 'runs' },
-  connector: { id: 'string', title: 'string', state: 'string', tools: 'strings', tags: 'strings' },
+  connector: { id: 'string', title: 'string', titleZh: 'string', state: 'string', tools: 'strings', tags: 'strings' },
   usage: { id: 'string', t: 'number', agentId: 'string', model: 'string', input: 'number', output: 'number', cacheRead: 'number', cacheWrite: 'number' },
   inventory: { plugins: 'plugins', skills: 'strings', hooks: 'number' },
   planmode: { t: 'number', agentId: 'string', active: 'boolean' },
@@ -40,7 +40,7 @@ function pick(spec: Spec, src: Record<string, unknown>): Record<string, unknown>
       case 'boolean': x = typeof v === 'boolean' ? v : undefined; break;
       case 'strings': x = Array.isArray(v) ? v.map(str).filter((s): s is string => s !== undefined).slice(0, 500) : undefined; break;
       case 'runs': x = Array.isArray(v) ? v.filter((r) => r && typeof r === 'object').map((r) => pick({ at: 'number', agentId: 'string', ok: 'boolean' }, r as Record<string, unknown>)).filter((r) => r.at !== undefined).slice(0, 200) : undefined; break;
-      case 'plugins': x = Array.isArray(v) ? v.filter((r) => r && typeof r === 'object').map((r) => pick({ id: 'string', enabled: 'boolean' }, r as Record<string, unknown>)).filter((r) => r.id !== undefined).slice(0, 500) : undefined; break;
+      case 'plugins': x = Array.isArray(v) ? v.filter((r) => r && typeof r === 'object').map((r) => pick({ id: 'string', enabled: 'boolean', title: 'string', titleZh: 'string' }, r as Record<string, unknown>)).filter((r) => r.id !== undefined).slice(0, 500) : undefined; break;
     }
     if (x !== undefined) out[k] = x;
   }

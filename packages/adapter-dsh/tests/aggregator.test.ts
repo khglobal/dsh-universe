@@ -187,3 +187,50 @@ test('plugins: only what the member installed (the plugin manager\'s profile bun
     { installed: true }, null, 'x',
   ]), [{ id: '@khglobal/dsh-universe', enabled: true }, { id: 'pdf-tools', enabled: false }]);
 });
+
+test('plugins: the display title DSH\'s plugin list shows, and on when the host runs it (#7)', async () => {
+  const { memberPlugins } = await import('../src/sources.ts');
+  const bundles = [
+    { name: '@khglobal/dsh-office', installed: true, enabled: true, meta: { title: { en: 'Office', zh: '办公' } } },
+    // A base plugin the host loads through its own rows: not selected in the profile, but its row is live.
+    { name: '@khglobal/dsh-memory', installed: true, enabled: false, rows: [{ rowId: 'mem', moduleName: '@khglobal/dsh-memory/host', entryId: 'e-mem', meta: { title: 'Memory' } }] },
+    { name: '@khglobal/dsh-org-identity', installed: true, enabled: false, meta: { title: 'Org identity' } },
+    { name: 'stopped-one', installed: true, enabled: false, rows: [{ rowId: 'x', moduleName: 'stopped-one', entryId: 'e-x' }] },
+  ];
+  const inventory = [
+    { entryId: 'e-mem', moduleName: '@khglobal/dsh-memory/host', enabled: true, fiberPhase: 'active' },
+    { entryId: 'e-org', moduleName: '@khglobal/dsh-org-identity', enabled: true, fiberPhase: 'active' },
+    { entryId: 'e-x', moduleName: 'stopped-one', enabled: false, fiberPhase: null },
+  ];
+  assert.deepEqual(memberPlugins(bundles, inventory), [
+    { id: '@khglobal/dsh-office', enabled: true, title: 'Office', titleZh: '办公' },
+    { id: '@khglobal/dsh-memory', enabled: true, title: 'Memory' },
+    { id: '@khglobal/dsh-org-identity', enabled: true, title: 'Org identity' },
+    { id: 'stopped-one', enabled: false },
+  ]);
+  const { displayName } = await import('@dsh-universe/model');
+  assert.equal(displayName({ id: '@khglobal/dsh-office', title: 'Office', titleZh: '办公' }, 'zh'), '办公');
+  assert.equal(displayName({ id: '@khglobal/dsh-office', title: 'Office', titleZh: '办公' }, 'en'), 'Office');
+  assert.equal(displayName({ id: 'stopped-one' }, 'zh'), 'stopped-one', 'no title: the package name');
+});
+
+test('connectors: named by the host\'s connector title, the server id only without one (#7)', async () => {
+  const { createSources } = await import('../src/sources.ts');
+  const { sanitize } = await import('@dsh-universe/adapter-kit');
+  const mcpManager = { list: () => [
+    { name: 'a_kh_erp', configured: true, status: { state: 'connected' } },
+    { name: 'mine', configured: true, status: { state: 'connected' } },
+    { name: 'bare', configured: true, status: { state: 'disabled' } },
+  ] };
+  const workdshConnectors = { list: async () => [
+    { serverName: 'a_kh_erp', title: '海星ERP', titles: { zh: '海星ERP', en: 'Astero ERP' }, url: 'https://secret.example/mcp' },
+    { serverName: 'mine', title: 'My CRM' },
+  ] };
+  const conn = (svc: object) => createSources(() => svc).read().then((evs) => evs.filter((e) => e.type === 'connector').map((e) => e.data));
+  const named = await conn({ mcpManager, workdshConnectors });
+  assert.deepEqual(named.map((c) => [c.id, c.title, (c as { titleZh?: string }).titleZh]), [['a_kh_erp', 'Astero ERP', '海星ERP'], ['mine', 'My CRM', undefined], ['bare', 'bare', undefined]]);
+  assert.ok(!JSON.stringify(named).includes('secret.example'), 'only names are read');
+  for (const c of named) assert.deepEqual(sanitize({ type: 'connector', data: c })?.data, c, 'the model keeps the names');
+  const official = await conn({ mcpManager, workdshConnectors: { list: async () => { throw Error('no'); } } });
+  assert.deepEqual(official.map((c) => c.title), ['a_kh_erp', 'mine', 'bare'], 'official DSH: the server id');
+});
