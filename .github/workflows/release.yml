@@ -1,10 +1,9 @@
-# Release: after every merge to dev, cut a release into the capabilities catalog when the shipped bundle changed
+# Release: cut a release into the capabilities catalog when the shipped bundle changed. Run by hand (workflow_dispatch)
+# only after the release's UI check has passed: a merge to dev never releases on its own.
 # (scripts/release.mjs). Needs the repository secret CAPABILITIES_TOKEN; without it the job does nothing, and a
 # release is cut by hand: `node scripts/release.mjs --capabilities <catalog checkout> --pr --merge`.
 name: release
 on:
-  push:
-    branches: [dev]
   workflow_dispatch:
     inputs:
       probe:
