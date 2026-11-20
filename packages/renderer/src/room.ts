@@ -12,7 +12,7 @@ import { POSE_OF, roomSpecOf, type Interior, type InteriorAgent, type InteriorFl
 import { route, type P } from './room-walk.ts';
 import { shortTool } from './scene.ts';
 import { drawTextLayer, SMALL_FONT, type PlacedSign } from './text.ts';
-import { AMBIENT_FPS, CALM_AFTER_MS, CALM_FPS, FrameLoop, documentPage, frameGap, type PageState } from './pace.ts';
+import { AMBIENT_FPS, CALM_AFTER_MS, CALM_FPS, STILL_AFTER_MS, FrameLoop, documentPage, frameGap, type PageState } from './pace.ts';
 
 export interface RoomViewOptions {
   kit: ArtKit;
@@ -196,7 +196,7 @@ export class RoomView {
 
   /** The least time to the next paint (ms), or undefined when nothing needs one (pace.ts). */
   private gap(rm: boolean): number | undefined {
-    return frameGap({ urgent: this.dirty || (!rm && this.transition), ambient: !rm && this.animated, reducedMotion: rm, blurred: this.page.blurred(), calm: this.page.idleFor() >= CALM_AFTER_MS, hand: this.urgent });
+    return frameGap({ urgent: this.dirty || (!rm && this.transition), ambient: !rm && this.animated, reducedMotion: rm, blurred: this.page.blurred(), calm: this.page.idleFor() >= CALM_AFTER_MS, still: this.page.idleFor() >= STILL_AFTER_MS, hand: this.urgent });
   }
 
   private tick(ts: number): void {

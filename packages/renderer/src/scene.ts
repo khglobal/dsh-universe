@@ -223,6 +223,23 @@ function framesFor(state: StateAt, time: number, seed: number): Frames {
   return state === 'running' ? { crane: f.crane, blink: 0, epoch: f.epoch } : state === 'waiting' ? { crane: 0, blink: f.blink, epoch: 0 } : { crane: 0, blink: 0, epoch: 0 };
 }
 
+/**
+ * The scene at another moment of its animation clock when nothing else changed (#29): building cranes, window
+ * lights and blinks, the power station's blink and the square's placards follow `time`; everything else is the
+ * previous scene's. Undefined when the scene has things that move along with the clock itself (people walking,
+ * trains, puffs of smoke): then it is built again.
+ */
+export function retimeScene(prev: Scene, time: number): Scene | undefined {
+  if (prev.trains.length || prev.puffs.length || prev.agents.some((a) => a.person.walking)) return undefined;
+  const blink = framesAt(time).blink;
+  return {
+    ...prev,
+    places: prev.places.map((p) => p.building ? { ...p, building: { ...p.building, frames: framesFor(p.building.state, time, p.building.seed) } }
+      : p.civic?.kind === 'power' && p.civic.active ? { ...p, civic: { ...p.civic, frames: { crane: 0, blink, epoch: 0 } } } : p),
+    agents: prev.agents.map((a) => a.person.placard ? { ...a, person: { ...a.person, phase: time + (a.person.seed % 7) } } : a),
+  };
+}
+
 export function buildScene(o: SceneInput): Scene {
   const { store, placement, T, time } = o;
   const template = o.template ?? cityTemplate();

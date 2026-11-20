@@ -307,12 +307,11 @@ function crispView(w: number, h: number, dpr: number, rm = true) {
   return { view, cv, canvas, frames, dpr };
 }
 /** The art buffer's blit of the last frame from the call log, and whether smoothing was off when it ran. */
-function lastBlit(log: string[]) {
-  let i = log.length - 1;
-  while (i >= 0 && !log[i].startsWith('drawImage(')) i--;
-  // The art buffer is the first drawImage after the sky fill.
-  const sky = log.lastIndexOf(log.slice(0, i + 1).reverse().find((l) => l.startsWith('fillRect(0,0,')) ?? '');
-  const k = log.findIndex((l, j) => j > sky && l.startsWith('drawImage('));
+function lastBlit(log: string[], width: number) {
+  // The art buffer's draw: the last one covering the whole width (the sky fill before it is skipped when the art
+  // reaches every edge; the text layer and the cut-outs are drawn unscaled or smaller).
+  const k = log.map((l, j) => [l, j] as const).filter(([l]) => l.startsWith('drawImage(')).reverse()
+    .find(([l]) => { const a = l.slice(10, -1).split(',').slice(1).map(Number); return a.length === 4 && a[2] >= width; })?.[1] ?? -1;
   const args = log[k].slice(10, -1).split(',').slice(1).map(Number);
   const smooth = log.slice(0, k).reverse().find((l) => l.startsWith('imageSmoothingEnabled='));
   return { args, smoothing: smooth };
@@ -326,7 +325,7 @@ function assertCrisp(t: ReturnType<typeof crispView>, what: string) {
   for (const v of [b.x, b.y, b.w, b.h]) assert.ok(Number.isInteger(v), what + ': blit ' + JSON.stringify(b));
   assert.equal(b.w, b.bw * b.sc, what + ': width is the buffer times the whole scale');
   assert.equal(b.h, b.bh * b.sc, what + ': height');
-  const { args, smoothing } = lastBlit(cv.log);
+  const { args, smoothing } = lastBlit(cv.log, canvas.width);
   assert.deepEqual(args, [b.x, b.y, b.w, b.h], what + ': the logged draw');
   assert.equal(smoothing, 'imageSmoothingEnabled=false', what + ': smoothing off before the scaled draw');
 }

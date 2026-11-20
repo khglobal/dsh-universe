@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cityTemplate, createStore, emptyPlacement, place, type UEvent } from '@dsh-universe/model';
-import { AMBIENT_FPS, CALM_FPS, BLURRED_FPS, CityView, createStubKit, drawTextLayer, frameGap, type PageState } from '../src/index.ts';
+import { AMBIENT_FPS, CALM_FPS, BLURRED_FPS, STILL_FPS, STILL_AFTER_MS, CityView, buildScene, retimeScene, createStubKit, drawTextLayer, frameGap, type PageState } from '../src/index.ts';
 import { fakeSurface } from './fake-canvas.ts';
 
 const DAY = new Date(2026, 10, 18).getTime();
@@ -14,10 +14,14 @@ test('pace: left alone the ambient life paints twice a second, between the focus
   assert.equal(frameGap({ urgent: false, ambient: true, reducedMotion: false, blurred: false }), 1000 / AMBIENT_FPS);
   assert.equal(frameGap({ urgent: false, ambient: true, reducedMotion: false, blurred: true, calm: true }), 1000 / BLURRED_FPS);
   assert.ok(BLURRED_FPS < CALM_FPS && CALM_FPS < AMBIENT_FPS);
+  // Left alone for a minute (#29): one frame a second.
+  assert.equal(frameGap({ urgent: false, ambient: true, reducedMotion: false, blurred: false, calm: true, still: true }), 1000 / STILL_FPS);
+  assert.equal(frameGap({ urgent: true, ambient: true, reducedMotion: false, blurred: false, calm: true, still: true }), 0, 'a change still paints at once');
+  assert.ok(STILL_FPS < CALM_FPS && STILL_AFTER_MS >= 60_000);
 });
 
 /** A running city (one session at work: cranes turn, so the ambient life moves) with injected frames and clock. */
-function city(calm: boolean) {
+function city(calm: boolean, idle = 20_000) {
   const ev: UEvent[] = [{ type: 'workspace', data: { id: 'w1', title: 'Finance', displayPath: 'fin' } },
     { type: 'agent', data: { id: 's1', sessionId: 's1', workspaceId: 'w1', label: '', kind: 'main', state: 'running', startedAt: at(9) } },
     { type: 'turn', data: { t: at(9), agentId: 's1', phase: 'start' } }];
@@ -26,7 +30,7 @@ function city(calm: boolean) {
   const placement = place(cityTemplate(), emptyPlacement(), [{ sessionId: 's1', workspaceId: 'w1', startedAt: at(9) }]).state;
   let now = 0;
   const frames: ((t: number) => void)[] = [], timers: { fn: () => void; at: number }[] = [];
-  const page: PageState = { hidden: () => false, blurred: () => false, idleFor: () => (calm ? 60_000 : 0), subscribe: () => () => {} };
+  const page: PageState = { hidden: () => false, blurred: () => false, idleFor: () => (calm ? idle : 0), subscribe: () => () => {} };
   const cv = fakeSurface(10, 10);
   const view = new CityView({
     kit: createStubKit(fakeSurface), canvas: { width: 0, height: 0, getContext: () => cv.ctx } as never, reducedMotion: () => false,
@@ -79,4 +83,39 @@ test('text layer: reports the plates it drew with their depth (names never), for
   assert.equal(plates.length, 1);
   assert.equal(plates[0].depth, 7);
   assert.ok(plates[0].r[0] < 200 && plates[0].r[2] > 200);
+});
+
+test('pace: left alone for a minute the city paints once a second; the live clock adds no frame (#29)', () => {
+  const c = city(true, 61_000);
+  c.view.setInput(c.input(at(10)));
+  c.view.start();
+  c.run(2000);
+  const f0 = c.frames();
+  for (let s = 1; s <= 10; s++) { c.view.setInput(c.input(at(10) + s * 1000), true); c.run(2000 + s * 1000); }
+  const n = c.frames() - f0;
+  assert.ok(n >= 9 && n <= 11, `${n} frames in 10 s at STILL_FPS 1`);
+});
+
+test('scene: only the clock moved: the scene is stepped, not built again, and looks exactly like a fresh build (#29)', () => {
+  const c = city(true);
+  c.view.setInput(c.input(at(10)));
+  c.view.start();
+  c.run(1500);
+  const b0 = c.view.sceneBuilds;
+  for (let s = 1; s <= 4; s++) { c.view.setInput(c.input(at(10) + s * 1000), true); c.run(1500 + s * 1000); }
+  assert.equal(c.view.sceneBuilds, b0, 'no full build while the moment moved under RETIME_MS');
+  for (let s = 5; s <= 8; s++) { c.view.setInput(c.input(at(10) + s * 1000), true); c.run(1500 + s * 1000); }
+  assert.ok(c.view.sceneBuilds > b0, 'built again once the moment moved on further');
+  c.view.setInput(c.input(at(10) + 9000));
+  const b1 = c.view.sceneBuilds;
+  c.run(c.now() + 20);
+  assert.equal(c.view.sceneBuilds, b1 + 1, 'new data: built at once');
+  // A stepped scene is the same picture as one built for that moment.
+  const inp = { ...c.input(at(10)), time: 0, night: false };
+  for (const [t0, t1] of [[1, 1.5], [3.25, 7], [12, 12.4]]) {
+    const built = buildScene({ ...inp, time: t1 });
+    const stepped = retimeScene(buildScene({ ...inp, time: t0 }), t1);
+    assert.ok(stepped, 'nobody walks in this city');
+    assert.deepEqual(stepped, built, `${t0} → ${t1}`);
+  }
 });

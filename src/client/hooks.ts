@@ -1,7 +1,7 @@
 import { useEffect, useState, useSyncExternalStore, type CSSProperties, type RefObject } from 'react';
 import type { Feed, FeedState } from './feed.ts';
 import type { Observable } from './types.ts';
-import { CALM_AFTER_MS, documentPage, type PageState } from '@dsh-universe/renderer';
+import { CALM_AFTER_MS, STILL_AFTER_MS, documentPage, type PageState } from '@dsh-universe/renderer';
 
 export const useFeed = (feed: Feed): FeedState => useSyncExternalStore(feed.subscribe, feed.get, feed.get);
 export const useObservable = <T,>(o: Observable<T>): T => useSyncExternalStore(o.subscribe, o.getSnapshot, o.getSnapshot);
@@ -23,6 +23,9 @@ export function useNow(now: () => number, every = 1000, page: PageState = docume
 
 /** The clock's step while the page is left alone or in the background (ms). */
 export const CALM_TICK_MS = 2000;
+/** The clock's step once the page has been left alone for STILL_AFTER_MS (a panel kept open on a side, #29): each
+ *  step recomputes the day and the today bar; the clock on screen shows minutes. */
+export const STILL_TICK_MS = 5000;
 
 /**
  * Calls `fn` every `every` ms while the page is shown (every CALM_TICK_MS at least while it is left alone or
@@ -35,7 +38,8 @@ export function clockTimer(fn: () => void, every: number, page: PageState,
   const call = () => { last = clock(); fn(); };
   const tick = () => {
     calm = page.blurred() || page.idleFor() >= CALM_AFTER_MS;
-    if (calm && clock() - last < Math.max(every, CALM_TICK_MS) - 50) return;
+    const step = !page.blurred() && page.idleFor() >= STILL_AFTER_MS ? STILL_TICK_MS : CALM_TICK_MS;
+    if (calm && clock() - last < Math.max(every, step) - 50) return;
     call();
   };
   const arm = () => {

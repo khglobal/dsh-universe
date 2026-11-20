@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { PageState } from '@dsh-universe/renderer';
-import { CALM_TICK_MS, LIST_TICK_MS, clockTimer } from '../src/client/hooks.ts';
+import { CALM_TICK_MS, LIST_TICK_MS, STILL_TICK_MS, clockTimer } from '../src/client/hooks.ts';
 
 function fakePage() {
   let hidden = false, idle = 0;
@@ -47,7 +47,7 @@ test('clock: left alone it steps every CALM_TICK_MS, and catches up at the first
   const p = fakePage(), tm = fakeTimers();
   let n = 0, now = 0;
   clockTimer(() => n++, 1000, p.page, tm, () => now);
-  p.idle(60_000);
+  p.idle(20_000);
   for (let s = 1; s <= 10; s++) { now = s * 1000; tm.fire(); }
   assert.equal(n, 10 / (CALM_TICK_MS / 1000), 'one step every two seconds');
   now = 11_000; tm.fire();
@@ -56,4 +56,15 @@ test('clock: left alone it steps every CALM_TICK_MS, and catches up at the first
   assert.equal(n, 6, 'woken up: brought up to date at once');
   now = 12_000; tm.fire();
   assert.equal(n, 7, 'then every second again');
+});
+
+test('clock: left alone for a minute it steps every STILL_TICK_MS; a move brings it back at once (#29)', () => {
+  const p = fakePage(), tm = fakeTimers();
+  let n = 0, now = 0;
+  clockTimer(() => n++, 1000, p.page, tm, () => now);
+  p.idle(61_000);
+  for (let s = 1; s <= 20; s++) { now = s * 1000; tm.fire(); }
+  assert.equal(n, 20 / (STILL_TICK_MS / 1000), 'one step every five seconds');
+  now = 21_000; p.idle(0, true);
+  assert.equal(n, 5, 'woken up: brought up to date at once');
 });
