@@ -20,7 +20,7 @@ import { TodayBar } from './TodayBar.tsx';
 import { Tour } from './Tour.tsx';
 import { TOUR } from './tour.ts';
 import type { Env } from './types.ts';
-import { CITY, counts, headline, places, sections, todayAt, todayButtons, withLocal, type Row } from './view.ts';
+import { CITY, counts, unbuiltAt, headline, places, sections, todayAt, todayButtons, withLocal, type Row } from './view.ts';
 import type { Store } from '@dsh-universe/model';
 import type { Translate } from './types.ts';
 
@@ -224,6 +224,8 @@ export function UniversePanel({ env }: { env: Env }) {
     : undefined;
 
   const city = prefs.view === 'city';
+  // A very busy city: the sessions that found no lot are only in the list (one calm note, dismissed like the others).
+  const unbuilt = feed.placement ? unbuiltAt(feed.store, feed.placement, T) : 0;
   // Calm notes over the city (the list shows them in its own place): first run, partial history, storage, services.
   const notes = [
     view.empty && feed.backfill !== 'pending' ? 'e.empty' : '',
@@ -231,6 +233,7 @@ export function UniversePanel({ env }: { env: Env }) {
     feed.full ? 'e.full' : '',
     feed.memoryOnly ? 'e.memory' : '',
     active === 'dsh' && feed.platform && !feed.platform.caps.schedules ? 'e.noSched' : '',
+    unbuilt > 0 ? 'e.crowded' : '',
   ].filter((k) => k && !dismissed.has(k));
   const cityName = t('nb.city.' + active);
   // The adjacent cities' controls, beside the city / list switch: the sign of the city shown (once there is more
@@ -337,7 +340,7 @@ export function UniversePanel({ env }: { env: Env }) {
               {hintBar && !regionOpen && <div style={{ pointerEvents: 'auto', width: '100%', maxWidth: 640 }}>{hintBar}</div>}
               {notes.length > 0 && !regionOpen && (
                 <div role="status" aria-label={t('e.notes')} style={{ pointerEvents: 'auto', boxSizing: 'border-box', width: '100%', display: 'flex', alignItems: 'flex-start', gap: 10, padding: '6px 10px', ...px, boxShadow: 'none', fontSize: 12.5, maxWidth: 640 }}>
-                  <div style={{ flex: 1 }}>{notes.map((k) => <div key={k}>{t(k)}</div>)}</div>
+                  <div style={{ flex: 1 }}>{notes.map((k) => <div key={k}>{t(k, { m: unbuilt })}</div>)}</div>
                   <button type="button" style={{ ...S.btn, minHeight: 26, padding: '0 8px' }} onClick={() => setDismissed(new Set([...dismissed, ...notes]))}>{t('e.dismiss')}</button>
                 </div>
               )}

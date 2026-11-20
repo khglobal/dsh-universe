@@ -87,7 +87,7 @@ export async function startDshHost(deps: HostDeps): Promise<DshHost> {
       return seed;
     },
   });
-  const placement = createPlacementKeeper({ table: deps.places, onError });
+  const placement = createPlacementKeeper({ table: deps.places, onError, dayStart: localMidnight });
   const aggregator = createAggregator({
     categories: dshCategories(() => sources.mcpServers()), workspaceOf: (id, cwd) => sources.workspaceOf(id, cwd), now,
     onTheme: (id, theme) => { if (placement.theme(id, theme)) void placement.flush(); },

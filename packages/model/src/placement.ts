@@ -1,7 +1,9 @@
 // Placement: buildings arrive in the order their sessions start. Each takes a seeded-random free
 // lot in a block its workspace already holds; when those are full the workspace claims the nearest unclaimed
 // building block inside the border; when there is none the border moves out one strip. A lot, once given, is never
-// taken back, so a placed building never moves. Pure: the same history gives the same city.
+// taken back, so a placed building never moves; the one exception is a full city at its largest (`renewBefore`): a new
+// session then takes the lot of the oldest finished building of an earlier day (in its own workspace's blocks first),
+// so today's sessions are never left without a building while last week's stand. Pure: the same history gives the same city.
 import { hs, seedOf } from './hash.ts';
 import { readThemeId, type ThemeId } from './theme.ts';
 import { readSize, type BuildingSize } from './building.ts';
@@ -63,8 +65,10 @@ export interface PlaceResult {
  * Places the arrivals that have no lot yet. Lots already given (in `prior`) are kept as they are.
  * Arrivals are taken in start order (ties by session id), so the result does not depend on input order.
  */
-export function place(template: CityTemplate, prior: PlacementState, arrivals: readonly Arrival[]): PlaceResult {
+export function place(template: CityTemplate, prior: PlacementState, arrivals: readonly Arrival[], opts: { renewBefore?: number; startedOf?: (sessionId: string) => number | undefined } = {}): PlaceResult {
   const state: PlacementState = structuredClone(prior);
+  const lotByKey = new Map(template.blocks.flatMap((b) => b.lots.map((L) => [L.key, L] as const)));
+  const blockOfLot = new Map(template.blocks.flatMap((b) => b.lots.map((L) => [L.key, b.key] as const)));
   const blockByKey = new Map(template.blocks.map((b) => [b.key, b]));
   const used = new Set(Object.values(state.lots));
   const claimed = new Set(state.claims.map((c) => c.block));
@@ -87,6 +91,29 @@ export function place(template: CityTemplate, prior: PlacementState, arrivals: r
   }
   return { state, placed, unplaced };
 
+  /** The full city's renewal: the oldest finished building that started before `renewBefore` gives up its lot. */
+  function renew(a: Arrival): Lot | null {
+    const before = opts.renewBefore;
+    if (before === undefined) return null;
+    const own = new Set(state.claims.filter((c) => c.workspaceId === a.workspaceId).map((c) => c.block));
+    let best: { id: string; own: boolean; started: number } | undefined;
+    for (const [id, key] of Object.entries(state.lots)) {
+      if (placed.includes(id)) continue;
+      const z = state.sizes?.[id];
+      // When it started: as the caller saw it, else its kept size; unknown means an earlier day's (never seen today).
+      const started = opts.startedOf?.(id) ?? z?.started ?? Number.NEGATIVE_INFINITY;
+      if (started >= before || z?.state === 'running' || z?.state === 'waiting') continue;
+      const c = { id, own: own.has(blockOfLot.get(key) ?? ''), started };
+      if (!best || (c.own !== best.own ? c.own : c.started < best.started || (c.started === best.started && c.id < best.id))) best = c;
+    }
+    if (!best) return null;
+    const lot = lotByKey.get(state.lots[best.id]) ?? null;
+    delete state.lots[best.id];
+    if (state.sizes) delete state.sizes[best.id];
+    if (state.themes) delete state.themes[best.id];
+    return lot;
+  }
+
   function lotFor(a: Arrival): Lot | null {
     const seed = seedOf(a.sessionId);
     for (;;) {
@@ -104,7 +131,7 @@ export function place(template: CityTemplate, prior: PlacementState, arrivals: r
         claimed.add(cand[0].key);
         continue;
       }
-      if (state.growth >= MAX_GROWTH) return null;
+      if (state.growth >= MAX_GROWTH) return renew(a);
       state.growth++;
       state.growthLog.push({ t: a.startedAt, g: state.growth });
     }

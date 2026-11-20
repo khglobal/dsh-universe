@@ -203,7 +203,7 @@ export function createNeighbours(o: { places: KvLike; home?: string; appDir?: st
     const set = CITY_SOURCES[id].filter((s) => !off.includes(s) && present[s]());
     let c = cities.get(id);
     if (!c) {
-      const keeper = createPlacementKeeper({ table: o.places, key: placementKey(id), onError: () => o.log?.('neighbours: placement not kept') });
+      const keeper = createPlacementKeeper({ table: o.places, key: placementKey(id), onError: () => o.log?.('neighbours: placement not kept'), dayStart: (t) => new Date(t).setHours(0, 0, 0, 0) });
       const city: City = { keeper, store: createStore(), log: [], ready: Promise.resolve(), set: [], seen: new Map(), epoch: 0, owned: new Set() };
       city.ready = (async () => { await migrate(id); await keeper.load(); })();
       cities.set(id, c = city);

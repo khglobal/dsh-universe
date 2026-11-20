@@ -1,7 +1,7 @@
 // What the panel and the tile show, computed from the feed at time T. Pure (tested without React).
 import {
   FLOOR_KINDS, PLACE, cumAt, displayName, floorsOf, idxAt, listGroups, stateAt, todayAt, waitAt, failedAt, whereabouts, workspaceName,
-  deliverablesAt, BURN_MS, metricsAt, type LayerId, hasDraft, planModeAt, rallyAt, type AgentTrack, type Drafts, type ListGroupId, type Seen, type Store, type Today, type UCapabilities,
+  deliverablesAt, BURN_MS, MAX_GROWTH, type PlacementState, metricsAt, type LayerId, hasDraft, planModeAt, rallyAt, type AgentTrack, type Drafts, type ListGroupId, type Seen, type Store, type Today, type UCapabilities,
 } from '@dsh-universe/model';
 import { shortTool } from '@dsh-universe/renderer';
 import { clock, duration, tokens } from './format.ts';
@@ -220,4 +220,19 @@ export function layerSummary(layer: LayerId, store: Store, T: number, t: Transla
     case 'calls': { const m = metricsAt(store, T); return t('ls.calls', { n: m.calls5, c: m.cars }); }
   }
   return '';
+}
+
+/**
+ * Sessions started by T that have no building because the city is at its largest and every lot is taken (they are
+ * still in the list). 0 while the city can still grow, so a session waiting a moment for its lot never counts.
+ */
+export function unbuiltAt(store: Store, placement: PlacementState, T: number): number {
+  if (placement.growth < MAX_GROWTH) return 0;
+  let n = 0;
+  for (const s of store.agents()) {
+    const a = s.agent;
+    if (a.parentAgentId || a.kind === 'subagent' || a.startedAt > T) continue;
+    if (placement.lots[a.id] === undefined) n++;
+  }
+  return n;
 }

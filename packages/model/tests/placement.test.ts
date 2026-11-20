@@ -103,3 +103,33 @@ test('cap: a building on a lot in front of the square never exceeds 13 storeys',
   assert.ok(storeysOf(segmentsOf(huge, false)) > SQUARE_FRONT_CAP);
   assert.deepEqual(segmentsOf({}, false), [{ id: 'podium', storeys: 2 }]);
 });
+
+test('a full city renews: today\'s sessions take the lots of earlier days\' finished buildings, oldest first (#23)', () => {
+  const DAY = 86_400_000;
+  // Last week: more sessions than the city holds, all finished.
+  const old = arrivals(200, 3, 7).map((a, i) => ({ ...a, startedAt: a.startedAt - 7 * DAY + i }));
+  let st = place(T, emptyPlacement(), old).state;
+  const full = Object.keys(st.lots).length;
+  assert.ok(full < 200 && st.growth === MAX_GROWTH, 'the city is full');
+  st = { ...st, sizes: Object.fromEntries(Object.keys(st.lots).map((id) => [id, { calls: {}, tokens: 1, state: 'done' as const, started: old.find((a) => a.sessionId === id)!.startedAt }])) };
+  // Without renewal (as before) today's sessions find no lot.
+  const today = arrivals(30, 3, 9);
+  assert.equal(place(T, st, today).unplaced.length, 30);
+  const before = at(0);
+  const r = place(T, st, today, { renewBefore: before });
+  assert.equal(r.unplaced.length, 0, 'every session of today has a building');
+  assert.equal(Object.keys(r.state.lots).length, full, 'no lot is shared and none is lost');
+  assert.equal(new Set(Object.values(r.state.lots)).size, full);
+  const gone = Object.keys(st.lots).filter((id) => r.state.lots[id] === undefined);
+  assert.equal(gone.length, 30);
+  for (const id of gone) assert.equal(r.state.sizes?.[id], undefined, 'its kept size goes with it');
+  // Oldest first within the arrival's own workspace's blocks.
+  const ownOld = (ws: string) => old.filter((a) => a.workspaceId === ws && st.lots[a.sessionId] !== undefined).sort((a, b) => a.startedAt - b.startedAt).slice(0, 10).map((a) => a.sessionId);
+  for (const ws of ['w0', 'w1', 'w2']) assert.deepEqual(gone.filter((id) => old.find((a) => a.sessionId === id)!.workspaceId === ws).sort(), ownOld(ws).sort(), ws);
+  // A running or waiting building of an earlier day, and anything of today, is never taken.
+  const busy = { ...st, sizes: Object.fromEntries(Object.entries(st.sizes!).map(([id, z]) => [id, { ...z, state: 'running' as const }])) };
+  assert.equal(place(T, busy, today, { renewBefore: before }).unplaced.length, 30);
+  const todays = place(T, st, today, { renewBefore: before }).state;
+  const more = place(T, todays, arrivals(5, 3, 11).map((a) => ({ ...a, startedAt: a.startedAt + 3600_000 })), { renewBefore: before, startedOf: (id) => today.find((a) => a.sessionId === id)?.startedAt });
+  for (const a of today) assert.ok(more.state.lots[a.sessionId] !== undefined, 'today\'s buildings stay');
+});

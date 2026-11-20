@@ -170,3 +170,23 @@ test('after midnight: the carried-over session keeps its building, but today cou
   assert.equal(fl.find((f) => f.id === 'machine')?.n, 1);
   assert.equal(fl.find((f) => f.id === 'roof')?.n, 1_900_000);
 });
+
+test('placement keeper: a full city renews earlier days once, without taking lots back and forth (#23)', async () => {
+  const { createPlacementKeeper } = await import('../src/placement-keeper.ts');
+  const { memoryKv } = await import('../src/kv.ts');
+  const DAY = 86_400_000, day0 = new Date(2026, 10, 10).getTime();
+  const k = createPlacementKeeper({ table: memoryKv(), dayStart: (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); } });
+  await k.load();
+  const agent = (id: string, ws: string, t: number) => ({ type: 'agent' as const, data: { id, sessionId: id, workspaceId: ws, label: '', kind: 'main' as const, state: 'running' as const, startedAt: t } });
+  k.observe(Array.from({ length: 200 }, (_, i) => agent('old' + i, 'w' + (i % 3), day0 + 9 * 3600_000 + i * 60_000)));
+  const full = Object.keys(k.state().lots).length;
+  k.sizes(Object.fromEntries(Object.keys(k.state().lots).map((id) => [id, { calls: {}, tokens: 1, state: 'done' as const, started: day0 + 9 * 3600_000 }])));
+  const today = day0 + 3 * DAY + 9 * 3600_000;
+  assert.equal(k.observe(Array.from({ length: 20 }, (_, i) => agent('new' + i, 'w' + (i % 3), today + i * 60_000))), true);
+  const lots = k.state().lots;
+  for (let i = 0; i < 20; i++) assert.ok(lots['new' + i], 'new' + i + ' has a building');
+  assert.equal(Object.keys(lots).length, full);
+  const v = k.version();
+  assert.equal(k.observe([agent('new0', 'w0', today)]), false, 'nothing moves on the next observe');
+  assert.equal(k.version(), v);
+});
