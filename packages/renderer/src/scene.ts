@@ -302,7 +302,7 @@ export function buildScene(o: SceneInput): Scene {
     mine.push([tpl % 4, (hueOf(seed) + hueShift) % 9]); blockLooks.set(bk, mine);
     const b: BuildingSpec = {
       id, seed, template: tpl, ...(hueShift ? { hueShift } : {}), at, segments, footprint, stage, state,
-      heads, resting, annexes, ...(lot.slot & 1 ? { podsWest: true } : {}), scheduled: !!root && (root.agent.kind === 'scheduled' || !!root.agent.scheduleId), preset: !!root?.agent.role,
+      heads, resting, annexes, scheduled: !!root && (root.agent.kind === 'scheduled' || !!root.agent.scheduleId), preset: !!root?.agent.role,
       hover: o.hover === id, frames: framesFor(state, time, seed),
     };
     if (state === 'running' || state === 'waiting') animated = true;

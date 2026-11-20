@@ -29,4 +29,4 @@ export const BUILDING_TEMPLATES = 60;
 
 /** A default kit (its own sprite cache). Prefer `createArtKit()` per view. */
 export const artKit = createArtKit();
-export { civicFootprints, lotEnvelope, podsWest, POD_REACH, itemRadius, itemRect, DETAIL_EXTENT, inRect, rectsMeet, CONNECTOR_SPOTS, shopSpot, type Footprint, type Rect as GroundRect } from './footprints.ts';
+export { civicFootprints, lotEnvelope, POD_REACH, itemRadius, itemRect, DETAIL_EXTENT, inRect, rectsMeet, CONNECTOR_SPOTS, shopSpot, type Footprint, type Rect as GroundRect } from './footprints.ts';

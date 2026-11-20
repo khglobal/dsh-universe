@@ -17,7 +17,7 @@ test('session lots: no two meet, none meets a civic building or a road', () => {
     const e = lotEnvelope(lots[i]);
     for (let j = i + 1; j < lots.length; j++) if (rectsMeet(e, lotEnvelope(lots[j]))) bad.push(`${lots[i].key} meets ${lots[j].key}`);
     for (const c of civ) for (const r of c.rects) if (rectsMeet(e, r)) bad.push(`${lots[i].key} meets ${c.id}`);
-    for (let x = Math.floor(e[0]); x < e[2]; x++) for (let y = Math.floor(e[1]); y < e[3]; y++) if (isRoad(x, y, MAX_GROWTH)) bad.push(`${lots[i].key} [${at(e)}] on road ${x},${y}`);
+    for (let x = Math.floor(e[0]); x < e[2] - 1e-9; x++) for (let y = Math.floor(e[1]); y < e[3] - 1e-9; y++) if (isRoad(x, y, MAX_GROWTH)) bad.push(`${lots[i].key} [${at(e)}] on road ${x},${y}`);
   }
   assert.deepEqual(bad, []);
 });

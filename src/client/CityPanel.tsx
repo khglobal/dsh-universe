@@ -490,7 +490,9 @@ export function CityPanel(p: CityProps) {
     const top = view.last?.tops.get(id) ?? (id.startsWith('agent:') ? view.last?.heads.get(id.slice(6)) : undefined);
     const at = top ? view.screenOf(top[0], top[1]) : [hover?.x ?? view.vp.w / 2, hover?.y ?? view.vp.h / 2];
     // Beside the thing, on whichever side has room; never under the toolbar and timeline at the bottom.
-    const W = 244, H = 190, bottom = (p.prefs.dockMin ? 52 : 112) + 48;
+    // The card as drawn: 236 px wide plus 12 px padding and a 2 px border each side (QA 0.3.2: 244 let it run 20 px
+    // past the right edge of a narrow panel).
+    const W = 264, H = 190, bottom = (p.prefs.dockMin ? 52 : 112) + 48;
     const right = away && selected === id ? at[0] >= view.vp.w / 2 && at[0] + 18 + W <= view.vp.w - 8 || at[0] - 18 - W < 8 : at[0] + 18 + W <= view.vp.w - 8;
     const pos = {
       x: Math.round(right ? at[0] + 18 : Math.max(8, at[0] - 18 - W)),
