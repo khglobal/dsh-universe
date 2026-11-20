@@ -7,7 +7,7 @@
 // - a low murmur, louder the more sessions run (silent when nothing runs);
 // - traffic: soft ticks, more of them the more calls in the last five minutes;
 // - errors: a soft falling two-note sign while calls failed in the last half hour;
-// - waits: two low notes every 2.4 s while someone waits in the square, higher the more are waiting.
+// - waits: two soft notes every 2.4 s while someone waits in the square, higher the more are waiting.
 //
 // Nothing plays before the member's click (the audio context is made inside it), with the switch off, while looking
 // back or replaying, under reduced motion, or while the page is hidden.
@@ -34,6 +34,8 @@ export const CITY_PITCH: Record<string, number> = { dsh: 170, claude: 150, chatg
 /** Crossfade between cities, in seconds. */
 export const FADE_S = 0.8;
 const MASTER = 0.9;
+/** The murmur's level with one session running, and at most (gain on each of its three oscillators' sum). */
+const MURMUR_MIN = 0.022, MURMUR_MAX = 0.04;
 
 interface Bus { base: number; gain: GainLike; murmur: GainLike; oscs: OscLike[]; levels: CityLevels; mix: number; nextErr: number; nextWait: number }
 
@@ -63,14 +65,15 @@ export function createAmbience(a: AudioLike, rand: () => number = Math.random): 
     const gain = a.createGain();
     gain.gain.setValueAtTime(0, a.currentTime);
     gain.connect(master);
-    // The murmur: two slightly detuned low triangles through a low-pass, always running, its level following the
-    // sessions running.
+    // The murmur: two slightly detuned triangles at the city's pitch and a fifth above, through a low-pass, always
+    // running, its level following the sessions running. In the range a laptop speaker plays (0.3.0 had it an octave
+    // lower and about 20 dB quieter: rendered, it was inaudible there).
     const lp = a.createBiquadFilter();
-    lp.type = 'lowpass'; lp.frequency.value = 420;
+    lp.type = 'lowpass'; lp.frequency.value = 900;
     const murmur = a.createGain();
     murmur.gain.setValueAtTime(0, a.currentTime);
     lp.connect(murmur).connect(gain);
-    const oscs = [base / 2, base / 2 * 1.006, base * 0.75].map((f) => {
+    const oscs = [base, base * 1.006, base * 1.5].map((f) => {
       const o = a.createOscillator();
       o.type = 'triangle'; o.frequency.value = f;
       o.connect(lp); o.start();
@@ -98,7 +101,7 @@ export function createAmbience(a: AudioLike, rand: () => number = Math.random): 
         b.levels = levels[id] ?? b.levels;
         if (m !== b.mix) { b.mix = m; b.gain.gain.setTargetAtTime(m, now, FADE_S / 3); }
         const r = b.levels.running;
-        b.murmur.gain.setTargetAtTime(r > 0 ? Math.min(0.02, 0.006 + r * 0.002) : 0, now, 0.5);
+        b.murmur.gain.setTargetAtTime(r > 0 ? Math.min(MURMUR_MAX, MURMUR_MIN + r * 0.006) : 0, now, 0.5);
       }
     },
     step() {
@@ -109,14 +112,14 @@ export function createAmbience(a: AudioLike, rand: () => number = Math.random): 
         const base = b.base;
         const { traffic, errors, waiting } = b.levels;
         // Traffic: up to about two ticks a second at 40 calls in five minutes (one step is 250 ms).
-        if (traffic > 0 && rand() < Math.min(0.5, traffic / 80)) blip(b, base * (5 + rand() * 3), 'sine', 0.004, 0.06);
+        if (traffic > 0 && rand() < Math.min(0.5, traffic / 80)) blip(b, base * (4 + rand() * 2), 'sine', 0.03, 0.08);
         if (errors > 0 && now >= b.nextErr) {
-          const v = 0.004 + Math.min(1, errors / 5) * 0.004;
+          const v = 0.03 + Math.min(1, errors / 5) * 0.02;
           blip(b, base * 2, 'sine', v, 0.3, now); blip(b, base * 1.5, 'sine', v, 0.4, now + 0.28);
           b.nextErr = now + 6;
         }
         if (waiting > 0 && now >= b.nextWait) {
-          blip(b, base + waiting * 12, 'square', 0.015, 0.22, now); blip(b, base + 35 + waiting * 12, 'square', 0.015, 0.22, now + 0.24);
+          blip(b, 2 * base + waiting * 12, 'triangle', 0.06, 0.22, now); blip(b, 2 * base + 70 + waiting * 12, 'triangle', 0.06, 0.22, now + 0.24);
           b.nextWait = now + 2.4;
         }
       }

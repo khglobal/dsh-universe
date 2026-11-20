@@ -578,8 +578,15 @@ export function CityPanel(p: CityProps) {
         <button ref={legendBtn} type="button" aria-expanded={p.prefs.legend} aria-pressed={p.prefs.legend} style={{ ...btn, ...px, ...(p.prefs.legend ? pressed : {}) }} onClick={() => p.setPrefs({ ...p.prefs, legend: !p.prefs.legend })}>{t('lg.title')}</button>
         {/* Under reduced motion the city is silent: the button says so instead of toggling to a sound that never plays. */}
         <button type="button" aria-pressed={!soundOff && p.prefs.sound} aria-disabled={soundOff || undefined} aria-describedby="dshu-snd-hint" title={t(soundOff ? 'snd.rm' : p.onZoomOutFar ? 'snd.hint' : 'snd.hintOne')}
-          style={{ ...btn, ...px, ...(!soundOff && p.prefs.sound ? pressed : {}), ...(soundOff ? { opacity: 0.55, cursor: 'not-allowed' } : {}) }}
-          onClick={() => { if (soundOff) return; if (!p.prefs.sound) unlockSound(); p.setPrefs({ ...p.prefs, sound: !p.prefs.sound }); }}>{t('snd.label')}</button>
+          style={{ ...btn, ...px, display: 'inline-flex', alignItems: 'center', gap: 6, ...(!soundOff && p.prefs.sound ? pressed : {}), ...(soundOff ? { opacity: 0.55, cursor: 'not-allowed' } : {}) }}
+          onClick={() => { if (soundOff) return; if (!p.prefs.sound) unlockSound(); p.setPrefs({ ...p.prefs, sound: !p.prefs.sound }); }}>
+          {/* A speaker: with waves while on, crossed out while off (the switch reads as sound at a glance). */}
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter">
+            <path d="M2 6h3l4-3v10l-4-3H2z" fill="currentColor" stroke="none" />
+            {!soundOff && p.prefs.sound ? <path d="M11 6v4M14 4v8" /> : <path d="M11 6l4 4M15 6l-4 4" />}
+          </svg>
+          {t('snd.label')}
+        </button>
         {/* Day or night: auto follows the host's theme, then day, then night; kept per device. */}
         <button type="button" data-dshu-light={p.prefs.light} aria-label={t('dn.aria', { now: t('dn.' + p.prefs.light), next: t('dn.' + nextLight(p.prefs.light)) })} aria-describedby="dshu-dn-hint" title={t('dn.hint')}
           style={{ ...btn, ...px, display: 'inline-flex', alignItems: 'center', gap: 6, ...(p.prefs.light !== 'auto' ? pressed : {}) }}

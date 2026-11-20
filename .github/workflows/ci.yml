@@ -76,3 +76,6 @@ jobs:
         run: node scripts/panel-check.mjs
       - name: small windows (zoom group, room floor tooltips)
         run: node scripts/small-check.mjs
+      # The ambient sound rendered, not just started: every city audible above 200 Hz with Sound on (0.3.0 was not).
+      - name: ambient sound is audible
+        run: node scripts/sound-check.mjs
