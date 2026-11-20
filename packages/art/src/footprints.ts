@@ -36,16 +36,13 @@ export function civicFootprints(template: CityTemplate = cityTemplate()): Footpr
   return out;
 }
 
-/** Subagent pods stand on the side of the tower that faces the block's lane (tower.ts): east on the block's west
- * lots, west on its east lots, so they never reach the road or the lane's furniture. */
-export const podsWest = (L: Pick<Lot, 'slot'>) => (L.slot & 1) === 1;
-/** How far past the widest tower its pods reach (tiles). */
-export const POD_REACH = 0.36;
+/** How far a tower's subagent pods stand out of its east face (tiles; tower.ts). */
+export const POD_REACH = 0.1;
 /** The ground a session's tower may cover on its lot: the widest footprint (0.9) round the lot's centre, and its
  * subagent pods. */
 export function lotEnvelope(L: Lot): Rect {
   const cx = L.x + 1, cy = L.y + 1, hw = 0.9;
-  return podsWest(L) ? [cx - hw - POD_REACH, cy - hw, cx + hw, cy + hw] : [cx - hw, cy - hw, cx + hw + POD_REACH, cy + hw];
+  return [cx - hw, cy - hw, cx + hw + POD_REACH, cy + hw];
 }
 
 /** The ground a piece of street furniture covers round its centre: a small radius for props and trees. */

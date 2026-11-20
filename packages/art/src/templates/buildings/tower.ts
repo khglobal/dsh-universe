@@ -40,14 +40,6 @@ export function paintTower(b: BuildingSpec): { top: number; doorY: number; crane
   let z = 3, k = 0, lastZ0 = 3, lastStoreys = 0;
   let last: [number, number, number, number] = [cx - hw, cy - hw, cx + hw, cy + hw];
   const round = sp.form === 8, P0s = partsOf(sp.form, 0, cx, cy, hw), P0 = P0s[0], PL = P0s[P0s.length - 1];
-  // One annex pod per subagent (the first four), roofed in its state colour, on the side facing the block's lane so
-  // it stays on the lot (art/footprints.ts lotEnvelope: never on the road or the lane's furniture). West pods stand
-  // behind the tower, so they are painted before it; east ones in front, after it.
-  const pods = () => b.annexes.slice(0, 4).forEach((st, i) => {
-    const y = cy - hw + i * 0.44, x0 = b.podsWest ? cx - hw - 0.36 : cx + hw + 0.06;
-    box(x0, y, x0 + 0.3, y + 0.34, 0, 8, '#F4F1E8', SC[st === 'future' ? 'idle' : st]);
-  });
-  if (b.podsWest) pods();
   box(P0[0] - 0.08, P0[1] - 0.08, (round ? cx + hw : PL[2]) + 0.08, Math.max(P0[3], PL[3]) + 0.08, 0, 3, '#CDD2DA');
   for (const sg of b.segments) {
     const h = sg.storeys * SH * G, on = b.heads.filter((a) => a.floor === sg.id), bandC = glow(BAND[sg.id] ?? FC.lobby);
@@ -167,7 +159,13 @@ export function paintTower(b: BuildingSpec): { top: number; doorY: number; crane
     const q = iso(tx1 - 0.1, ty1 - 0.1, z); line(q, [q[0], q[1] - 20], '#59627A', 2);
     g.fillStyle = '#8E5BE8'; g.beginPath(); g.moveTo(q[0], q[1] - 20); g.lineTo(q[0] + 12, q[1] - 16); g.lineTo(q[0], q[1] - 12); g.closePath(); g.fill();
   }
-  if (!b.podsWest) pods();
+  // One annex pod per subagent (the first four), roofed in its state colour: low boxes set into the tower's east face
+  // (a face the view shows), standing out 0.1 tile, so they stay on the lot whichever side of the block it is on
+  // (art/footprints.ts POD_REACH: never on the road or the lane's furniture).
+  b.annexes.slice(0, 4).forEach((st, i) => {
+    const y = cy - hw + 0.06 + i * 0.44, x0 = cx + hw - 0.16;
+    box(x0, y, x0 + 0.26, y + 0.34, 0, 8, '#F4F1E8', SC[st === 'future' ? 'idle' : st]);
+  });
   return { top, doorY: P0[3], crane, roof: { x: rcx, y: rcy, w: rw, d: rd, z } };
 }
 
