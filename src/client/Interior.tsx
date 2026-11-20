@@ -147,7 +147,7 @@ export function InteriorView(p: InteriorProps & { caps?: UCapabilities }) {
   };
 
   const placeTitle = (() => {
-    if (it.place !== 'building') return placeName(placeId, t, store);
+    if (it.place !== 'building') return placeName(placeId, t, store, lang);
     const s = it.sessionId ? store.agent(store.agents().find((a) => a.agent.sessionId === it.sessionId && !a.agent.parentAgentId)?.agent.id ?? '') : undefined;
     if (s) return rowOf(s, store, T, t, lang, titles, false).title;
     return (it.sessionId && titles[it.sessionId]) || (it.past ? t('card.past') : t('in.unknown'));

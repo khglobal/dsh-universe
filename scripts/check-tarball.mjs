@@ -5,7 +5,7 @@
 // Lists every file with its size, then fails (exit 1) on anything outside the exact allowlist below: sources (.ts,
 // .tsx), source maps, the art package, fixtures, docs, tests, dotfiles, install scripts or dependencies.
 // The bundle is scanned for URLs, internal hostnames, private addresses, local paths and token shapes; the only
-// product-specific name allowed in the bundle is one optional host service name (see DOCUMENTED).
+// product-specific names allowed in the bundle are the optional host service names in DOCUMENTED.
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
@@ -24,8 +24,9 @@ const FORBIDDEN = [
   [/(^|\/)(packages|art)\//u, 'workspace or art package'], [/(^|\/)fixtures?\//u, 'fixture'],
   [/(^|\/)docs\//u, 'docs'], [/(^|\/)tests?\//u, 'tests'], [/(^|\/)\./u, 'dotfile'], [/(^|\/)node_modules\//u, 'node_modules'],
 ];
-/** Optional host service names the bundle may contain (session draft signal). */
-const DOCUMENTED = ['workdshSessionDrafts'];
+/** Optional host service names the bundle may contain: the session draft signal, and the connector service whose
+ *  display names label the MCP gateways (#7; names only). */
+const DOCUMENTED = ['workdshSessionDrafts', 'workdshConnectors'];
 /** Patterns that must not appear in any shipped text file (READMEs, manifest, locale tables and the bundle). */
 const SECRETS = [
   [/\bhttps?:\/\/(?!www\.w3\.org\/)[^\s"'`)]+/gu, 'URL'],

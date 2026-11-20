@@ -96,7 +96,8 @@ export interface USchedule {
 }
 
 export interface UConnector {
-  id: string; title: string;
+  /** `title`: the display name (English or as written; the id when the host has none); `titleZh`: the Chinese one. */
+  id: string; title: string; titleZh?: string;
   state: 'connected' | 'connecting' | 'failed' | 'disabled' | 'unknown';
   tools?: string[];
   tags?: string[];
@@ -109,7 +110,13 @@ export interface UUsage {
 }
 
 /** Names and counts only. */
-export interface UInventory { plugins?: { id: string; enabled: boolean }[]; skills?: string[]; hooks?: number }
+export interface UInventory { plugins?: UPlugin[]; skills?: string[]; hooks?: number }
+/** An installed plugin: package name, whether it runs, and its display title (English or as written, and Chinese). */
+export interface UPlugin { id: string; enabled: boolean; title?: string; titleZh?: string }
+/** The name to show for a connector or plugin in the panel's language: the Chinese title in zh when there is one,
+ *  else the title, else the id. */
+export const displayName = (x: { id: string; title?: string; titleZh?: string }, lang: string): string =>
+  (lang.startsWith('zh') && x.titleZh) || x.title || x.id;
 
 /** A turn ending: the store turns these into running / idle / done / failed. */
 export interface UTurn { t: number; agentId: string; phase: 'start' | 'end'; reason?: 'completed' | 'error' | 'cancelled' | 'other' }

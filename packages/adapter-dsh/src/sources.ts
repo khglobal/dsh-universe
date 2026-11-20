@@ -17,8 +17,23 @@ export interface SourceServices {
   mcpManager?: { list?(): readonly unknown[] };
   /** `pluginInventory.list()` → `{ entries: { moduleName, enabled }[] }`: every Host module, built-ins included. */
   pluginInventory?: { list?(): Promise<unknown> | unknown };
-  /** `pluginManager.listBundles()` → `{ name, installed, enabled, … }[]`: `installed` = the member added it to the profile. */
+  /** `pluginManager.listBundles()` → `{ name, installed, enabled, meta: { title }, rows: { moduleName, entryId }[] }[]`:
+   *  `installed` = the member added it to the profile; `enabled` = selected in the profile manifest. */
   pluginManager?: { listBundles?(): Promise<unknown> | unknown };
+  /** Astero's connector service (`workdshConnectors.list()` → `{ serverName, title, titles: { zh, en } }[]`): only
+   *  the display names of the MCP servers are read. Absent in official DSH, where a server is named by its id. */
+  workdshConnectors?: { list?(): Promise<unknown> | unknown };
+}
+
+/** Display text from DSH's `LocalizedText` (a literal, or translations by lowercase language id with `en` required):
+ *  `title` is the English or literal text, `titleZh` the Chinese one when there is one. */
+export function localized(v: unknown): { title?: string; titleZh?: string } {
+  if (typeof v === 'string') return v.trim() ? { title: v } : {};
+  const x = rec(v);
+  const en = s(x.en)?.trim() || undefined;
+  const zh = (s(x.zh) ?? s(x['zh-cn']) ?? s(x['zh-hans']))?.trim() || undefined;
+  const title = en ?? zh ?? Object.values(x).find((y): y is string => typeof y === 'string' && y.trim() !== '');
+  return { ...(title ? { title } : {}), ...(zh && zh !== title ? { titleZh: zh } : {}) };
 }
 
 const MCP_STATE: Record<string, 'connected' | 'connecting' | 'failed' | 'disabled' | 'unknown'> = {
@@ -95,23 +110,26 @@ export function createSources(get: () => SourceServices, log: (m: string) => voi
       const mcp = await safe('mcp', () => svc.mcpManager?.list?.());
       if (Array.isArray(mcp)) {
         servers = [];
+        const names = await connectorNames(svc);
         for (const m of mcp) {
           const x = rec(m), name = s(x.name);
           if (!name) continue;
           servers.push(name);
-          r.push({ type: 'connector', data: { id: name, title: name, state: MCP_STATE[s(rec(x.status).state) ?? ''] ?? 'unknown' } });
+          // The connection's display name where the host has one (Astero ERP for `a_kh_erp`), else the server id.
+          const named = names.get(name);
+          r.push({ type: 'connector', data: { id: name, title: named?.title ?? name, ...(named?.titleZh ? { titleZh: named.titleZh } : {}), state: MCP_STATE[s(rec(x.status).state) ?? ''] ?? 'unknown' } });
         }
       }
       // Plugins the member installed, not the Host's own modules: the plugin manager's bundles the profile declares
       // (only names and on/off). Without a plugin manager, the module inventory minus DSH's own packages.
       const bundles = await safe('bundles', () => svc.pluginManager?.listBundles?.());
+      const inv = rec(await safe('plugins', () => svc.pluginInventory?.list?.()));
+      const entries = Array.isArray(inv.entries) ? inv.entries : undefined;
       if (Array.isArray(bundles)) {
-        r.push({ type: 'inventory', data: { plugins: memberPlugins(bundles) } });
-      } else {
-        const inv = rec(await safe('plugins', () => svc.pluginInventory?.list?.()));
-        if (Array.isArray(inv.entries)) {
-          r.push({ type: 'inventory', data: { plugins: inv.entries.map((e) => rec(e)).filter((e) => s(e.moduleName) && !BUILT_IN.test(s(e.moduleName)!)).map((e) => ({ id: s(e.moduleName)!, enabled: e.enabled === true })) } });
-        }
+        r.push({ type: 'inventory', data: { plugins: memberPlugins(bundles, entries) } });
+      } else if (entries) {
+        r.push({ type: 'inventory', data: { plugins: entries.map((e) => rec(e)).filter((e) => s(e.moduleName) && !BUILT_IN.test(s(e.moduleName)!))
+          .map((e) => ({ id: s(e.moduleName)!, enabled: e.enabled === true, ...localized(rec(e.meta).title) })) } });
       }
       return out(r);
     },
@@ -124,13 +142,49 @@ export function createSources(get: () => SourceServices, log: (m: string) => voi
 
 /** DSH's own packages (Host modules, not member plugins). */
 const BUILT_IN = /^@deepseek-ai\//;
-/** The member's plugins from `pluginManager.listBundles()`: bundles the profile declares, by package name. */
-export function memberPlugins(bundles: readonly unknown[]): { id: string; enabled: boolean }[] {
-  const out: { id: string; enabled: boolean }[] = [];
+type MemberPlugin = { id: string; enabled: boolean; title?: string; titleZh?: string };
+/**
+ * The member's plugins from `pluginManager.listBundles()`: bundles the profile declares, by package name, with the
+ * display title DSH's own plugin list shows (`meta.title`, else the first row's, else the package name).
+ * On when it runs: selected in the profile, or any of its rows is a live, enabled Loader entry in the module
+ * inventory (base plugins a host loads through its own rows rather than the bundle selection).
+ */
+export function memberPlugins(bundles: readonly unknown[], inventory: readonly unknown[] = []): MemberPlugin[] {
+  const live = new Set<string>(), liveModules = new Set<string>();
+  for (const e of inventory) {
+    const x = rec(e);
+    const running = x.enabled === true && x.fiberPhase !== 'failed' && x.fiberPhase !== 'unloading';
+    if (!running) continue;
+    if (s(x.entryId)) live.add(s(x.entryId)!);
+    if (s(x.moduleName)) liveModules.add(s(x.moduleName)!);
+  }
+  const out: MemberPlugin[] = [];
   for (const b of bundles) {
-    const x = b && typeof b === 'object' ? (b as Record<string, unknown>) : {};
-    const name = typeof x.name === 'string' ? x.name : '';
-    if (name && x.installed === true) out.push({ id: name, enabled: x.enabled === true });
+    const x = rec(b);
+    const name = s(x.name) ?? '';
+    if (!name || x.installed !== true) continue;
+    const rows = Array.isArray(x.rows) ? x.rows.map(rec) : [];
+    const running = x.enabled === true || liveModules.has(name)
+      || rows.some((row) => (s(row.entryId) !== undefined && live.has(s(row.entryId)!)) || (s(row.moduleName) !== undefined && liveModules.has(s(row.moduleName)!)));
+    const label = localized(rec(x.meta).title);
+    const named = label.title ? label : localized(rows.map((row) => rec(row.meta).title).find((t) => t !== undefined));
+    out.push({ id: name, enabled: running, ...named });
+  }
+  return out;
+}
+
+/** MCP display names by server name, from the host's connector service when there is one (names only). */
+async function connectorNames(svc: SourceServices): Promise<Map<string, { title?: string; titleZh?: string }>> {
+  const out = new Map<string, { title?: string; titleZh?: string }>();
+  let list: unknown;
+  try { list = await svc.workdshConnectors?.list?.(); } catch { return out; }
+  if (!Array.isArray(list)) return out;
+  for (const c of list) {
+    const x = rec(c), server = s(x.serverName);
+    if (!server || out.has(server)) continue;
+    const titles = rec(x.titles);
+    const named = s(titles.en) || s(titles.zh) ? localized({ en: s(titles.en) ?? s(titles.zh) ?? '', zh: s(titles.zh) ?? '' }) : localized(s(x.title));
+    if (named.title) out.set(server, named);
   }
   return out;
 }
