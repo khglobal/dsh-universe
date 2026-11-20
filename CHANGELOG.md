@@ -3,6 +3,23 @@
 Member releases of `@khglobal/dsh-universe`. `scripts/release.mjs` uses the section for the version it cuts as the
 release notes; without one, it lists the source commits since the last release.
 
+## 0.3.2
+
+- **The pile beside the Review Center is gone.** The quay plaza east of the hall held nine pieces of street
+  furniture and three trees on nine tiles. They overlapped one another, the road and the lot to the south, and read
+  as one mystery heap next to a session tower. It is now a café terrace, a newsstand, a tree in blossom and two
+  signal masts, each on its own ground.
+- **Nothing stands in anything else.** Trees no longer grow inside the town hall or a connector. The hall and the
+  station are drawn in the right order against the furniture in front of and behind them. A tower's subagent pods
+  are set into its front face and stay on its lot instead of reaching onto the road. A new check holds every
+  lot, civic building and piece of furniture to its own ground.
+- **The time on a building's door is explained.** A building's card now says when the session started, for
+  example "Started 00:01 (the time on its door)". As before, it names the folder and the number of subagents.
+  On narrow panels the card no longer runs past the right edge.
+- **A busy folder stays put.** A new test runs ten minutes of short sessions and subagents coming and going, in a
+  normal city and in a full one. Every session keeps its lot and its building, and a building only changes look
+  when its state changes.
+
 ## 0.3.1
 
 - **Install straight from GitHub.** The repository is now the plugin itself:

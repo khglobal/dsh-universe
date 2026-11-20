@@ -1,6 +1,6 @@
 {
   "name": "@khglobal/dsh-universe",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "AI agent data visualization for DeepSeek Harness: your agents' sessions, errors, token use, call volume, schedules and items waiting on you as a live, interactive pixel city. Sessions are buildings, agents are people. Reads metadata only; nothing leaves your device.",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
