@@ -16,5 +16,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["packages/*/src", "packages/*/tests", "plugin/src", "plugin/tests", "fixtures", "scripts/tests"]
+  "include": ["packages/*/src", "packages/*/tests", "src", "tests", "fixtures", "scripts/tests"]
 }

@@ -65,4 +65,4 @@ jobs:
           git -C .capabilities config user.email "dsh-universe-release@users.noreply.github.com"
           node scripts/release.mjs --skip-build --capabilities .capabilities --pr --merge
       - if: always() && env.GH_TOKEN != ''
-        run: rm -rf .capabilities plugin/dist
+        run: rm -rf .capabilities

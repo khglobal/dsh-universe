@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createStore } from '@dsh-universe/model';
 import { createStubKit } from '@dsh-universe/renderer';
-import { dshSample } from '../../fixtures/dsh-sample.ts';
+import { dshSample } from '../fixtures/dsh-sample.ts';
 
 const fx = dshSample(new Date(2026, 10, 18).getTime());
 

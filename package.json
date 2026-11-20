@@ -1,9 +1,61 @@
 {
-  "name": "dsh-universe-workspace",
-  "version": "0.0.0",
-  "private": true,
-  "license": "SEE LICENSE IN LICENSE",
+  "name": "@khglobal/dsh-universe",
+  "version": "0.3.0",
+  "description": "AI agent data visualization for DeepSeek Harness: your agents' sessions, errors, token use, call volume, schedules and items waiting on you as a live, interactive pixel city. Sessions are buildings, agents are people. Reads metadata only; nothing leaves your device.",
   "type": "module",
+  "license": "SEE LICENSE IN LICENSE",
+  "author": "KH",
+  "homepage": "https://github.com/khglobal/dsh-universe#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/khglobal/dsh-universe.git"
+  },
+  "bugs": {
+    "url": "https://github.com/khglobal/dsh-universe/issues"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "dashboard",
+    "pixel-art",
+    "visualization",
+    "ai",
+    "agent",
+    "data-visualization",
+    "observability",
+    "monitoring",
+    "analytics"
+  ],
+  "icon": "./icon.svg",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": { "default": "./dist/index.js" },
+    "./client": { "default": "./dist/client.browser.js" },
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "dist/index.js",
+    "dist/client.browser.js",
+    "cordis.patch.yml",
+    "icon.svg",
+    "locale/en.json",
+    "locale/zh.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": { "dsh": ">=0.2.2-rc.2" },
+  "devEngines": { "runtime": { "name": "node", "version": ">=24.21.0", "onFail": "error" } },
+  "peerDependencies": { "@deepseek-ai/cordis": "4.1.0", "react": "^18.2.0 || ^19.2.4" },
+  "peerDependenciesMeta": { "@deepseek-ai/cordis": { "optional": true }, "react": { "optional": true } },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "inject": ["@deepseek-ai/dsh-client-connection", "@deepseek-ai/dsh-client-locale"]
+    }
+  },
   "workspaces": [
     "packages/model",
     "packages/art",
@@ -13,16 +65,14 @@
     "packages/adapter-claude-code",
     "packages/adapter-codex",
     "packages/adapter-claude-app",
-    "packages/adapter-workbuddy",
-    "plugin"
+    "packages/adapter-workbuddy"
   ],
-  "engines": {
-    "node": ">=24.21.0"
-  },
   "scripts": {
+    "prepublishOnly": "node scripts/no-root-publish.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --test \"packages/*/tests/*.test.ts\" \"plugin/tests/*.test.ts\" \"scripts/tests/*.test.ts\"",
+    "test": "node --test \"packages/*/tests/*.test.ts\" \"tests/*.test.ts\" \"scripts/tests/*.test.ts\"",
     "build": "node scripts/build.mjs",
+    "check-build": "node scripts/check-build.mjs --no-build",
     "check-locales": "node scripts/check-locales.mjs",
     "check-no-inline-text": "node scripts/check-no-inline-text.mjs",
     "check-tarball": "node scripts/npm-pack.mjs --local --skip-build --out .tmp/npm-check && node scripts/check-tarball.mjs .tmp/npm-check/khglobal-dsh-universe-0.0.0-local.tgz",

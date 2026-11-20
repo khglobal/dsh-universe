@@ -11,7 +11,7 @@ import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import { createStore, historyWindow } from '@dsh-universe/model';
 import { createHandler, memoryKv } from '@dsh-universe/adapter-dsh';
-import { IDS, MARKERS, CUSTOM_TITLE, seedLocalStores } from '../../fixtures/local-stores.ts';
+import { IDS, MARKERS, CUSTOM_TITLE, seedLocalStores } from '../fixtures/local-stores.ts';
 import { createNeighbours, indexKey, placementKey } from '../src/neighbours.ts';
 import { DEFAULT_PREFS, citiesShown, neighbourOn, offSources, readPrefs } from '../src/client/prefs.ts';
 import { createFeed, fixtureApi } from '../src/client/feed.ts';

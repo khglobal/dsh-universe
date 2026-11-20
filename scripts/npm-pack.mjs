@@ -64,7 +64,7 @@ try {
     }
     version = opt.version ?? '0.0.0-local';
     source = { kind: 'local', commit: git(root, ['rev-parse', 'HEAD']).toString().trim() };
-    shipped = (rel) => readFileSync(join(root, 'plugin', rel.startsWith('bundle/') ? `dist/${rel.slice(7)}` : rel));
+    shipped = (rel) => readFileSync(join(root, rel.startsWith('bundle/') ? `dist/${rel.slice(7)}` : rel));
   } else {
     version = opt.version;
     const cap = resolve(opt.capabilities);

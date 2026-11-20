@@ -8,8 +8,8 @@
 //   node scripts/release.mjs --capabilities <catalog checkout on a new branch from origin/dev>
 //                            [--commit] [--pr] [--merge] [--trailer "<line>"]...
 //
-// Versions: the first release is plugin/package.json's version (0.1.0). After that every release is the next patch of
-// the latest one in the catalog (0.1.1, 0.1.2, …), or plugin/package.json's version if that is higher (raise it there
+// Versions: the first release is the root package.json's version (0.1.0). After that every release is the next patch of
+// the latest one in the catalog (0.1.1, 0.1.2, …), or the root package.json's version if that is higher (raise it there
 // for a minor). A release is cut only when the shipped content differs from the vendored copy on capabilities dev, so
 // running this after every merge to dev is safe. Prints one JSON line: {released, version?, pr?}.
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -48,19 +48,21 @@ function releaseNotes(log, version) {
 
 // 1. Build (typecheck + minified bundle). The build refuses to write anything when the types do not check.
 if (!opt['skip-build']) run(process.execPath, [join(root, 'scripts/build.mjs')], root);
-const src = json(join(root, 'plugin/package.json'));
+const src = json(join(root, 'package.json'));
 const commit = sh('git', ['rev-parse', 'HEAD']);
-if (sh('git', ['status', '--porcelain', '--', 'plugin', 'packages', 'scripts', 'release', 'LICENSE', 'package.json', 'package-lock.json'])) throw Error('working tree has changes: release only from a clean checkout');
+if (sh('git', ['status', '--porcelain', '--', 'src', 'dist', 'locale', 'cordis.patch.yml', 'icon.svg', 'packages', 'scripts', 'release', 'LICENSE', 'package.json', 'package-lock.json'])) throw Error('working tree has changes: release only from a clean checkout');
 
 // 2. Stage the vendored package (everything but the version-dependent files).
 const stage = mkdtempSync(join(tmpdir(), 'dsh-universe-release-'));
 try {
   const put = (rel, data) => { mkdirSync(join(stage, rel, '..'), { recursive: true }); writeFileSync(join(stage, rel), data); };
   const bundle = ['index.js', 'client.browser.js'];
-  for (const f of bundle) cpSync(join(root, 'plugin/dist', f), join(stage, 'bundle', f));
+  for (const f of bundle) cpSync(join(root, 'dist', f), join(stage, 'bundle', f));
   put('bundle/SHA256SUMS', bundle.map((f) => `${sha(readFileSync(join(stage, 'bundle', f)))}  ${f}`).join('\n') + '\n');
-  for (const f of ['cordis.patch.yml', 'icon.svg', 'README.md']) cpSync(join(root, 'plugin', f), join(stage, f));
-  for (const f of readdirSync(join(root, 'plugin/locale'))) cpSync(join(root, 'plugin/locale', f), join(stage, 'locale', f));
+  for (const f of ['cordis.patch.yml', 'icon.svg']) cpSync(join(root, f), join(stage, f));
+  // The catalog's README (the plugin page in the admin center), kept beside the npm README under release/.
+  cpSync(join(root, 'release/capabilities/README.md'), join(stage, 'README.md'));
+  for (const f of readdirSync(join(root, 'locale'))) cpSync(join(root, 'locale', f), join(stage, 'locale', f));
   cpSync(join(root, 'LICENSE'), join(stage, 'LICENSE'));
   cpSync(join(root, 'release/vendor'), stage, { recursive: true });
   const manifest = (version) => ({
@@ -100,7 +102,7 @@ try {
   const known = (c) => spawnSync('git', ['cat-file', '-e', `${c}^{commit}`], { cwd: root, stdio: 'ignore' }).status === 0;
   const subjects = !prevSource ? []
     : known(prevSource)
-      ? sh('git', ['log', '--first-parent', '--format=%s', `${prevSource}..${commit}`, '--', 'plugin', 'packages', 'LICENSE']).split('\n').filter(Boolean)
+      ? sh('git', ['log', '--first-parent', '--format=%s', `${prevSource}..${commit}`, '--', 'src', 'locale', 'cordis.patch.yml', 'icon.svg', 'release/capabilities', 'packages', 'LICENSE']).split('\n').filter(Boolean)
       : [sh('git', ['log', '-1', '--format=%s', commit])];
   // A section for this version in CHANGELOG.md (written by hand for a notable release) replaces the commit list.
   const notes = releaseNotes(existsSync(join(root, 'CHANGELOG.md')) ? readFileSync(join(root, 'CHANGELOG.md'), 'utf8') : '', version);
@@ -116,7 +118,7 @@ try {
   rmSync(target, { recursive: true, force: true });
   cpSync(stage, target, { recursive: true });
   if (!row) {
-    const meta = (lang) => json(join(root, `plugin/locale/${lang}.json`)).meta;
+    const meta = (lang) => json(join(root, `locale/${lang}.json`)).meta;
     row = { id: src.name, group: 'official', source: { type: 'capabilities' }, defaultMode: 'hidden',
       title: { zh: meta('zh').title, en: meta('en').title }, description: { zh: meta('zh').description, en: meta('en').description }, releases: [] };
     catalog.plugins.push(row);

@@ -1,5 +1,5 @@
 // What the panel costs while nobody touches it, in a headless Chromium (needs playwright-core and a Chromium; without
-// one it fails unless --allow-skip). The real panel (plugin/src/dev/main.tsx, built into .dev/) at 1440×900, dpr 2,
+// one it fails unless --allow-skip). The real panel (src/dev/main.tsx, built into .dev/) at 1440×900, dpr 2,
 // motion allowed, on the sample day and on the busy day (300 sessions, ?stress=many), in each state a member leaves
 // it in: the city idle, the window blurred, the page hidden, inside a building (agents working, or nobody), the list.
 // For each state: frames painted per second (the city or room view's own count) and CPU of all browser processes

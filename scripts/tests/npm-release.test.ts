@@ -1,26 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 // @ts-expect-error plain .mjs script without declarations
 import { ALLOWED, audit, listTarball } from '../check-tarball.mjs';
 
 type File = { path: string; size: number; body: Buffer };
-const root = new URL('../../', import.meta.url);
-const json = (rel: string) => JSON.parse(readFileSync(new URL(rel, root), 'utf8'));
+const rootUrl = new URL('../../', import.meta.url);
+const json = (rel: string) => JSON.parse(readFileSync(new URL(rel, rootUrl), 'utf8'));
 const npmPkg = json('release/npm/package.json');
-const LICENSE = readFileSync(new URL('LICENSE', root));
+const LICENSE = readFileSync(new URL('LICENSE', rootUrl));
 
-test('publish manifest: public, source-available, and the same plugin contract as plugin/package.json', () => {
-  const plugin = json('plugin/package.json');
+test('publish manifest: public, source-available, and the same plugin contract as the root package.json', () => {
+  const plugin = json('package.json');
   assert.equal(npmPkg.name, plugin.name);
   assert.equal(npmPkg.private, undefined);
   assert.equal(npmPkg.license, 'SEE LICENSE IN LICENSE');
   assert.equal(npmPkg.publishConfig.access, 'public');
   for (const k of ['exports', 'dsh', 'engines', 'peerDependencies', 'peerDependenciesMeta', 'icon']) {
-    assert.deepEqual(npmPkg[k], plugin[k], `release/npm/package.json "${k}" must match plugin/package.json`);
+    assert.deepEqual(npmPkg[k], plugin[k], `release/npm/package.json "${k}" must match the root package.json`);
   }
   for (const k of ['dsh', 'dsh-plugin', 'deepseek-harness']) assert.ok(npmPkg.keywords.includes(k), k);
   assert.equal(npmPkg.scripts, undefined);
@@ -31,9 +31,22 @@ test('publish manifest: public, source-available, and the same plugin contract a
   }
 });
 
-test('the workspace and its packages stay private', () => {
-  assert.equal(json('package.json').private, true);
-  assert.equal(json('plugin/package.json').private, true);
+test('the root is the plugin; the internal packages stay private', () => {
+  // The root package.json is what DSH (`dsh plugin add github:khglobal/dsh-universe`) and the plugin directories read.
+  // It is not private, but `npm publish` from the root is refused: the npm package comes from scripts/npm-pack.mjs.
+  const root = json('package.json');
+  assert.equal(root.private, undefined);
+  assert.equal(root.scripts.prepublishOnly, 'node scripts/no-root-publish.mjs');
+  // A git install runs no build: pnpm would ask the member to approve a `prepare` (or a prepack/prepublish/publish
+  // without the main file), so the root has none of them and the committed dist/ is what installs.
+  for (const s of ['prepare', 'prepack', 'prepublish', 'publish', 'preinstall', 'install', 'postinstall']) assert.equal(root.scripts[s], undefined, s);
+  for (const k of ['dependencies', 'optionalDependencies', 'bundleDependencies', 'bundledDependencies']) assert.equal(root[k], undefined, k);
+  assert.equal(root.dsh.bundle.patch, './cordis.patch.yml');
+  assert.ok(existsSync(new URL('cordis.patch.yml', rootUrl)));
+  assert.equal(root.main, root.exports['.'].default);
+  // What a git install ships: the same files as the npm package's bundle, patch, icon and locale tables.
+  for (const f of root.files as string[]) assert.ok(!/[*]/u.test(f) && (f === 'README.md' || f === 'LICENSE' || (ALLOWED as string[]).includes(f)), `root files: ${f}`);
+  assert.ok(!root.workspaces.some((w: string) => !w.startsWith('packages/')), 'workspaces are the internal packages only');
   for (const p of ['model', 'art', 'renderer', 'adapter-kit', 'adapter-dsh']) assert.equal(json(`packages/${p}/package.json`).private, true, p);
 });
 

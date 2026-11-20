@@ -1,5 +1,7 @@
 node_modules/
 dist/
+# The plugin build at the root is committed (a `github:` install takes it as it is; scripts/check-build.mjs).
+!/dist/
 out/
 *.tgz
 .research/
