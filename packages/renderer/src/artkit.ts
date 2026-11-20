@@ -56,6 +56,8 @@ export interface BuildingSpec {
   resting: readonly number[];
   /** Subagent annexes, by state. */
   annexes: readonly StateAt[];
+  /** The annex pods stand west of the tower (a lot on the east side of its block), else east. */
+  podsWest?: boolean;
   scheduled: boolean;
   preset: boolean;
   hover: boolean;

@@ -153,6 +153,7 @@ export const en: Record<keyof typeof zh, string> = {
   'card.time': "Time",
   'card.sub': "{n} {n:subagent|subagents}",
   'nav.next': "Next one waiting for you (n)",
+  'card.started': "Started {time} (the time on its door)",
   'card.close': "Close",
   'act.enter': "Go inside",
   'ov.scheduled': "Sessions that scheduled tasks started today, and the next scheduled task. The Scheduler and those buildings stay in colour, roofs edged in blue. The clock over the Scheduler points at the next scheduled task; the clock on a building is when it started. The tag is the start time: ✓ done, × failed, … still running.",

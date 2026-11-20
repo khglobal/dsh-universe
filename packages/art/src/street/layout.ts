@@ -4,6 +4,7 @@
 // the lot is still empty; a tree on a lot goes when a building takes the lot.
 import type { StreetItem, StreetLayout } from '@dsh-universe/renderer';
 import { cityTemplate, hs, rng, type Block } from '@dsh-universe/model';
+import { civicFootprints, inRect, itemRadius, itemRect, lotEnvelope, rectsMeet } from '../footprints.ts';
 
 const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 
@@ -28,11 +29,13 @@ export function cityLayout(): CityLayout {
     if (v === 5) { put(b.bx + 0.4, b.by + 0.4, b.bx + 4.6, b.by + 1.2, 4); put(b.bx + 0.4, b.by + 3.8, b.bx + 4.6, b.by + 4.6, 4); }
     else if (v === 2) put(b.bx + 2.35, b.by + 0.5, b.bx + 2.65, b.by + 4.5, 3);
   }
-  // The quality sample: the quay plaza east of the hall, dressed by hand, without people.
+  // The quality sample: the quay plaza east of the hall (its deck is x 17–20, y 13–16), dressed by hand, without
+  // people. Few pieces, each on its own ground (footprints.ts DETAIL_EXTENT): a café terrace, a newsstand by the water, a
+  // tree in blossom and two signal masts at the deck's west corners. It used to hold nine pieces and three trees on
+  // nine tiles, overlapping one another, the road and the lot to the south: it read as a pile next to the hall.
   const SIGN: Record<number, StreetItem['sign']> = { 4: 'cafe', 5: 'truck', 1: 'news', 0: 'bus' };
   const H = (x: number, y: number, k: number, v = 0) => items.push({ x, y, kind: 'detail', k, v, ...(SIGN[k] ? { sign: SIGN[k] } : {}) });
-  H(18.3, 14.35, 4); H(19.35, 15.25, 5); H(17.75, 15.35, 1); H(18.9, 13.45, 7); H(17.7, 13.4, 6); H(18.6, 16.9, 0); H(17.06, 15.94, 2); H(17.06, 13.06, 2); H(21.94, 15.94, 2);
-  for (const [x, y, v] of [[17.3, 14.5, 2], [19.85, 13.2, 1], [19.9, 16.6, 0]]) H(x, y, 3, v);
+  H(18.7, 14.0, 4); H(19.15, 15.3, 1); H(17.06, 15.94, 2); H(17.06, 13.06, 2); H(17.45, 15.5, 3, 2);
   const ARM = [4, 5, 8, 10, 13, 6, 16, 29, 32];
   for (const b of T.blocks) {
     const h = Math.floor(hs(b.bx, b.by, 31) * 1e6), X = b.bx, Y = b.by;
@@ -50,8 +53,8 @@ export function cityLayout(): CityLayout {
     else if (b.zone === 'shops') { pp(X + 2.5, Y + 2.5, 10); pp(X + 2.5, Y + 1, 10); pp(X + 2.5, Y + 4, 13); pp(X + 2.5, Y + 4.86, 0); pp(X + 1, Y + 2.5, 32); pp(X + 4, Y + 2.5, 32); pp(X + 2.5, Y + 0.3, 24); }
     else if (b.zone === 'library') { pp(X + 1, Y + 4.6, 4); pp(X + 4, Y + 4.6, 4); pp(X + 2.5, Y + 4.7, 5); pp(X + 4.7, Y + 2.5, 8); }
   }
-  for (let k = 0; k < 5; k++) { pp(12.3, 17 + k, 14); pp(16.7, 17 + k, 14); }
-  pp(13, 21.8, 5); pp(16, 21.8, 5); pp(12.7, 16.95, 4); pp(16.3, 16.95, 4); pp(11.9, 22.2, 1); pp(17.2, 12.8, 1); pp(11.9, 12.8, 9); pp(17.2, 22.2, 7); pp(13.5, 21.78, 30); pp(15.5, 21.78, 30); pp(10.6, 13.75, 24); pp(8.2, 14.05, 4); pp(9.4, 14.05, 6); pp(13.2, 17.2, 29); pp(15.9, 20.6, 32);
+  for (let k = 0; k < 5; k++) { pp(12.3, 17.25 + k, 14); pp(16.7, 17.25 + k, 14); }
+  pp(13, 21.8, 5); pp(16, 21.8, 5); pp(12.7, 16.95, 4); pp(16.3, 16.95, 4); pp(11.9, 12.8, 9); pp(17.2, 22.2, 7); pp(13.5, 21.78, 30); pp(15.5, 21.78, 30); pp(8.2, 14.05, 4); pp(9.4, 14.05, 6); pp(13.2, 17.2, 29); pp(15.9, 20.6, 32);
   for (let x = 18; x < 40; x += 2) { pp(x, 16.02, 14); pp(x + 1, 12.98, x % 4 ? 4 : 11); if ((x >> 1) & 1) pp(x + 1.2, 14.9 - (x % 3) * 0.35, 20); }
   put(13.3, 1.3, 15.7, 2.9, 5); put(13.3, 6.2, 15.7, 8.2, 4); put(1.3, 13.2, 5.7, 13.8, 6); put(1.3, 15.3, 5.7, 15.8, 6); put(7.2, 15.3, 11.7, 15.8, 6);
   put(13.3, -11, 15.7, -1, 10); put(13.3, 29.3, 15.7, 39.7, 12); put(-11.5, 13.1, -0.5, 13.7, 10); put(-11.5, 15.3, -0.5, 15.8, 10);
@@ -63,7 +66,15 @@ export function cityLayout(): CityLayout {
   for (const d of deco) if (d.v === 4 && d !== fd) d.v = 3;
   if (fd) fd.v = 4;
   const inSample = (o: { x: number; y: number }) => o.x > 16.9 && o.x < 20.6 && o.y > 12.9 && o.y < 17.1;
-  const kept = items.filter((o) => o.kind === 'detail' || !inSample(o));
+  // Nothing stands in anything else: a random tree that fell inside a civic building, on a session lot it does not
+  // belong to, or on a piece of furniture is left out (the hand-placed pieces are kept clear by checks instead).
+  const civic = civicFootprints(T).flatMap((c) => c.rects);
+  const lots = T.blocks.flatMap((b) => b.lots);
+  const fixed = items.filter((o) => o.kind !== 'tree');
+  const clear = (o: StreetItem) => o.kind !== 'tree' || (!civic.some((r) => inRect(o.x, o.y, r, itemRadius(o)))
+    && !lots.some((L) => L.key !== o.lot && rectsMeet(itemRect(o), lotEnvelope(L)))
+    && !fixed.some((f) => rectsMeet(itemRect(o), itemRect(f))));
+  const kept = items.filter((o) => (o.kind === 'detail' || !inSample(o)) && clear(o));
   cached = { items: kept, deco, lotVariant, ...(fd ? { wheel: [fd.bx + 2.5, fd.by + 2.2] as const } : {}) };
   return cached;
 }
