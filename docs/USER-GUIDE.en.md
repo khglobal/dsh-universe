@@ -132,8 +132,9 @@ device and deleted after 14 days.
 
 ## Sound
 
-**Sound** in the toolbar (off by default) turns on the city's ambience: a low murmur while sessions run, soft ticks
-for calls, a falling sign while calls fail, and two low notes every 2.4 seconds while someone waits in Review Square.
+**Sound** in the toolbar (the speaker button, off by default) turns on the city's ambience: a murmur while sessions
+run (a quiet hum when none do), soft ticks for calls, a falling sign while calls fail, and two soft notes every 2.4
+seconds while someone waits in Review Square.
 Every city (DSH, Claude, ChatGPT, WorkBuddy) has its own pitch and follows its own activity; only the city you are in
 plays, and moving to another crossfades. Zoomed out to all cities, they play quietly together and the card you point
 at or focus comes forward, so you can hear which city is busy. It starts with your first click (browsers allow no sound
