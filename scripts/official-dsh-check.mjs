@@ -12,8 +12,9 @@
 // Nothing is read from or written to the real ~/.dsh or ~/Documents/deepseek-harness; no native picker is opened.
 // No optional host service, workbench or other plugin is present: this is the "official DSH only" case.
 //
-// Steps: npm install @deepseek-ai/dsh@<version>; `dsh plugin --profile web add file:<tgz>` (or the spec); boot the web profile on
-// 127.0.0.1; open DSH Universe from the sidebar (city and list), then its page under Plugins (README and screenshots).
+// Steps: npm install @deepseek-ai/dsh@<version>; `dsh plugin --profile web add file:<tgz>` (or the spec); boot the
+// web profile on 127.0.0.1; open DSH Universe from the sidebar (city and list), then its page under Plugins (README
+// and screenshots).
 // Fails on any console error or warning, page error, failed or non-local request, or a host log line about the plugin.
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
