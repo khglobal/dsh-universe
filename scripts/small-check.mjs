@@ -1,7 +1,8 @@
 // Rendered check of small windows (QA finding 10, #18) on the dev page: at 390x844, 390x700, 360x640, 320x480, 700x300 and 1440x900,
 // in Chinese and English, first run (tour) and after it, legend open and closed, every zoom button is inside the window
 // and under no other control (the tour's card excepted at 320x480, where the city is under 200 px tall). In a room at 390 and 320 px, a floor's tooltip does not stay open over the room once
-// the floor was tapped, nor cover the floor's "On this floor now" list.
+// the floor was tapped, nor cover the floor's "On this floor now" list. The timeline's hour labels at 320, 360 and 390 px
+// wide (#23): drawn inside the dock, at least 4 px apart, none over another.
 //   --shots <dir>   save a screenshot of each case
 //   --allow-skip    no Chromium: skip (and pass)
 import { mkdirSync } from 'node:fs';
@@ -62,6 +63,40 @@ async function main() {
       if (shots) await page.screenshot({ path: join(shots, `small-${lang}-${size.join('x')}-${what.replace(/\W+/g, '-')}.png`) });
       console.log(`zoom: ${lang} ${size.join('x')} ${what}: ${out.length ? 'FAIL ' + out.join('; ') : 'ok'}`);
       failed += out.length ? 1 : 0;
+      await page.close();
+    }
+    // The timeline's hour labels, as drawn: every fillText on the timeline's canvas is recorded with its measured width.
+    for (const lang of ['en', 'zh']) for (const w of [320, 360, 390]) {
+      const page = await b.newPage({ viewport: { width: w, height: 640 }, reducedMotion: 'reduce' });
+      await page.addInitScript(() => {
+        const fill = CanvasRenderingContext2D.prototype.fillText;
+        CanvasRenderingContext2D.prototype.fillText = function (text, x, y, ...rest) {
+          const m = this.measureText(String(text)), a = this.textAlign;
+          const left = a === 'center' ? x - m.width / 2 : a === 'right' || a === 'end' ? x - m.width : x;
+          ((this.canvas.__labels ??= [])).push({ text: String(text), left, right: left + m.width, y });
+          return fill.call(this, text, x, y, ...rest);
+        };
+        try { localStorage.setItem('khglobal-dsh-universe.view', JSON.stringify({ toured: true })); } catch { /* storage off */ }
+      });
+      await page.goto(base + 'index.html?panel=1&fixed=1&lang=' + lang);
+      await page.waitForFunction(() => !!globalThis.__dshuCity?.scene);
+      await page.waitForTimeout(500);
+      const out = await page.evaluate(() => {
+        const cv = [...document.querySelectorAll('canvas[aria-hidden]')].find((c) => c.parentElement?.querySelector('input[type="range"]'));
+        if (!cv) return { problems: ['no timeline canvas'], labels: [] };
+        const all = cv.__labels ?? [];
+        // The last drawing only: labels of one frame share a baseline and come after the clear.
+        const y = all.length ? all[all.length - 1].y : 0;
+        const last = []; for (let i = all.length - 1; i >= 0 && all[i].y === y; i--) last.unshift(all[i]);
+        const width = cv.getBoundingClientRect().width, problems = [];
+        if (last.length < 2) problems.push(`${last.length} hour labels`);
+        for (const l of last) if (l.left < 0 || l.right > width) problems.push(`"${l.text}" leaves the dock`);
+        for (let i = 1; i < last.length; i++) if (last[i].left - last[i - 1].right < 4) problems.push(`"${last[i - 1].text}" and "${last[i].text}" ${last[i].left < last[i - 1].right ? 'overlap' : 'touch'}`);
+        return { problems, labels: last.map((l) => l.text) };
+      });
+      if (shots) await page.screenshot({ path: join(shots, `small-timeline-${lang}-${w}.png`), clip: { x: 0, y: 540, width: w, height: 100 } });
+      console.log(`timeline: ${lang} ${w}px [${out.labels.join(' ')}]: ${out.problems.length ? 'FAIL ' + out.problems.join('; ') : 'ok'}`);
+      failed += out.problems.length ? 1 : 0;
       await page.close();
     }
     // Rooms: a tapped floor's tooltip does not stay over the room; a keyboard focus still shows it.

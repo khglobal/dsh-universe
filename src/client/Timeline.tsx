@@ -105,8 +105,10 @@ export function Timeline(p: TimelineProps) {
     g.font = '11px system-ui, -apple-system, "Segoe UI", sans-serif';
     g.textAlign = 'center';
     g.textBaseline = 'alphabetic';
-    // Hour labels that never touch: every 2 h, every 4 h below 520 px, and only 08, 14, 20 below 420 px.
-    const stepH = w < 420 ? 6 : w < 520 ? 4 : 2, first = stepH === 6 ? 8 : 0;
+    // Hour labels that never touch (#23): the smallest step of 2, 4, 6 (08, 14, 20) or 12 hours (08, 20) whose labels
+    // stay a label's width plus 8 px apart, measured in the font drawn; 14:00 alone when even that does not fit.
+    const perHour = (w - 20) * HOUR / (to - from), labelW = g.measureText(clock(d0 + 20 * HOUR, lang)).width + 8;
+    const stepH = [2, 4, 6, 12].find((s) => s * perHour >= labelW) ?? 24, first = stepH === 24 ? 14 : stepH >= 6 ? 8 : 0;
     for (let hh = Math.ceil((from - d0) / HOUR); d0 + hh * HOUR <= to; hh++) {
       if ((hh - first) % stepH) continue;
       const x = Math.round(Math.min(w - 22, Math.max(22, X(d0 + hh * HOUR))));

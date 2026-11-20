@@ -16,6 +16,7 @@ export const en: Record<keyof typeof zh, string> = {
   'e.retry': 'Read again',
   'e.partial': 'Earlier records of today could not all be read; counting starts when the plugin started.',
   'e.full': 'Too many records today; later events were not kept.',
+  'e.crowded': 'The city is full: {m} more {m:session has|sessions have} no building; see {m:it|them} in the list.',
   'td.label': 'Today',
   'td.need': '{n} need you',
   'td.sched': 'Next scheduled task {t} · {d}',

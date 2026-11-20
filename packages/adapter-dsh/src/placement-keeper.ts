@@ -21,13 +21,15 @@ export interface PlacementKeeper {
 }
 
 /** `key`: where the placement is kept (an adjacent city keeps its own under its own key). */
-export function createPlacementKeeper(o: { table: KvLike; onError?: (e: unknown) => void; key?: string }): PlacementKeeper {
+/** `dayStart`: the start of the host's day at a time; a full city renews earlier days' finished buildings (placement.ts). */
+export function createPlacementKeeper(o: { table: KvLike; onError?: (e: unknown) => void; key?: string; dayStart?: (t: number) => number }): PlacementKeeper {
   const KEY = o.key ?? PLACEMENT_KEY;
   const template = cityTemplate();
   let state = emptyPlacement();
   let version = 0;
   let dirty = false;
   const pending = new Map<string, { workspaceId: string; startedAt: number; root: boolean }>();
+  const retired = new Set<string>();
   return {
     async load() {
       try { state = readPlacement(await o.table.get(KEY)); } catch (e) { o.onError?.(e); }
@@ -42,11 +44,14 @@ export function createPlacementKeeper(o: { table: KvLike; onError?: (e: unknown)
         if (d.parentAgentId || d.kind === 'subagent') p.root = false;
         pending.set(d.id, p);
       }
-      const arrivals = [...pending].filter(([id, p]) => p.root && Number.isFinite(p.startedAt) && state.lots[id] === undefined)
+      const arrivals = [...pending].filter(([id, p]) => p.root && Number.isFinite(p.startedAt) && state.lots[id] === undefined && !retired.has(id))
         .map(([sessionId, p]) => ({ sessionId, workspaceId: p.workspaceId || 'default', startedAt: p.startedAt }));
       if (!arrivals.length) return false;
-      const r = place(template, state, arrivals);
+      const latest = Math.max(...arrivals.map((x) => x.startedAt));
+      const r = place(template, state, arrivals, o.dayStart ? { renewBefore: o.dayStart(latest), startedOf: (id) => { const p = pending.get(id); return p && Number.isFinite(p.startedAt) ? p.startedAt : undefined; } } : {});
       if (!r.placed.length && r.state.growth === state.growth) return false;
+      // Buildings a full city renewed are gone for good: never placed again (they would take another lot back).
+      for (const id of Object.keys(state.lots)) if (r.state.lots[id] === undefined) retired.add(id);
       state = r.state;
       version++;
       dirty = true;

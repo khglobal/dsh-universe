@@ -21,6 +21,11 @@ Plugins** (what you installed) and one **Model Hub** per model. Each MCP server 
 installed plugins line **Plugin Row**. Workspaces are
 districts, each with a sign showing the workspace's name.
 
+Buildings of earlier days stay standing, finished. When the city has grown to its largest and every lot is taken, a new
+session takes the lot of the oldest finished building of an earlier day, so today's sessions always have a building. On
+a day with more sessions than the city holds, a calm note over the city says how many have no building; they are all in
+the list.
+
 Point at a building to see its card: what the session is doing, its calls, token use and time. **Open session**
 on the card takes you to the session in DSH; clicking the building takes you inside. Open **Legend** for a one-page key. The first time you open
 DSH Universe a four-step tour points these out; **Show the tour again** in the legend repeats it.
